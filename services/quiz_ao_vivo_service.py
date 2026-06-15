@@ -1,13 +1,25 @@
 import os
+import uuid  # <-- Adicionado para validação permanente de chaves UUID
 from typing import Any, Dict, List, Optional, Tuple
 
 from supabase import Client, create_client
-
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "YOUR-SUPABASE-URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "YOUR-SUPABASE-KEY")
 
 banco: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+
+# ==========================================
+# Helper de Validação de UUID
+# ==========================================
+def _eh_uuid_valido(valor: Any) -> bool:
+    """Verifica localmente se uma string está no formato UUID correto."""
+    try:
+        uuid.UUID(str(valor).strip())
+        return True
+    except ValueError:
+        return False
 
 
 # ==========================================
@@ -19,11 +31,13 @@ def _first_row(data: Any) -> Optional[Dict[str, Any]]:
     return data if data else None
 
 
-def repo_get_usuario(usuario_id: int) -> Optional[Dict[str, Any]]:
+def repo_get_usuario(usuario_id: str) -> Optional[Dict[str, Any]]:
+    if not _eh_uuid_valido(usuario_id):
+        return None
     res = (
         banco.table("usuarios")
         .select("*")
-        .eq("id", usuario_id)
+        .eq("id", str(usuario_id).strip())
         .limit(1)
         .execute()
     )
@@ -35,72 +49,85 @@ def repo_insert_quiz(dados_quiz: Dict[str, Any]) -> Dict[str, Any]:
     return _first_row(res.data) or {}
 
 
-def repo_get_quiz(quiz_id: int) -> Optional[Dict[str, Any]]:
+def repo_get_quiz(quiz_id: str) -> Optional[Dict[str, Any]]:
+    if not _eh_uuid_valido(quiz_id):
+        return None
     res = (
         banco.table("quizzes")
         .select("*")
-        .eq("id", quiz_id)
+        .eq("id", str(quiz_id).strip())
         .limit(1)
         .execute()
     )
     return _first_row(res.data)
 
 
-def repo_update_quiz_status(quiz_id: int, status: str) -> Optional[Dict[str, Any]]:
+def repo_update_quiz_status(quiz_id: str, status: str) -> Optional[Dict[str, Any]]:
+    if not _eh_uuid_valido(quiz_id):
+        return None
     res = (
         banco.table("quizzes")
         .update({"status": status})
-        .eq("id", quiz_id)
+        .eq("id", str(quiz_id).strip())
         .execute()
     )
     return _first_row(res.data)
 
 
 def repo_update_pergunta_atual(
-    quiz_id: int,
+    quiz_id: str,
     pergunta_atual: int,
 ) -> Optional[Dict[str, Any]]:
+    if not _eh_uuid_valido(quiz_id):
+        return None
     res = (
         banco.table("quizzes")
         .update({"pergunta_atual": pergunta_atual})
-        .eq("id", quiz_id)
+        .eq("id", str(quiz_id).strip())
         .execute()
     )
     return _first_row(res.data)
 
 
-def repo_update_quiz_inicio(quiz_id: int) -> Optional[Dict[str, Any]]:
+def repo_update_quiz_inicio(quiz_id: str) -> Optional[Dict[str, Any]]:
+    if not _eh_uuid_valido(quiz_id):
+        return None
     res = (
         banco.table("quizzes")
         .update({"status": "iniciado", "pergunta_atual": 0})
-        .eq("id", quiz_id)
+        .eq("id", str(quiz_id).strip())
         .execute()
     )
     return _first_row(res.data)
 
 
 def repo_insert_pergunta(dados_pergunta: Dict[str, Any]) -> Dict[str, Any]:
-    res = banco.table("perguntas_quizaovivo").insert(dados_pergunta).execute()
+    # Ajustado para a tabela correta do novo Script SQL
+    res = banco.table("perguntas_quiz").insert(dados_pergunta).execute()
     return _first_row(res.data) or {}
 
 
-def repo_get_pergunta(pergunta_id: int) -> Optional[Dict[str, Any]]:
+def repo_get_pergunta(pergunta_id: str) -> Optional[Dict[str, Any]]:
+    if not _eh_uuid_valido(pergunta_id):
+        return None
     res = (
-        banco.table("perguntas_quizaovivo")
+        banco.table("perguntas_quiz")
         .select("*")
-        .eq("id", pergunta_id)
+        .eq("id", str(pergunta_id).strip())
         .limit(1)
         .execute()
     )
     return _first_row(res.data)
 
 
-def repo_get_perguntas_quizaovivo(quiz_id: int) -> List[Dict[str, Any]]:
+def repo_get_perguntas_quizaovivo(quiz_id: str) -> List[Dict[str, Any]]:
+    if not _eh_uuid_valido(quiz_id):
+        return []
     res = (
-        banco.table("perguntas_quizaovivo")
+        banco.table("perguntas_quiz")
         .select("*")
-        .eq("quiz_id", quiz_id)
-        .order("id")
+        .eq("quiz_id", str(quiz_id).strip())
+        .order("ordem")  # Ordena pela coluna de ordenação sequencial do jogo
         .execute()
     )
     return res.data or []
@@ -109,17 +136,20 @@ def repo_get_perguntas_quizaovivo(quiz_id: int) -> List[Dict[str, Any]]:
 def repo_insert_participacao_quizaovivo(
     dados_participacao: Dict[str, Any],
 ) -> Dict[str, Any]:
-    res = banco.table("participacao_quizaovivo").insert(dados_participacao).execute()
+    # Ajustado para a tabela correta: participantes_quiz
+    res = banco.table("participantes_quiz").insert(dados_participacao).execute()
     return _first_row(res.data) or {}
 
 
 def repo_get_participacao_quizaovivo(
-    participacao_id: int,
+    participacao_id: str,
 ) -> Optional[Dict[str, Any]]:
+    if not _eh_uuid_valido(participacao_id):
+        return None
     res = (
-        banco.table("participacao_quizaovivo")
+        banco.table("participantes_quiz")
         .select("*")
-        .eq("id", participacao_id)
+        .eq("id", str(participacao_id).strip())
         .limit(1)
         .execute()
     )
@@ -127,14 +157,16 @@ def repo_get_participacao_quizaovivo(
 
 
 def repo_get_participacao_por_aluno_quiz(
-    aluno_id: int,
-    quiz_id: int,
+    aluno_id: str,
+    quiz_id: str,
 ) -> Optional[Dict[str, Any]]:
+    if not _eh_uuid_valido(aluno_id) or not _eh_uuid_valido(quiz_id):
+        return None
     res = (
-        banco.table("participacao_quizaovivo")
+        banco.table("participantes_quiz")
         .select("*")
-        .eq("aluno_id", aluno_id)
-        .eq("quiz_id", quiz_id)
+        .eq("usuario_id", str(aluno_id).strip())
+        .eq("quiz_id", str(quiz_id).strip())
         .limit(1)
         .execute()
     )
@@ -142,13 +174,15 @@ def repo_get_participacao_por_aluno_quiz(
 
 
 def repo_update_pontuacao_participacao(
-    participacao_id: int,
+    participacao_id: str,
     nova_pontuacao: int,
 ) -> Optional[Dict[str, Any]]:
+    if not _eh_uuid_valido(participacao_id):
+        return None
     res = (
-        banco.table("participacao_quizaovivo")
+        banco.table("participantes_quiz")
         .update({"pontuacao": nova_pontuacao})
-        .eq("id", participacao_id)
+        .eq("id", str(participacao_id).strip())
         .execute()
     )
     return _first_row(res.data)
@@ -157,30 +191,35 @@ def repo_update_pontuacao_participacao(
 def repo_insert_resposta_quizaovivo(
     dados_resposta: Dict[str, Any],
 ) -> Dict[str, Any]:
-    res = banco.table("respostas_quizaovivo").insert(dados_resposta).execute()
+    # Ajustado para a tabela correta: respostas_quiz
+    res = banco.table("respostas_quiz").insert(dados_resposta).execute()
     return _first_row(res.data) or {}
 
 
 def repo_get_resposta_por_participacao_pergunta(
-    participacao_id: int,
-    pergunta_id: int,
+    participacao_id: str,
+    pergunta_id: str,
 ) -> Optional[Dict[str, Any]]:
+    if not _eh_uuid_valido(participacao_id) or not _eh_uuid_valido(pergunta_id):
+        return None
     res = (
-        banco.table("respostas_quizaovivo")
+        banco.table("respostas_quiz")
         .select("*")
-        .eq("participacao_id", participacao_id)
-        .eq("pergunta_id", pergunta_id)
+        .eq("participante_id", str(participacao_id).strip())
+        .eq("pergunta_id", str(pergunta_id).strip())
         .limit(1)
         .execute()
     )
     return _first_row(res.data)
 
 
-def repo_get_ranking_quiz(quiz_id: int) -> List[Dict[str, Any]]:
+def repo_get_ranking_quiz(quiz_id: str) -> List[Dict[str, Any]]:
+    if not _eh_uuid_valido(quiz_id):
+        return []
     res = (
-        banco.table("participacao_quizaovivo")
+        banco.table("participantes_quiz")
         .select("pontuacao, usuarios(nome)")
-        .eq("quiz_id", quiz_id)
+        .eq("quiz_id", str(quiz_id).strip())
         .order("pontuacao", desc=True)
         .execute()
     )
@@ -195,7 +234,7 @@ def _ok(dados: Any = None, mensagem: Optional[str] = None) -> Dict[str, Any]:
     if dados is not None:
         resposta["dados"] = dados
     if mensagem:
-        resposta["mensagem"] = mensagem
+        resposta["mensagem"] = message = mensagem
     return resposta
 
 
@@ -203,7 +242,7 @@ def _erro(mensagem: str) -> Dict[str, Any]:
     return {"sucesso": False, "mensagem": mensagem}
 
 
-def _verificar_permissao_professor(usuario_id: int) -> Tuple[bool, str]:
+def _verificar_permissao_professor(usuario_id: str) -> Tuple[bool, str]:
     try:
         usuario = repo_get_usuario(usuario_id)
         if not usuario:
@@ -219,8 +258,8 @@ def _verificar_permissao_professor(usuario_id: int) -> Tuple[bool, str]:
 
 
 def _validar_professor_dono_quiz(
-    quiz_id: int,
-    professor_id: int,
+    quiz_id: str,
+    professor_id: str,
 ) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
     permitido, motivo = _verificar_permissao_professor(professor_id)
     if not permitido:
@@ -230,14 +269,14 @@ def _validar_professor_dono_quiz(
     if not quiz:
         return None, _erro("Quiz nao encontrado.")
 
-    if quiz.get("professor_id") != professor_id:
+    if str(quiz.get("criado_por")) != str(professor_id).strip():
         return None, _erro("Este quiz pertence a outro professor.")
 
     return quiz, None
 
 
 # --- Professor ---
-def criar_quiz(titulo: str, professor_id: int) -> Dict[str, Any]:
+def criar_quiz(titulo: str, professor_id: str) -> Dict[str, Any]:
     titulo = titulo.strip() if titulo else ""
     if len(titulo) < 3:
         return _erro("O titulo deve ter pelo menos 3 caracteres.")
@@ -248,9 +287,9 @@ def criar_quiz(titulo: str, professor_id: int) -> Dict[str, Any]:
 
     novo_quiz = {
         "titulo": titulo,
-        "professor_id": professor_id,
-        "status": "pendente",
-        "pergunta_atual": None,
+        "criado_por": str(professor_id).strip(),
+        "status": "criado",
+        "pergunta_atual": 0,
     }
 
     try:
@@ -260,8 +299,8 @@ def criar_quiz(titulo: str, professor_id: int) -> Dict[str, Any]:
 
 
 def adicionar_pergunta(
-    quiz_id: int,
-    professor_id: int,
+    quiz_id: str,
+    professor_id: str,
     texto: str,
     alternativas: List[str],
     indice_correto: int,
@@ -283,11 +322,16 @@ def adicionar_pergunta(
         if erro:
             return erro
 
+        # Descobre a próxima ordem incremental das perguntas do quiz
+        perguntas_existentes = repo_get_perguntas_quizaovivo(quiz_id)
+        proxima_ordem = len(perguntas_existentes)
+
         nova_pergunta = {
-            "quiz_id": quiz_id,
+            "quiz_id": str(quiz_id).strip(),
             "texto": texto,
             "alternativas": alternativas_limpas,
             "indice_correto": indice_correto,
+            "ordem": proxima_ordem,
         }
         return _ok(repo_insert_pergunta(nova_pergunta))
     except Exception as exc:
@@ -295,8 +339,8 @@ def adicionar_pergunta(
 
 
 def alterar_status_quiz(
-    quiz_id: int,
-    professor_id: int,
+    quiz_id: str,
+    professor_id: str,
     novo_status: str,
 ) -> Dict[str, Any]:
     if novo_status not in {"iniciado", "finalizado"}:
@@ -326,7 +370,7 @@ def alterar_status_quiz(
         return _erro(f"Erro ao alterar status: {exc}")
 
 
-def avancar_pergunta(quiz_id: int, professor_id: int) -> Dict[str, Any]:
+def avancar_pergunta(quiz_id: str, professor_id: str) -> Dict[str, Any]:
     try:
         quiz, erro = _validar_professor_dono_quiz(quiz_id, professor_id)
         if erro:
@@ -359,7 +403,7 @@ def avancar_pergunta(quiz_id: int, professor_id: int) -> Dict[str, Any]:
 
 
 # --- Aluno ---
-def entrar_quiz(aluno_id: int, quiz_id: int) -> Dict[str, Any]:
+def entrar_quiz(aluno_id: str, quiz_id: str) -> Dict[str, Any]:
     try:
         quiz = repo_get_quiz(quiz_id)
         if not quiz or quiz.get("status") != "iniciado":
@@ -370,10 +414,9 @@ def entrar_quiz(aluno_id: int, quiz_id: int) -> Dict[str, Any]:
             return _ok(existente, "Aluno ja ingressado neste quiz.")
 
         nova_participacao = {
-            "quiz_id": quiz_id,
-            "aluno_id": aluno_id,
+            "quiz_id": str(quiz_id).strip(),
+            "usuario_id": str(aluno_id).strip(),
             "pontuacao": 0,
-            "finalizou": False,
         }
         return _ok(repo_insert_participacao_quizaovivo(nova_participacao))
     except Exception as exc:
@@ -385,7 +428,7 @@ def entrar_quiz(aluno_id: int, quiz_id: int) -> Dict[str, Any]:
         return _erro(f"Erro ao ingressar no quiz: {mensagem}")
 
 
-def obter_participacao(participacao_id: int) -> Dict[str, Any]:
+def obter_participacao(participacao_id: str) -> Dict[str, Any]:
     try:
         participacao = repo_get_participacao_quizaovivo(participacao_id)
         if not participacao:
@@ -395,7 +438,7 @@ def obter_participacao(participacao_id: int) -> Dict[str, Any]:
         return _erro(f"Erro ao obter participacao: {exc}")
 
 
-def obter_pergunta_atual_quiz(quiz_id: int) -> Dict[str, Any]:
+def obter_pergunta_atual_quiz(quiz_id: str) -> Dict[str, Any]:
     try:
         quiz = repo_get_quiz(quiz_id)
         if not quiz:
@@ -431,13 +474,13 @@ def obter_pergunta_atual_quiz(quiz_id: int) -> Dict[str, Any]:
 
 
 def responder_pergunta(
-    participacao_id: int,
-    pergunta_id: int,
+    participacao_id: str,
+    pergunta_id: str,
     indice_resposta: int,
 ) -> Dict[str, Any]:
     try:
         participacao = repo_get_participacao_quizaovivo(participacao_id)
-        if not participacao or participacao.get("finalizou"):
+        if not participacao:
             return _erro("Participacao invalida ou quiz ja finalizado.")
 
         pergunta = repo_get_pergunta(pergunta_id)
@@ -474,8 +517,8 @@ def responder_pergunta(
 
         correta = indice_resposta == pergunta.get("indice_correto")
         nova_resposta = {
-            "participacao_id": participacao_id,
-            "pergunta_id": pergunta_id,
+            "participante_id": str(participacao_id).strip(),
+            "pergunta_id": str(pergunta_id).strip(),
             "indice_resposta": indice_resposta,
             "correta": correta,
         }
@@ -501,14 +544,14 @@ def responder_pergunta(
         return _erro(f"Erro ao registrar resposta: {exc}")
 
 
-def obter_ranking(quiz_id: int) -> Dict[str, Any]:
+def obter_ranking(quiz_id: str) -> Dict[str, Any]:
     try:
         return _ok(repo_get_ranking_quiz(quiz_id))
     except Exception as exc:
         return _erro(f"Erro ao obter ranking: {exc}")
 
 
-def obter_perguntas_quizaovivo(quiz_id: int) -> Dict[str, Any]:
+def obter_perguntas_quizaovivo(quiz_id: str) -> Dict[str, Any]:
     try:
         perguntas = repo_get_perguntas_quizaovivo(quiz_id)
         perguntas_sem_gabarito = []
@@ -519,4 +562,3 @@ def obter_perguntas_quizaovivo(quiz_id: int) -> Dict[str, Any]:
         return _ok(perguntas_sem_gabarito)
     except Exception as exc:
         return _erro(f"Erro ao obter perguntas: {exc}")
-
