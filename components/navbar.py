@@ -1,6 +1,5 @@
 import streamlit as st
 
-<<<<<<< HEAD
 def mostrar_menu():
     """Gera a barra de navegação lateral padronizada para todo o ecossistema."""
     
@@ -100,8 +99,6 @@ def mostrar_menu():
         st.session_state.usuario_logado = None
         st.session_state.pagina = "login"
         st.rerun()
-=======
-
 def mostrar_menu():
     pagina_atual = st.session_state.get("pagina", "home")
     usuario      = st.session_state.usuario_logado
@@ -179,4 +176,3 @@ def mostrar_menu():
             st.session_state.usuario_logado = None
             st.session_state.pagina = "login"
             st.rerun()
->>>>>>> 55ea97eb78baf814069a38414777bcba0ff8e98e

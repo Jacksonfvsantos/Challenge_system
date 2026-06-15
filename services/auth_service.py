@@ -1,14 +1,11 @@
 import hashlib
 import re
-
 from database.conexao import supabase
 
 
 def criptografar_senha(senha):
     """Cria um hash SHA-256 seguro a partir da senha em texto limpo."""
-    return hashlib.sha256(
-        senha.encode()
-    ).hexdigest()
+    return hashlib.sha256(senha.encode()).hexdigest()
 
 
 def senha_valida(senha):
@@ -17,21 +14,23 @@ def senha_valida(senha):
         return "A senha deve ter no mínimo 8 caracteres"
 
     if not re.search(r"[A-Z]", senha):
-        return "A senha deve conter letra maiúscula"
+        return "A senha deve conter pelo menos uma letra maiúscula"
 
     if not re.search(r"\d", senha):
-        return "A senha deve conter número"
+        return "A senha deve conter pelo menos um número"
 
     return "ok"
 
 
 def login_usuario(email, senha):
     """Realiza a busca do usuário no banco com base no e-mail e hash da senha."""
+    email_sanitizado = str(email).strip().lower()
+    
     resposta = (
         supabase
         .table("usuarios")
         .select("*")
-        .eq("email", email)
+        .eq("email", email_sanitizado)
         .eq("senha", criptografar_senha(senha))
         .execute()
     )
@@ -42,12 +41,7 @@ def login_usuario(email, senha):
     return None
 
 
-def cadastrar_usuario(
-    nome,
-    email,
-    tipo_usuario,
-    senha
-):
+def cadastrar_usuario(nome, email, tipo_usuario, senha):
     """Efetua o cadastro do novo usuário diretamente na tabela unificada."""
     try:
         # 1. Valida as regras de complexidade da senha
@@ -55,12 +49,15 @@ def cadastrar_usuario(
         if validar != "ok":
             return validar
 
+        # Sanitização para evitar duplicidade de e-mails por formatação
+        email_sanitizado = str(email).strip().lower()
+
         # 2. Verifica se o e-mail já existe na tabela única
         verificar = (
             supabase
             .table("usuarios")
             .select("id")
-            .eq("email", email)
+            .eq("email", email_sanitizado)
             .execute()
         )
 
@@ -68,22 +65,19 @@ def cadastrar_usuario(
             return "E-mail já cadastrado"
 
         # 3. Insere o novo registro centralizado na tabela 'usuarios'
-        supabase.table(
-            "usuarios"
-        ).insert({
-            "nome": nome,
-            "email": email,
+        supabase.table("usuarios").insert({
+            "nome": nome.strip(),
+            "email": email_sanitizado,
             "tipo_usuario": tipo_usuario,
             "senha": criptografar_senha(senha)
         }).execute()
 
-        # ✅ Correção: Removidos os espelhamentos para as tabelas antigas 'professores' e 'alunos'
         return "ok"
 
     except Exception as erro:
-<<<<<<< HEAD
         return f"Erro ao cadastrar usuário: {erro}"
-    
+
+
 def excluir_conta_usuario(usuario_id: str) -> bool:
     """Remove permanentemente a conta do usuário da tabela unificada do Supabase."""
     try:
@@ -100,6 +94,3 @@ def excluir_conta_usuario(usuario_id: str) -> bool:
     except Exception as erro:
         print(f"Erro ao excluir conta: {erro}")
         return False
-=======
-        return f"Erro ao cadastrar usuário: {erro}"
->>>>>>> 55ea97eb78baf814069a38414777bcba0ff8e98e
