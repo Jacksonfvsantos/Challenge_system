@@ -225,6 +225,7 @@ def repo_get_ranking_quiz(quiz_id: str) -> List[Dict[str, Any]]:
     )
     return res.data or []
 
+<<<<<<< HEAD
 # Adicione esta função no bloco "Repository layer" ou "Service layer"
 def listar_quizzes_professor(professor_id: str) -> List[Dict[str, Any]]:
     """Busca todos os quizzes criados por um professor específico para o selectbox."""
@@ -283,6 +284,8 @@ def criar_quiz(titulo: str, professor_id: str, disciplina_nome: str = "", tema: 
         if "42501" in str(exc):
             return _erro("Erro de permissão no servidor. RLS ativo.")
         return _erro("Desculpe, ocorreu um erro inesperado ao salvar o quiz.")
+=======
+>>>>>>> 55ea97eb78baf814069a38414777bcba0ff8e98e
 
 # ==========================================
 # Service layer

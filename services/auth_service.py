@@ -81,6 +81,7 @@ def cadastrar_usuario(
         return "ok"
 
     except Exception as erro:
+<<<<<<< HEAD
         return f"Erro ao cadastrar usuário: {erro}"
     
 def excluir_conta_usuario(usuario_id: str) -> bool:
@@ -99,3 +100,6 @@ def excluir_conta_usuario(usuario_id: str) -> bool:
     except Exception as erro:
         print(f"Erro ao excluir conta: {erro}")
         return False
+=======
+        return f"Erro ao cadastrar usuário: {erro}"
+>>>>>>> 55ea97eb78baf814069a38414777bcba0ff8e98e

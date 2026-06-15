@@ -1,4 +1,5 @@
 import streamlit as st
+<<<<<<< HEAD
 from datetime import datetime
 from services.desafio_service import listar_desafios, criar_desafio
 from utils.estilo import aplicar_estilo, cabecalho
@@ -15,6 +16,11 @@ def formatar_data_br(data_str):
     except Exception:
         return data_str
 
+=======
+from services.desafio_service import listar_desafios, criar_desafio
+from utils.estilo import aplicar_estilo, cabecalho
+
+>>>>>>> 55ea97eb78baf814069a38414777bcba0ff8e98e
 def tela_desafios():
     aplicar_estilo()
     
@@ -22,6 +28,7 @@ def tela_desafios():
     tipo_usuario = usuario.get("tipo_usuario", "aluno")
     usuario_id = usuario.get("id")
 
+<<<<<<< HEAD
     cabecalho("Central de Desafios", "Explore os desafios de programação disponíveis ou crie novos.")
 
     # Inicialização do controle de abas ativo na sessão para permitir redirecionamento dinâmico
@@ -35,6 +42,16 @@ def tela_desafios():
 
     # --- ABA 1: LISTAR DESAFIOS ---
     with abas[0]:
+=======
+    cabecalho("Central de Desafios", "Explore os desafios de programacao disponiveis ou crie novos.")
+
+    if tipo_usuario == "professor":
+        aba1, aba2 = st.tabs(["Desafios Ativos", "Criar Novo Desafio"])
+    else:
+        aba1, = st.tabs(["Desafios Ativos"])
+
+    with aba1:
+>>>>>>> 55ea97eb78baf814069a38414777bcba0ff8e98e
         st.subheader("Lista de Desafios")
         try:
             desafios = listar_desafios()
@@ -42,6 +59,7 @@ def tela_desafios():
             desafios = []
 
         if not desafios:
+<<<<<<< HEAD
             st.info("Nenhum desafio disponível no momento.")
         else:
             for desafio in desafios:
@@ -53,6 +71,17 @@ def tela_desafios():
                 prazo_cru = desafio.get('data_limite', 'Sem prazo')
                 prazo_br = formatar_data_br(prazo_cru)
 
+=======
+            st.info("Nenhum desafio disponivel no momento.")
+        else:
+            for desafio in desafios:
+                titulo = desafio.get('titulo', 'Sem Titulo')
+                descricao = desafio.get('descricao', 'Sem descricao.')
+                nivel = desafio.get("nivel_dificuldade") or desafio.get("nivel") or "Nao informado"
+                prazo = desafio.get('data_limite', 'Sem prazo')
+
+                # Injecao direta de HTML estruturado para forcar o comportamento do CSS customizado
+>>>>>>> 55ea97eb78baf814069a38414777bcba0ff8e98e
                 st.markdown(f"""
                 <div style="
                     background-color: #ffffff;
@@ -66,12 +95,18 @@ def tela_desafios():
                     <h3 style="margin-top: 0; color: #1b3a5c; font-size: 20px;">{titulo}</h3>
                     <p style="color: #333333; font-size: 14px; line-height: 1.5;">{descricao}</p>
                     <div style="display: flex; justify-content: space-between; margin-top: 15px; border-top: 1px solid #f0f0f0; padding-top: 10px;">
+<<<<<<< HEAD
                         <span style="font-size: 12px; color: #666666;"><strong>Nível:</strong> {nivel}</span>
                         <span style="font-size: 12px; color: #666666; font-weight: bold;">📅 Prazo Limite: {prazo_br}</span>
+=======
+                        <span style="font-size: 12px; color: #666666;"><strong>Nivel:</strong> {nivel}</span>
+                        <span style="font-size: 12px; color: #666666;"><strong>Prazo:</strong> {prazo}</span>
+>>>>>>> 55ea97eb78baf814069a38414777bcba0ff8e98e
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
 
+<<<<<<< HEAD
     # --- ABA 2: CADASTRAR DESAFIO (PROFESSOR) ---
     if tipo_usuario == "professor":
         with abas[1]:
@@ -110,3 +145,25 @@ def tela_desafios():
                             st.rerun()
                         else:
                             st.error(res.get("mensagem", "Erro ao tentar registrar o desafio."))
+=======
+    if tipo_usuario == "professor":
+        with aba2:
+            st.subheader("Cadastrar Novo Desafio")
+            with st.form("form_novo_desafio"):
+                titulo = st.text_input("Titulo do Desafio")
+                descricao = st.text_area("Descricao / Enunciado")
+                nivel = st.selectbox("Nivel de Dificuldade", ["Facil", "Medio", "Dificil"])
+                data_limite = st.date_input("Data Limite (Opcional)", value=None)
+                
+                enviado = st.form_submit_button("Salvar Desafio", width="stretch")
+                if enviado:
+                    if not titulo or not descricao:
+                        st.error("Por favor, preencha o titulo e a descricao.")
+                    else:
+                        res = criar_desafio(titulo, descricao, usuario_id, data_limite, nivel)
+                        if res.get("sucesso"):
+                            st.success("Desafio criado com sucesso!")
+                            st.rerun()
+                        else:
+                            st.error(res.get("mensagem", "Erro ao criar desafio."))
+>>>>>>> 55ea97eb78baf814069a38414777bcba0ff8e98e

@@ -1,6 +1,10 @@
 import streamlit as st
+<<<<<<< HEAD
 from telas.regras import tela_central_regras
 from telas.pontuacoes import tela_pontuacoes
+=======
+
+>>>>>>> 55ea97eb78baf814069a38414777bcba0ff8e98e
 from utils.session import iniciar_session
 from components.navbar import mostrar_menu
 
@@ -248,12 +252,15 @@ elif pagina == "batalha_respostas":
 
 elif pagina == "batalha_regras":
     tela_batalha_regras()
+<<<<<<< HEAD
     
 elif pagina == "pontuacoes":
     tela_pontuacoes()
 
 elif pagina == "regras_plataforma":
     tela_central_regras()
+=======
+>>>>>>> 55ea97eb78baf814069a38414777bcba0ff8e98e
 
 else:
     tela_home()

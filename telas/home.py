@@ -1,6 +1,9 @@
 import streamlit as st
 from services.desafio_service import listar_desafios
+<<<<<<< HEAD
 from services.auth_service import excluir_conta_usuario  # <-- Importado o serviço de exclusão
+=======
+>>>>>>> 55ea97eb78baf814069a38414777bcba0ff8e98e
 from utils.estilo import aplicar_estilo, cabecalho
 
 def tela_home():
@@ -23,6 +26,7 @@ def tela_home():
         
     if not desafios:
         st.info("Nenhum desafio listado no momento.")
+<<<<<<< HEAD
     else:
         # Renderização segura dos desafios cadastrados (Exibe os 3 primeiros como destaque)
         for desafio in desafios[:3]:  
@@ -79,3 +83,21 @@ def tela_home():
                     st.rerun()
                 else:
                     st.error("Não foi possível processar a exclusão. Verifique sua conexão com o banco.")
+=======
+        return
+
+    # Renderização segura dos desafios cadastrados
+    for desafio in desafios[:3]:  # Exibe os 3 primeiros como destaque
+        with st.container(border=True):
+            st.markdown(f"### {desafio.get('titulo', 'Sem Título')}")
+            st.write(desafio.get("descricao", "Sem descrição disponível."))
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                # CORREÇÃO CRÍTICA: chave alterada de 'nivel' para 'nivel_dificuldade'
+                nivel = desafio.get("nivel_dificuldade") or desafio.get("nivel") or "Não informado"
+                st.caption(f"**Nível:** {nivel}")
+            with col2:
+                prazo = desafio.get("data_limite", "Sem prazo")
+                st.caption(f"**Prazo final:** {prazo}")
+>>>>>>> 55ea97eb78baf814069a38414777bcba0ff8e98e

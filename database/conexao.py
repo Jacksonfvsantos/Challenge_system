@@ -23,4 +23,8 @@ if not url or not key:
         "Configure SUPABASE_URL e SUPABASE_KEY em st.secrets ou no arquivo .env"
     )
 
+<<<<<<< HEAD
 supabase = create_client(url, key)
+=======
+supabase = create_client(url, key)
+>>>>>>> 55ea97eb78baf814069a38414777bcba0ff8e98e
