@@ -5,19 +5,30 @@ def mostrar_menu(cookie_manager):
     Renderiza a barra lateral com a identificação do usuário no topo,
     menu de navegação vertical e o botão de logout na base.
     """
-    # 1. EXIBIÇÃO DO PERFIL DO USUÁRIO NO TOPO DA BARRA LATERAL
+    # 1. EXIBIÇÃO DO PERFIL DO USUÁRIO NO TOPO DA BARRA LATERAL (CONTRASTE MELHORADO)
     usuario = st.session_state.get("usuario_logado", {})
     nome_usuario = usuario.get("nome", "Usuário")
     perfil_usuario = str(usuario.get("tipo_usuario", "aluno")).upper()
     
+    # Define as cores do badge dinamicamente para aumentar o destaque visual
+    cor_badge_fundo = "#1e3a8a" if perfil_usuario == "PROFESSOR" else "#065f46"
+    cor_badge_texto = "#93c5fd" if perfil_usuario == "PROFESSOR" else "#a7f3d0"
+    badge_emoji = "👨‍🏫" if perfil_usuario == "PROFESSOR" else "👨‍🎓"
+
     with st.sidebar.container(border=True):
         st.markdown(f"""
-        <div style="font-size: 13px; line-height: 1.5; text-align: center;">
-            <p style="margin: 0; color: #777; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">Sessão Ativa</p>
-            <h4 style="margin: 5px 0; color: #1b3a5c;">👤 {nome_usuario}</h4>
-            <span style="background:#edf2f7; color:#2d3748; padding:2px 8px; border-radius:10px; font-size: 10px; font-weight: bold;">
-                {perfil_usuario}
-            </span>
+        <div style="text-align: center; padding: 5px 0;">
+            <p style="margin: 0; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600;">
+                Sessão Ativa
+            </p>
+            <h3 style="margin: 8px 0 4px 0; color: #ffffff; font-size: 18px; font-weight: 700; letter-spacing: -0.5px;">
+                {nome_usuario}
+            </h3>
+            <div style="display: inline-block; background-color: {cor_badge_fundo}; color: {cor_badge_texto}; 
+                        padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: 700; 
+                        margin-top: 4px; border: 1px solid {cor_badge_texto}33;">
+                {badge_emoji} {perfil_usuario}
+            </div>
         </div>
         """, unsafe_allow_html=True)
         
