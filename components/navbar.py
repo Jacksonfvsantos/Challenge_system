@@ -1,5 +1,6 @@
 import streamlit as st
 
+
 def mostrar_menu():
     """Gera a barra de navegação lateral padronizada para todo o ecossistema."""
     

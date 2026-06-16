@@ -24,3 +24,5 @@ if not url or not key:
     )
 
 supabase = create_client(url, key)
+supabase = create_client(url, key)
+
