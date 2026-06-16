@@ -71,7 +71,20 @@ iniciar_session()
 # MECANISMO DE PERSISTÊNCIA DE SESSÃO (PROTEÇÃO CONTRA F5)
 # ----------------------------------------------------------------------------
 
-@st.cache_resource
+def obter_gerenciador_cookies():
+    """Instancia o gerenciador de cookies diretamente sem travar o cache do Streamlit."""
+    return stx.CookieManager()
+
+
+# Chamada da função encostada na margem esquerda (Sem espaços no início)
+cookie_manager = obter_gerenciador_cookies()
+
+# Mantém o delay necessário para sincronia com o navegador do cliente
+time.sleep(0.1)
+
+# Definição do tempo limite de expiração da sessão ativa
+MINUTOS_SESSAO_ATIVA = 30
+
 # Se o session_state esvaziou pelo F5, tenta resgatar o usuário via cookie ativo
 if not st.session_state.get("usuario_logado"):
     cookie_usuario = cookie_manager.get(cookie="user_session_token")
