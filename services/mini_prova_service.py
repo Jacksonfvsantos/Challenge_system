@@ -1,192 +1,133 @@
 from database.conexao import supabase
 
-
 def buscar_professor_por_email(email):
-    # Busca na tabela usuarios (nao existe tabela professores)
-    resposta = (
-        supabase
-        .table("usuarios")
-        .select("*")
-        .eq("email", email)
-        .eq("tipo_usuario", "professor")
-        .execute()
-    )
-    if resposta.data:
-        return resposta.data[0]
-    # Tenta também admin
-    resposta = (
-        supabase
-        .table("usuarios")
-        .select("*")
-        .eq("email", email)
-        .execute()
-    )
-    if resposta.data:
-        return resposta.data[0]
-    return None
-
-
-def buscar_ou_criar_disciplina(nome):
-    buscar = (
-        supabase
-        .table("disciplinas")
-        .select("*")
-        .eq("nome", nome)
-        .execute()
-    )
-    if buscar.data:
-        return buscar.data[0]
-    criar = (
-        supabase
-        .table("disciplinas")
-        .insert({"nome": nome})
-        .execute()
-    )
-    return criar.data[0]
-
-
-def criar_pergunta(dados):
-    professor = buscar_professor_por_email(dados["email_professor"])
-    if not professor:
+    try:
+        resposta = (
+            supabase
+            .table("usuarios")
+            .select("*")
+            .eq("email", email)
+            .eq("tipo_usuario", "professor")
+            .execute()
+        )
+        if resposta.data:
+            return resposta.data[0]
+        
+        resposta = (
+            supabase
+            .table("usuarios")
+            .select("*")
+            .eq("email", email)
+            .execute()
+        )
+        if resposta.data:
+            return resposta.data[0]
+        return None
+    except Exception:
         return None
 
-    disciplina = buscar_ou_criar_disciplina(dados["disciplina"])
+def buscar_ou_criar_disciplina(nome):
+    if not nome:
+        nome = "Geral"
+    nome_limpo = str(nome).strip()
+    try:
+        buscar = (
+            supabase
+            .table("disciplinas")
+            .select("*")
+            .eq("nome", nome_limpo)
+            .execute()
+        )
+        if buscar.data:
+            return buscar.data[0]
+        
+        criar = (
+            supabase
+            .table("disciplinas")
+            .insert({"nome": nome_limpo})
+            .execute()
+        )
+        return criar.data[0]
+    except Exception:
+        return {"id": None}
 
-    questao = (
-        supabase
-        .table("questoes")
-        .insert({
+def criar_pergunta(dados):
+    """Insere a questão e suas alternativas associadas com tratamento de erros robusto."""
+    try:
+        professor = buscar_professor_por_email(dados["email_professor"])
+        if not professor:
+            return {"sucesso": False, "mensagem": "Perfil de professor autor não localizado."}
+
+        disciplina = buscar_ou_criar_disciplina(dados["disciplina"])
+
+        payload_questao = {
             "professor_id":  professor["id"],
-            "disciplina_id": disciplina["id"],
             "tipo":          "multipla_escolha",
             "nivel":         dados["nivel"],
             "enunciado":     dados["enunciado"],
             "pontos":        1
-        })
-        .execute()
-    )
+        }
+        
+        if disciplina.get("id"):
+            payload_questao["disciplina_id"] = disciplina["id"]
 
-    questao_id = questao.data[0]["id"]
+        questao = (
+            supabase
+            .table("questoes")
+            .insert(payload_questao)
+            .execute()
+        )
 
-    alternativas = [
-        dados["alternativa_a"],
-        dados["alternativa_b"],
-        dados["alternativa_c"],
-        dados["alternativa_d"],
-        dados["alternativa_e"]
-    ]
-    letras = ["A", "B", "C", "D", "E"]
+        if not questao.data:
+            return {"sucesso": False, "mensagem": "Falha operacional ao registrar a questão."}
 
-    for i in range(5):
-        supabase.table("alternativas").insert({
-            "questao_id": questao_id,
-            "texto":      alternativas[i],
-            "correta":    (letras[i] == dados["resposta_correta"]),
-            "ordem":      i + 1
-        }).execute()
+        questao_id = questao.data[0]["id"]
 
+        alternativas = [
+            dados["alternativa_a"],
+            dados["alternativa_b"],
+            dados["alternativa_c"],
+            dados["alternativa_d"],
+            dados["alternativa_e"]
+        ]
+        letras = ["A", "B", "C", "D", "E"]
 
-def criar_mini_prova(dados):
-    professor = buscar_professor_por_email(dados["email_professor"])
-    if not professor:
-        return None
+        for i in range(5):
+            if alternativas[i]:  
+                supabase.table("alternativas").insert({
+                    "questao_id": questao_id,
+                    "texto":      alternativas[i].strip(),
+                    "correta":    (letras[i] == dados["resposta_correta"]),
+                    "ordem":      i + 1
+                }).execute()
 
-    payload = {
-        "professor_id": professor["id"],
-        "titulo":       dados["titulo"],
-        "descricao":    dados.get("assunto", ""),
-    }
+        return {"sucesso": True, "mensagem": "Questão e alternativas salvas com sucesso!"}
 
-    # Adiciona campos opcionais se a tabela suportar
-    campos_opcionais = {
-        "qtde_questoes":   dados.get("quantidade_total"),
-        "duracao_minutos": dados.get("tempo_minutos"),
-        "status":          "rascunho",
-    }
-    for campo, valor in campos_opcionais.items():
-        if valor is not None:
-            payload[campo] = valor
-
-    try:
-        disciplina = buscar_ou_criar_disciplina(dados["disciplina"])
-        payload["disciplina_id"] = disciplina["id"]
-    except Exception:
-        pass
-
-    resposta = (
-        supabase
-        .table("mini_provas")
-        .insert(payload)
-        .execute()
-    )
-    return resposta.data
-
+    except Exception as e:
+        if "42501" in str(e):
+            return {"sucesso": False, "mensagem": "Acesso negado pelo servidor: Segurança RLS ativa."}
+        return {"sucesso": False, "mensagem": f"Erro de consistência com o banco: {str(e)}"}
 
 def listar_mini_provas():
-    resposta = (
-        supabase
-        .table("mini_provas")
-        .select("*")
-        .execute()
-    )
-    return resposta.data or []
-
+    try:
+        resposta = supabase.table("mini_provas").select("*").execute()
+        return resposta.data or []
+    except Exception:
+        return []
 
 def listar_perguntas():
-    resposta = (
-        supabase
-        .table("questoes")
-        .select("*")
-        .execute()
-    )
-    return resposta.data or []
-
-
-def buscar_pergunta(id_pergunta):
-    resposta = (
-        supabase
-        .table("questoes")
-        .select("*")
-        .eq("id", id_pergunta)
-        .execute()
-    )
-    if resposta.data:
-        return resposta.data[0]
-    return None
-
-
-def atualizar_pergunta(id_pergunta, dados):
-    supabase.table("questoes").update({
-        "enunciado": dados["enunciado"],
-        "nivel":     dados["nivel"]
-    }).eq("id", id_pergunta).execute()
-
+    """Busca com segurança prevenindo travamentos de inicialização da tela."""
+    try:
+        resposta = supabase.table("questoes").select("*").execute()
+        return resposta.data or []
+    except Exception:
+        return []
 
 def excluir_pergunta(id_pergunta):
-    supabase.table("questoes").delete().eq("id", id_pergunta).execute()
-
-
-def buscar_mini_prova(id_mini_prova):
-    resposta = (
-        supabase
-        .table("mini_provas")
-        .select("*")
-        .eq("id", id_mini_prova)
-        .execute()
-    )
-    if resposta.data:
-        return resposta.data[0]
-    return None
-
-
-def atualizar_mini_prova(id_mini_prova, dados):
-    payload = {}
-    for campo in ["titulo", "descricao", "qtde_questoes", "duracao_minutos"]:
-        if campo in dados:
-            payload[campo] = dados[campo]
-    if payload:
-        supabase.table("mini_provas").update(payload).eq("id", id_mini_prova).execute()
-
-
-def excluir_mini_prova(id_mini_prova):
-    supabase.table("mini_provas").delete().eq("id", id_mini_prova).execute()
+    try:
+        # Remove as alternativas filhas primeiro devido à restrição de FK
+        supabase.table("alternativas").delete().eq("questao_id", id_pergunta).execute()
+        supabase.table("questoes").delete().eq("id", id_pergunta).execute()
+        return True
+    except Exception:
+        return False

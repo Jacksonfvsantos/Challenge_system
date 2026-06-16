@@ -7,6 +7,8 @@ from telas.login import tela_login
 from telas.cadastro import tela_cadastro
 from telas.home import tela_home
 from telas.votacao import tela_votacao
+from telas.regras import tela_central_regras
+from telas.pontuacoes import tela_pontuacoes
 
 # Imports com fallback para telas que podem nao existir ainda
 try:
@@ -185,6 +187,12 @@ elif pagina == "quiz_ao_vivo":
 
 elif pagina == "admin":
     tela_admin()
+
+elif pagina == "pontuacoes":
+    tela_pontuacoes()
+
+elif pagina == "regras_plataforma":
+    tela_central_regras()
 
 # Mini Provas
 elif pagina == "mini_provas":
