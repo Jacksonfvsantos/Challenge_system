@@ -28,7 +28,7 @@ def mostrar_menu():
     
     if st.sidebar.button("🏠 Início / Home", use_container_width=True):
         st.session_state.pagina = "home"
-        st.clear_cache()
+        st.cache_data.clear()
         st.rerun()
 
     # IMPLEMENTAÇÃO DO TÓPICO 7: Central de Documentação e Regras
