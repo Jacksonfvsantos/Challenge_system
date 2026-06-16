@@ -21,8 +21,8 @@ def tela_login(cookie_manager, minutos_validade):
         
         with st.container(border=True):
             email = st.text_input(
-                "E-mail institucional:", 
-                placeholder="exemplo@unijorge.edu.br",
+                "E-mail:", 
+                placeholder="exemplo@gmail.com",
                 key="login_email_input"
             )
             
@@ -34,10 +34,11 @@ def tela_login(cookie_manager, minutos_validade):
             )
             
             st.markdown("<br>", unsafe_allow_html=True)
-            btn_entrar = st.form_submit_button if hasattr(st, "form_submit_button") else st.button(
+            btn_entrar = st.button(
                 "Entrar no Sistema", 
                 type="primary", 
-                use_container_width=True
+                use_container_width=True,
+                key="btn_executar_login"
             )
             
             if btn_entrar:
