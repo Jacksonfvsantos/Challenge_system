@@ -28,6 +28,11 @@ try:
 except ImportError:
     def tela_quiz_ao_vivo(): st.warning("Tela de quiz ao vivo em desenvolvimento.")
 
+try:
+    from telas.recompensas import tela_recompensas
+except ImportError:
+    def tela_recompensas(): st.warning("Módulo de recompensas indisponível.")
+
 # Sub-módulos: Mini Provas
 try:
     from telas.mini_provas.mini_provas import tela_mini_provas
@@ -76,7 +81,6 @@ def obter_gerenciador_cookies():
     return stx.CookieManager()
 
 
-# Chamada da função encostada na margem esquerda (Sem espaços no início)
 cookie_manager = obter_gerenciador_cookies()
 
 # Mantém o delay necessário para sincronia com o navegador do cliente
@@ -91,7 +95,6 @@ if not st.session_state.get("usuario_logado"):
     
     if cookie_usuario and isinstance(cookie_usuario, dict):
         st.session_state.usuario_logado = cookie_usuario
-        # Mantém a página atual salva se existir, senão manda para a home
         if "pagina" not in st.session_state:
             st.session_state.pagina = "home"
         st.rerun()
@@ -105,15 +108,14 @@ if not st.session_state.get("usuario_logado"):
     if pagina_auth == "cadastro":
         tela_cadastro()
     else:
-        # Injeta o gerenciador de cookies e a validade para operacionalizar o login persistente
         tela_login(cookie_manager, MINUTOS_SESSAO_ATIVA)
     st.stop()
 
 # ----------------------------------------------------------------------------
-# BARRA DE NAVEGAÇÃO LATERAL (Sessão já validada)
+# BARRA DE NAVEGAÇÃO LATERAL (Injetando o cookie_manager para o Logout seguro)
 # ----------------------------------------------------------------------------
 
-mostrar_menu()
+mostrar_menu(cookie_manager)
 
 # ----------------------------------------------------------------------------
 # ROTEADOR DINÂMICO DE TELAS (STATE ROUTER)
@@ -123,7 +125,6 @@ pagina       = st.session_state.get("pagina", "home")
 usuario      = st.session_state.get("usuario_logado", {})
 tipo_usuario = str(usuario.get("tipo_usuario", "aluno")).lower()
 
-# Rotas Universais e Dashboards
 if pagina == "home":
     tela_home()
 
@@ -141,6 +142,9 @@ elif pagina == "regras_plataforma":
 
 elif pagina == "quiz_ao_vivo":
     tela_quiz_ao_vivo()
+
+elif pagina == "recompensas":
+    tela_recompensas()
 
 # Rotas do Módulo de Mini-Provas
 elif pagina == "mini_provas":
@@ -171,6 +175,5 @@ elif pagina == "batalha_gerenciar":
 elif pagina == "batalha_rodada":
     tela_batalha_rodada()
 
-# Rota de Segurança para caminhos inexistentes
 else:
     tela_home()
