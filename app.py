@@ -72,18 +72,6 @@ iniciar_session()
 # ----------------------------------------------------------------------------
 
 @st.cache_resource
-def obter_gerenciador_cookies():
-    """Instancia o gerenciador de cookies armazenado em cache de recurso."""
-    return stx.CookieManager()
-
-cookie_manager = obter_gerenciador_cookies()
-
-# Pequeno delay técnico de sincronia necessário para o Streamlit ler o navegador
-time.sleep(0.1)
-
-# Definição do tempo limite de expiração da sessão ativa
-MINUTOS_SESSAO_ATIVA = 30
-
 # Se o session_state esvaziou pelo F5, tenta resgatar o usuário via cookie ativo
 if not st.session_state.get("usuario_logado"):
     cookie_usuario = cookie_manager.get(cookie="user_session_token")
