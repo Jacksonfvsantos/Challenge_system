@@ -65,9 +65,21 @@ def tela_batalha_de_equipes():
                     st.rerun()
 
     else:
-        # Espaço reservado para o Aluno ver as Rodadas Ativas do Bate-Rebate futuramente
         st.divider()
         st.markdown("### 🕹️ Painel de Jogador")
-        if st.button("🚀 Entrar na Rodada Ativa (Bate-Rebate)", type="primary", use_container_width=True):
-            st.session_state.pagina = "batalha_rodada"
-            st.rerun()
+        
+        col_aluno1, col_aluno2 = st.columns(2)
+        with col_aluno1:
+            with st.container(border=True):
+                st.markdown("#### 🚀 Competir")
+                if st.button("Entrar na Rodada Ativa", type="primary", use_container_width=True):
+                    st.session_state.pagina = "batalha_rodada"
+                    st.rerun()
+                    
+        with col_aluno2:
+            with st.container(border=True):
+                st.markdown("#### 🌟 Minha Equipe")
+                # LIBERADO O ACESSO À TELA DE TIMES PARA O ALUNO CRIER SEU TIME
+                if st.button("Fundar ou Entrar em um Time", use_container_width=True):
+                    st.session_state.pagina = "batalha_times"
+                    st.rerun()
