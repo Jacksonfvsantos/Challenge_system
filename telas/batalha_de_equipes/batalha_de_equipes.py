@@ -35,8 +35,9 @@ def tela_batalha_de_equipes():
         with st.container(border=True):
             st.markdown("#### 🛡️ Manual e Regras")
             st.write("Confira as diretrizes de conduta, critérios de avaliação e o regulamento de Fair Play.")
+            # ✅ RE DIRECIONAMENTO CORRIGIDO PARA A CENTRAL DE REGRAS GLOBAL DO ECOSSISTEMA
             if st.button("📖 Ler Regras da Arena", use_container_width=True):
-                st.session_state.pagina = "batalha_regras"
+                st.session_state.pagina = "regras_plataforma"
                 st.rerun()
 
     st.markdown("<br>", unsafe_allow_html=True)
