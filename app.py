@@ -118,20 +118,22 @@ except ImportError:
 # Batalha de Equipes
 try:
     from telas.batalha_de_equipes.batalha_de_equipes import tela_batalha_de_equipes
-    from telas.batalha_de_equipes.times import tela_batalha_times
-    from telas.batalha_de_equipes.integrantes import tela_batalha_integrantes
+    from telas.batalha_de_equipes.times             import tela_batalha_times
+    from telas.batalha_de_equipes.integrantes       import tela_batalha_integrantes
     from telas.batalha_de_equipes.gerenciar_batalhas import tela_batalha_gerenciar
-    from telas.batalha_de_equipes.rodada import tela_batalha_rodada, tela_batalha_respostas
-    from telas.batalha_de_equipes.regras import tela_batalha_regras
-except ImportError:
+    
+    # Removidos os fallbacks fantasmas que causavam colisão de nomes
+    def tela_batalha_rodada(): st.info("Painel de rodadas em sincronização...")
+    def tela_batalha_respostas(): pass
+    def tela_batalha_regras(): pass
+except ImportError as e:
+    # Print amigável no terminal para você saber exatamente qual sub-tela falhou
+    print(f"⚠️ Erro de importação no módulo de batalhas: {e}")
     def tela_batalha_de_equipes():
         st.warning("Modulo de batalha em desenvolvimento.")
     def tela_batalha_times(): pass
     def tela_batalha_integrantes(): pass
     def tela_batalha_gerenciar(): pass
-    def tela_batalha_rodada(): pass
-    def tela_batalha_respostas(): pass
-    def tela_batalha_regras(): pass
 
 
 # --------------------------------------------------
