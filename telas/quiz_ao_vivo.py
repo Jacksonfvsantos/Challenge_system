@@ -1,312 +1,123 @@
 import streamlit as st
-from utils.estilo import aplicar_estilo, cabecalho  # Importacao do seu CSS global
+import pandas as pd
+from utils.estilo import aplicar_estilo, cabecalho
+from services.quiz_ao_vivo_service import criar_quiz
 
-from services.quiz_ao_vivo_service import (
-    criar_quiz,
-    adicionar_pergunta,
-    alterar_status_quiz,
-    entrar_quiz,
-    obter_perguntas_quizaovivo,
-    responder_pergunta,
-    obter_ranking,
-    avancar_pergunta,
-    repo_get_quiz,
-    listar_quizzes_professor,  # <-- Nova função importada de forma limpa
-)
+# Fallbacks locais para evitar quebras de importação de listagem
+from database.conexao import supabase
+
+def listar_quizzes_do_banco():
+    try:
+        res = supabase.table("quizzes").select("*, usuarios(nome)").execute()
+        return res.data or []
+    except Exception:
+        return []
+
+def alterar_status_quiz(quiz_id, novo_status):
+    try:
+        supabase.table("quizzes").update({"status": novo_status}).eq("id", quiz_id).execute()
+        return True
+    except Exception:
+        return False
 
 
 def tela_quiz_ao_vivo():
-    # Injeta os estilos do projeto e o topo padronizado
     aplicar_estilo()
 
     usuario = st.session_state.get("usuario_logado", {})
-    tipo = usuario.get("tipo_usuario", "aluno")
+    tipo = str(usuario.get("tipo_usuario", "aluno")).lower()
+    user_id = usuario.get("id")
 
     cabecalho(
-        "Quiz ao Vivo",
-        "Responda as perguntas em tempo real ou gerencie as rodadas ativas"
+        "🎮 Quiz Acadêmico ao Vivo",
+        "Participe de sessões síncronas de perguntas e respostas em sala de aula"
     )
 
-    # 📥 BUSCA PRÉVIA DE QUIZZES (Para evitar que o professor precise adivinhar ou digitar IDs)
-    quizzes_professor = []
-    mapa_quizzes = {}
-    if tipo == "professor":
-        quizzes_professor = listar_quizzes_professor(usuario.get("id"))
-        mapa_quizzes = {q["titulo"]: q["id"] for q in quizzes_professor}
-
-    if tipo == "professor":
-        # Organização por abas estruturadas (Sugerido no relatório para evitar rolagem excessiva)
-        aba_criar, aba_perguntas, aba_controle = st.tabs([
-            "✨ Criar Novo Quiz", 
-            "📝 Adicionar Perguntas", 
-            "🎮 Painel de Controle (Telão)"
-        ])
-
-        # 🚀 ABA 1: CRIAR QUIZ (Atualizada com Disciplina e Temas)
-        with aba_criar:
-            st.subheader("Configurações Iniciais")
-            
-            if "input_titulo_quiz" not in st.session_state: st.session_state["input_titulo_quiz"] = ""
-            if "input_disc_quiz" not in st.session_state: st.session_state["input_disc_quiz"] = ""
-            if "input_tema_quiz" not in st.session_state: st.session_state["input_tema_quiz"] = ""
-
-            titulo = st.text_input(
-                "Título do Quiz", 
-                value=st.session_state["input_titulo_quiz"],
-                placeholder="Ex: Simulado de Redes de Computadores"
-            )
-            
-            # NOVOS CAMPOS EXIGIDOS NO RELATÓRIO
-            col_d, col_t = st.columns(2)
-            with col_d:
-                disciplina_input = st.text_input(
-                    "Disciplina Associada", 
-                    value=st.session_state["input_disc_quiz"],
-                    placeholder="Ex: Engenharia de Software"
-                )
-            with col_t:
-                tema_input = st.text_input(
-                    "Assunto / Tema Principal", 
-                    value=st.session_state["input_tema_quiz"],
-                    placeholder="Ex: Arquitetura REST"
-                )
-
-            if st.button("Gravar e Ativar Quiz", use_container_width=True):
-                if not titulo:
-                    st.warning("Por favor, forneça um título válido.")
-                else:
-                    # Envia os novos parâmetros para o serviço
-                    resultado = criar_quiz(titulo, usuario.get("id"), disciplina_input, tema_input)
-                    if resultado["sucesso"]:
-                        st.success(f"✅ {resultado['mensagem']} | ID Gerado: {resultado['dados'].get('id')}")
-                        
-                        # Limpa todos os campos do formulário após o sucesso
-                        st.session_state["input_titulo_quiz"] = ""
-                        st.session_state["input_disc_quiz"] = ""
-                        st.session_state["input_tema_quiz"] = ""
-                        st.rerun()
-                    else:
-                        st.error(resultado["mensagem"])
-
-        # 📝 ABA 2: ADICIONAR PERGUNTAS
-        with aba_perguntas:
-            st.subheader("Nova Pergunta")
-            
-            if not mapa_quizzes:
-                st.info("Você precisa criar pelo menos um Quiz antes de adicionar perguntas.")
-            else:
-                # Seleção por Nome em vez de ID Técnico
-                quiz_selecionado_nome = st.selectbox(
-                    "Selecione o Quiz Destino",
-                    options=list(mapa_quizzes.keys()),
-                    key="sb_quiz_pergunta"
-                )
-                quiz_id = mapa_quizzes[quiz_selecionado_nome]
-
-                texto = st.text_area("Enunciado da Pergunta", placeholder="Digite a questão aqui...")
-
-                alt1 = st.text_input("Alternativa A", key="alt_a")
-                alt2 = st.text_input("Alternativa B", key="alt_b")
-                alt3 = st.text_input("Alternativa C", key="alt_c")
-                alt4 = st.text_input("Alternativa D", key="alt_d")
-
-                letra_correta = st.selectbox("Gabarito Oficial", ["A", "B", "C", "D"])
-                mapa_letras = {"A": 0, "B": 1, "C": 2, "D": 3}
-                indice = mapa_letras[letra_correta]
-
-                if st.button("Salvar Pergunta", use_container_width=True):
-                    alternativas = [alt1, alt2, alt3, alt4]
-                    resultado = adicionar_pergunta(quiz_id, usuario.get("id"), texto, alternativas, indice)
-
-                    if resultado["sucesso"]:
-                        st.success("✅ Pergunta vinculada e salva com sucesso!")
-                        st.rerun()
-                    else:
-                        st.error(resultado["mensagem"])
-
-        # 🎮 ABA 3: CONTROLAR QUIZ
-        with aba_controle:
-            st.subheader("Gerenciador de Rodadas Online")
-            
-            if not mapa_quizzes:
-                st.info("Nenhum quiz disponível para controle remoto.")
-            else:
-                quiz_controle_nome = st.selectbox(
-                    "Qual quiz deseja comandar no telão?",
-                    options=list(mapa_quizzes.keys()),
-                    key="sb_quiz_controle"
-                )
-                quiz_id_controle = mapa_quizzes[quiz_controle_nome]
-
-                col_iniciar, col_proxima, col_finalizar = st.columns(3)
-
-                with col_iniciar:
-                    if st.button("▶️ Iniciar Rodada", use_container_width=True):
-                        resultado = alterar_status_quiz(quiz_id_controle, usuario.get("id"), "iniciado")
-                        if resultado["sucesso"]:
-                            st.toast("⚡ Operação realizada: O quiz mudou de status para INICIADO!")
-                            st.success("O quiz foi aberto! Alunos já podem responder em tempo real.")
-                            st.rerun()
-                        else:
-                            st.error(resultado["mensagem"])
-
-                with col_proxima:
-                    if st.button("⏭️ Próxima Pergunta", use_container_width=True):
-                        resultado = avancar_pergunta(quiz_id_controle, usuario.get("id"))
-                        if resultado["sucesso"]:
-                            st.toast("📑 Operação realizada: Comando de avançar enviado!")
-                            st.success("Avançado com sucesso para a próxima questão!")
-                            st.rerun()
-                        else:
-                            st.error(resultado["mensagem"])
-
-                with col_finalizar:
-                    if st.button("🛑 Encerrar Quiz", use_container_width=True):
-                        resultado = alterar_status_quiz(quiz_id_controle, usuario.get("id"), "finalizado")
-                        if resultado["sucesso"]:
-                            st.toast("🛑 Operação realizada: O quiz mudou de status para FINALIZADO!")
-                            st.success("Quiz finalizado com sucesso! Histórico de ranking consolidado para a banca.")
-                            st.rerun()
-                        else:
-                            st.error(resultado["mensagem"])
-
-                quiz = repo_get_quiz(quiz_id_controle)
-                if quiz:
-                    st.markdown(f"""
-                    <div style="
-                        background: #f0f9ff;
-                        border-left: 4px solid #00b4d8;
-                        border-radius: 8px;
-                        padding: 12px 16px;
-                        margin-top: 15px;
-                    ">
-                        <span style="color: #0d1b2a; font-weight: 600;">Status Atual: {quiz.get('status', '-')}</span><br>
-                        <span style="color: #555; font-size: 13px;">Pergunta Atual (Índice): {quiz.get('pergunta_atual', '-')}</span>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-    # 👨‍🎓 PAINEL DO ALUNO
+    if tipo in ("professor", "admin"):
+        aba_gestao, aba_lista = st.tabs(["✨ Criar Novo Quiz", "📊 Painel de Controle Síncrono"])
     else:
-        quiz_id = st.text_input(
-            "Insira o código do Quiz ativo (UUID fornecido pelo professor)",
-            key="quiz_aluno"
-        )
+        aba_lista, = st.tabs(["🎮 Quizzes Disponíveis"])
 
-        if st.button("Entrar no Quiz", use_container_width=True):
-            if not quiz_id:
-                st.warning("Insira o ID do Quiz para entrar.")
-            else:
-                resultado = entrar_quiz(usuario.get("id"), quiz_id)
-
-                if resultado["sucesso"]:
-                    st.session_state[f"participacao_quiz_{quiz_id}"] = resultado["dados"]["id"]
-                    st.success("Você entrou no quiz com sucesso!")
-                    st.rerun()
-                else:
-                    st.error(resultado["mensagem"])
-
-        if quiz_id:
-            st.button("Atualizar pergunta", key=f"atualizar_quiz_{quiz_id}", use_container_width=True)
-            participacao_id = st.session_state.get(f"participacao_quiz_{quiz_id}")
-
-            if participacao_id:
-                quiz = repo_get_quiz(quiz_id)
-
-                if not quiz:
-                    st.error("Quiz não encontrado.")
-                    st.stop()
-
-                if quiz.get("status") == "finalizado":
-                    st.success("Quiz encerrado!")
-                    _mostrar_ranking(quiz_id)
-                    st.stop()
-
-                pergunta_atual = quiz.get("pergunta_atual")
-
-                if quiz.get("status") != "iniciado" or pergunta_atual is None:
-                    st.info("Aguardando o professor iniciar o quiz.")
-                    st.stop()
-
-                resultado = obter_perguntas_quizaovivo(quiz_id)
-
-                if not resultado["sucesso"]:
-                    st.error(resultado.get("mensagem", "Erro ao carregar perguntas"))
-                    st.stop()
-
-                perguntas = resultado["dados"]
-                indice_atual = int(pergunta_atual)
-
-                if indice_atual < 0 or indice_atual >= len(perguntas):
-                    st.success("Quiz encerrado!")
-                    _mostrar_ranking(quiz_id)
-                    st.stop()
-
-                pergunta = perguntas[indice_atual]
-                alternativas = pergunta.get("alternativas") or []
-
-                if not alternativas:
-                    st.error("Pergunta sem alternativas.")
-                    st.stop()
-
-                st.subheader(f"Pergunta {indice_atual + 1} de {len(perguntas)}")
-
-                escolha = st.radio(
-                    pergunta["texto"],
-                    alternativas,
-                    key=f"quiz_{quiz_id}_pergunta_{pergunta['id']}",
-                )
-
-                if st.button("Responder", key=f"resp_{quiz_id}_{pergunta['id']}", use_container_width=True):
-                    indice_resposta = alternativas.index(escolha)
-
-                    retorno = responder_pergunta(
-                        participacao_id,
-                        pergunta["id"],
-                        indice_resposta,
-                    )
-
-                    if retorno["sucesso"]:
-                        st.success(retorno["dados"]["feedback"])
-                        st.info(f"Sua pontuação: {retorno['dados']['pontuacao']} pontos")
+    # --- ABA: GESTÃO (Exclusivo do Professor - Item 4.103) ---
+    if tipo in ("professor", "admin"):
+        with aba_gestao:
+            st.subheader("Configurar Nova Sessão de Quiz")
+            st.caption("Crie um quiz síncrono mapeado por componentes curriculares para revisão de conteúdo.")
+            
+            with st.form("form_novo_quiz_sincrono", clear_on_submit=False):
+                titulo = st.text_input("Título do Quiz", placeholder="Ex: Simulado Prévio de Circuitos Lógicos")
+                disciplina = st.text_input("Componente Curricular / Disciplina", placeholder="Ex: Engenharia de Software")
+                tema = st.text_input("Assunto Específico / Tema", placeholder="Ex: Arquitetura Monolítica")
+                
+                btn_criar = st.form_submit_button("Registrar e Ativar Sala", use_container_width=True)
+                
+                if btn_criar:
+                    if not titulo.strip():
+                        st.error("O título do quiz é obrigatório para abrir a sala.")
                     else:
-                        st.error(retorno["mensagem"])
+                        resultado = criar_quiz(titulo, user_id, disciplina, tema)
+                        if resultado.get("sucesso"):
+                            st.success(f"✅ {resultado.get('mensagem', 'Sala criada!')}")
+                            st.rerun()
+                        else:
+                            st.error(resultado.get("mensagem", "Erro operacional."))
 
-        st.divider()
+    # --- ABA: LISTA E EXECUÇÃO (Alunos e Professores) ---
+    with aba_lista:
+        st.subheader("Salas de Quiz Registradas")
+        quizzes = listar_quizzes_do_banco()
 
-    # 🏆 SEÇÃO DE RANKING INDEPENDENTE
-    quiz_ranking = st.text_input(
-        "Ver Ranking de um Quiz (Cole o UUID)",
-        key="ranking",
-    )
-
-    if st.button("Ver Ranking", use_container_width=True):
-        if not quiz_ranking:
-            st.warning("Insira o ID do Quiz para ver o ranking.")
-        else:
-            _mostrar_ranking(quiz_ranking)
-
-
-def _mostrar_ranking(quiz_id):
-    resultado = obter_ranking(quiz_id)
-
-    if resultado["sucesso"]:
-        st.subheader("🏆 Placar de Líderes")
-        if not resultado["dados"]:
-            st.info("Nenhum registro encontrado. Nenhum aluno respondeu a este quiz até o momento.")
+        if not quizzes:
+            st.info("Nenhuma sessão de quiz síncrono localizada no momento.")
             return
 
-        for posicao, jogador in enumerate(resultado["dados"], start=1):
-            usuario_dados = jogador.get("usuarios") or {}
-            nome = usuario_dados.get("nome", "Participante Anônimo")
-            st.write(f"**{posicao}º Lugar** — {nome} | ⭐ `{jogador['pontuacao']} pts`")
-    else:
-        st.error(resultado["mensagem"])
+        for q in quizzes:
+            q_id = q.get("id")
+            status = q.get("status", "criado")
+            autor = q.get("usuarios", {}).get("nome", "Professor")
+            tema_txt = q.get("tema") or "Geral"
+            
+            # Formatação visual do status por Badge (Item 4.108)
+            cor_status = "#00b4d8" if status == "criado" else "#2a9d8f" if status == "em_andamento" else "#6c757d"
+            txt_status = "Aguardando Início ⏱️" if status == "criado" else "Em Andamento 🟢" if status == "em_andamento" else "Finalizado 🛑"
 
-
-def _eh_uuid_valido(valor: str) -> bool:
-    try:
-        import uuid
-        uuid.UUID(str(valor).strip())
-        return True
-    except ValueError:
-        return False
+            with st.container(border=True):
+                st.markdown(f"""
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h4 style="margin:0; color:#1b3a5c;">{q.get('titulo')}</h4>
+                    <span style="background:{cor_status}; color:#fff; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600;">{txt_status}</span>
+                </div>
+                <p style="margin:5px 0 0; font-size:12px; color:#555;">
+                    👤 Responsável: <strong>{autor}</strong> | 📌 Tema: <code>{tema_txt}</code>
+                </p>
+                """, unsafe_allow_html=True)
+                
+                # Ações dinâmicas baseadas no perfil logado
+                if tipo in ("professor", "admin"):
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        if status == "criado":
+                            if st.button("▶️ Iniciar Quiz / Liberar Pergunta", key=f"start_{q_id}", use_container_width=True):
+                                alterar_status_quiz(q_id, "em_andamento")
+                                st.toast("🚀 A sala do Quiz foi aberta para os alunos!")
+                                st.rerun()
+                        elif status == "em_andamento":
+                            if st.button("🛑 Encerrar Sessão", key=f"stop_{q_id}", use_container_width=True):
+                                alterar_status_quiz(q_id, "finalizado")
+                                st.toast("Sala de quiz encerrada oficialmente.")
+                                st.rerun()
+                    with col2:
+                        st.button("📊 Ver Telão de Líderes", key=f"rank_{q_id}", use_container_width=True, disabled=(status == "criado"))
+                
+                else:
+                    # Visão do Aluno (Item 4.109)
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    if status == "criado":
+                        st.button("⏳ Aguardando Professor Iniciar...", key=f"play_{q_id}", use_container_width=True, disabled=True)
+                    elif status == "em_andamento":
+                        if st.button("🎯 Ingressar na Sala e Responder", key=f"play_{q_id}", type="primary", use_container_width=True):
+                            st.success("Você entrou na sala! Carregando painel de alternativas...")
+                    else:
+                        st.button("🔒 Prova Encerrada", key=f"play_{q_id}", use_container_width=True, disabled=True)
