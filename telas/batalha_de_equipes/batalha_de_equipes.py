@@ -1,73 +1,73 @@
 import streamlit as st
 from utils.estilo import aplicar_estilo, cabecalho
 
-from telas.batalha_de_equipes.times             import tela_batalha_times
-from telas.batalha_de_equipes.integrantes        import tela_batalha_integrantes
-from telas.batalha_de_equipes.regras             import tela_batalha_regras
-from telas.batalha_de_equipes.rodada             import tela_batalha_rodada, tela_batalha_respostas
-from telas.batalha_de_equipes.gerenciar_batalhas import tela_batalha_gerenciar
-
-
 def tela_batalha_de_equipes():
-
     aplicar_estilo()
 
-    usuario = st.session_state.usuario_logado
-    tipo    = usuario.get("tipo_usuario", "aluno")
+    usuario = st.session_state.get("usuario_logado", {})
+    nome = usuario.get("nome", "Usuário")
+    tipo = str(usuario.get("tipo_usuario", "aluno")).lower()
 
-    cabecalho("Batalha de Equipes", "Gerencie times e participe das batalhas")
+    cabecalho(
+        "⚔️ Arena de Batalhas de Equipes",
+        "Participe de maratonas de programação, resolva rodadas de engenharia e gerencie seus times"
+    )
 
-    if tipo == "professor":
-        abas = st.tabs([
-            "Times",
-            "Integrantes",
-            "Regras",
-            "Batalhas em Andamento",
-            "Gerenciar Batalhas",
-        ])
-        tab_times, tab_integrantes, tab_regras, tab_rodada, tab_gerenciar = abas
+    # Info Card explicativo da dinâmica
+    with st.container(border=True):
+        st.markdown("### 🗺️ O que você deseja fazer?")
+        st.write("Selecione uma das opções abaixo para navegar pelas ferramentas do módulo de competições:")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # Layout de Grade de Botões de Navegação do Módulo
+    col1, col2 = st.columns(2)
+
+    with col1:
+        with st.container(border=True):
+            st.markdown("#### 👥 Integrantes e Times")
+            st.write("Consulte a formação oficial das equipes da turma ou gerencie as alocações de estudantes.")
+            if st.button("👁️ Ver Membros por Equipe", use_container_width=True):
+                st.session_state.pagina = "batalha_integrantes"
+                st.rerun()
+
+    with col2:
+        with st.container(border=True):
+            st.markdown("#### 🛡️ Manual e Regras")
+            st.write("Confira as diretrizes de conduta, critérios de avaliação e o regulamento de Fair Play.")
+            if st.button("📖 Ler Regras da Arena", use_container_width=True):
+                st.session_state.pagina = "batalha_regras"
+                st.rerun()
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # SEÇÃO EXCLUSIVA: Painel Administrativo do Professor
+    if tipo in ("professor", "admin"):
+        st.divider()
+        st.markdown("### ⚙️ Painel de Controle Docente")
+        
+        col3, col4 = st.columns(2)
+        
+        with col3:
+            with st.container(border=True):
+                st.markdown("#### 🏁 Gerenciar Equipes")
+                st.write("Crie novos times na tabela unificada, edite nomenclaturas ou remova registros.")
+                if st.button("🛠️ Abrir Gestão de Times", type="secondary", use_container_width=True):
+                    st.session_state.pagina = "batalha_times"
+                    st.rerun()
+                    
+        with col4:
+            with st.container(border=True):
+                st.markdown("#### ⚔️ Lançar e Encerrar Batalhas")
+                st.write("Publique novos desafios competitivos com prazos limites e configurações de segurança.")
+                if st.button("➕ Nova Batalha Síncrona", type="primary", use_container_width=True):
+                    st.session_state.pagina = "batalha_gerenciar"
+                    st.rerun()
+
     else:
-        abas = st.tabs([
-            "Times",
-            "Integrantes",
-            "Regras",
-            "Batalhas Abertas",
-            "Minhas Respostas",
-        ])
-        tab_times, tab_integrantes, tab_regras, tab_rodada, tab_respostas = abas
-
-    with tab_times:
-        _render_sem_voltar(tela_batalha_times)
-
-    with tab_integrantes:
-        _render_sem_voltar(tela_batalha_integrantes)
-
-    with tab_regras:
-        _render_sem_voltar(tela_batalha_regras)
-
-    with tab_rodada:
-        _render_sem_voltar(tela_batalha_rodada)
-
-    if tipo == "professor":
-        with tab_gerenciar:
-            _render_sem_voltar(tela_batalha_gerenciar)
-    else:
-        with tab_respostas:
-            _render_sem_voltar(tela_batalha_respostas)
-
-
-def _render_sem_voltar(fn):
-    original_button = st.button
-    _chamadas = {"n": 0}
-
-    def botao_filtrado(label, *args, **kwargs):
-        if label == "Voltar" and _chamadas["n"] == 0:
-            _chamadas["n"] += 1
-            return False
-        return original_button(label, *args, **kwargs)
-
-    st.button = botao_filtrado
-    try:
-        fn()
-    finally:
-        st.button = original_button
+        # Espaço reservado para o Aluno ver as Rodadas Ativas do Bate-Rebate futuramente
+        st.divider()
+        st.markdown("### 🕹️ Painel de Jogador")
+        if st.button("🚀 Entrar na Rodada Ativa (Bate-Rebate)", type="primary", use_container_width=True):
+            st.session_state.pagina = "batalha_rodada"
+            st.rerun()
