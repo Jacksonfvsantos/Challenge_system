@@ -1,135 +1,93 @@
 import streamlit as st
+import datetime
 from database.conexao import supabase
 from utils.estilo import aplicar_estilo, cabecalho
-from services.batalha_service import iniciar_partida_sincrona, liberar_proxima_pergunta
-
-def obter_batalha_detalhada(batalha_id):
-    try:
-        res = supabase.table("batalhas").select("*").eq("id", batalha_id).execute()
-        return res.data[0] if res.data else None
-    except Exception:
-        return None
+from services.batalha_service import cadastrar_nova_batalha
 
 def tela_batalha_gerenciar():
     aplicar_estilo()
-    cabecalho("🛠️ Console de Controle Síncrono", "Área exclusiva do docente para orquestrar as rodadas ao vivo")
+    
+    cabecalho(
+        "🛠️ Painel de Provisionamento Híbrido",
+        "Abra novos editais assíncronos ou monte circuitos síncronos de Bate-Rebate"
+    )
 
-    # 1. Recupera a batalha selecionada na tela anterior
-    batalha_id = st.session_state.get("batalha_ativa_id")
-    if not batalha_id:
-        st.warning("Nenhuma batalha foi selecionada para gerenciamento.")
-        if st.button("⬅️ Voltar para a Arena"):
-            st.session_state.pagina = "batalha_de_equipes"
-            st.rerun()
-        return
-
-    b = obter_batalha_detalhada(batalha_id)
-    if not b:
-        st.error("Erro ao carregar dados da partida.")
-        return
-
-    st.markdown(f"### 📋 Partida: {b['titulo']}")
-    st.write(f"**Descrição:** {b.get('descricao', 'Sem descrição.')}")
-    st.write(f"**Modo de Jogo:** {str(b.get('modalidade', '')).upper()}")
-    st.divider()
-
-    # Puxa os times cadastrados para o professor decidir quem começa jogando
+    # Puxa o banco de questões prontas para o professor selecionar
     try:
-        times_res = supabase.table("times").select("id, nome").execute()
-        listagem_times = times_res.data or []
+        questoes_res = supabase.table("questoes").select("id, enunciado").execute()
+        banco_questoes = questoes_res.data or []
     except Exception:
-        listagem_times = []
+        banco_questoes = []
 
-    # ========================================================================
-    # ESTADO 1: PARTIDA AGENDADA (PRONTOS PARA O START)
-    # ========================================================================
-    if b["status"] == "agendada":
-        st.info("🎯 Esta batalha síncrona ainda não começou. Prepare a sala de aula antes de dar o Start.")
+    with st.form("form_abrir_batalha", clear_on_submit=True):
+        st.markdown("### 📝 Configurações da Partida")
         
-        if not listagem_times:
-            st.error("❌ Não existem equipes cadastradas no sistema. Cadastre os times antes de iniciar.")
-            return
-
-        # Formulário rápido de setup inicial
-        with st.container(border=True):
-            st.markdown("#### ⚙️ Configuração de Inicialização")
-            time_inicial = st.selectbox(
-                "Qual equipe começará respondendo a 1ª Pergunta?",
-                options=listagem_times,
-                format_func=lambda x: x["nome"]
+        titulo = st.text_input("Título do Desafio / Batalha:", placeholder="Ex: Batalha de Ponteiros e Alocação Dinâmica")
+        descricao = st.text_area("Instruções e Diretrizes Técnicas:", placeholder="Descreva os critérios de avaliação ou o escopo do problema...")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            modalidade = st.selectbox(
+                "Modalidade da Competição:",
+                options=["sincrona", "assincrona"],
+                format_func=lambda x: "⚡ Síncrona (Ao Vivo / Bate-Rebate)" if x == "sincrona" else "⏳ Assíncrona (Com Prazo Estendido)"
             )
+        
+        with col2:
+            if modalidade == "assincrona":
+                # Data limite para o modo assíncrono
+                data_entrega = st.date_input("Data Limite de Entrega:", datetime.date.today() + datetime.timedelta(days=7))
+                hora_entrega = st.time_input("Horário Limite:", datetime.time(23, 59))
+                prazo_final = datetime.datetime.combine(data_entrega, hora_entrega)
+            else:
+                st.info("💡 Modo Bate-Rebate selecionado. O controle de tempo será ditado em tempo real por você na sala.")
+                prazo_final = None
+
+        # Se for síncrona, abre a seleção múltipla de questões
+        questoes_selecionadas = []
+        if modalidade == "sincrona":
+            st.markdown("---")
+            st.markdown("### 🗂️ Seleção de Questões para o Circuito Síncrono")
+            st.caption("Selecione na ordem exata em que deseja que elas apareçam para os alunos durante o Bate-Rebate.")
             
-            if st.button("🚀 Iniciar Partida Ao Vivo (Liberar Telas)", type="primary", use_container_width=True):
-                if iniciar_partida_sincrona(batalha_id, time_inicial["id"]):
-                    st.success("⚔️ Batalha iniciada! As telas dos alunos foram desbloqueadas automaticamente.")
-                    st.rerun()
-                else:
-                    st.error("Falha ao comunicar início com o Supabase.")
+            if not banco_questoes:
+                st.warning("⚠️ Nenhuma questão cadastrada no banco de dados geral. Cadastre questões primeiro.")
+            else:
+                # Criar um multiselect amigável mostrando o início do enunciado
+                questoes_selecionadas = st.multiselect(
+                    "Selecione as questões participantes:",
+                    options=banco_questoes,
+                    format_func=lambda x: f"ID: {x['id'][:8]}... | {x['enunciado'][:60]}...",
+                    key="selector_questions_batalha"
+                )
 
-    # ========================================================================
-    # ESTADO 2: PARTIDA EM ANDAMENTO (CONTROLE DE ROUNDS)
-    # ========================================================================
-    elif b["status"] == "em_andamento":
-        st.success("🟢 A PARTIDA ESTÁ ACONTECENDO AGORA")
-        
-        # Painel de Telemetria (O que está gravado no banco neste milissegundo)
-        col_r1, col_r2, col_r3 = st.columns(3)
-        with col_r1:
-            st.metric("Rodada / Pergunta Atual", f"N° {b['pergunta_atual_ordem']}")
-        with col_r2:
-            status_cor = "🔴 Rebate" if b["status_sincrono"] == "rebate_ativo" else "🟢 Regular"
-            st.metric("Status do Turno", status_cor)
-        with col_r3:
-            # Busca o nome do time da vez
-            nome_da_vez = "Indeterminado"
-            if b["time_da_vez_id"]:
-                match_time = next((t for t in listagem_times if str(t["id"]) == str(b["time_da_vez_id"])), None)
-                if match_time: nome_da_vez = match_time["nome"]
-            st.metric("Equipe Jogando", nome_da_vez)
+        st.markdown("<br>", unsafe_allow_html=True)
+        btn_publicar = st.form_submit_button("🚀 Gravar e Publicar Competição", type="primary", use_container_width=True)
 
-        st.divider()
-        st.markdown("#### 🎮 Painel de Intervenção do Professor")
-        
-        col_p1, col_p2 = st.columns(2)
-        
-        with col_p1:
-            with st.container(border=True):
-                st.markdown("**Avançar Jogo**")
-                st.caption("Força o avanço para a próxima questão do banco de dados (use caso as equipes travem).")
+        if btn_publicar:
+            if not titulo.strip():
+                st.error("O título da batalha é obrigatório.")
+            elif modalidade == "sincrona" and not questoes_selecionadas:
+                st.error("Para o modo Bate-Rebate, selecione pelo menos 1 questão para compor a rodada.")
+            else:
+                lista_ids = [q["id"] for q in questoes_selecionadas] if modalidade == "sincrona" else []
                 
-                proximo_time = st.selectbox(
-                    "Passar a vez para:",
-                    options=listagem_times,
-                    format_func=lambda x: x["nome"],
-                    key="sel_next_team"
+                resultado = cadastrar_nova_batalha(
+                    titulo=titulo,
+                    descricao=descricao,
+                    modalidade=modalidade,
+                    data_limite=prazo_final,
+                    lista_questoes_ids=lista_ids
                 )
                 
-                if st.button("⏭️ Pular para Próxima Pergunta", use_container_width=True):
-                    nova_ordem = b["pergunta_atual_ordem"] + 1
-                    if liberar_proxima_pergunta(batalha_id, nova_ordem, proximo_time["id"]):
-                        st.toast(f"Avançado para a pergunta {nova_ordem}!", icon="🚀")
-                        st.rerun()
+                if resultado["sucesso"]:
+                    st.success(resultado["mensagem"])
+                    time.sleep(1)
+                    st.session_state.pagina = "batalha_de_equipes"
+                    st.rerun()
+                else:
+                    st.error(resultado["mensagem"])
 
-        with col_p2:
-            with st.container(border=True):
-                st.markdown("**Encerrar Desafio**")
-                st.caption("Fecha o fluxo de conexões desta partida, congela os scores e gera o placar final.")
-                
-                if st.button("🏁 Finalizar Batalha Definitivamente", type="primary", use_container_width=True):
-                    try:
-                        supabase.table("batalhas").update({"finalizada": True, "status": "finalizada"}).eq("id", batalha_id).execute()
-                        st.success("Partida encerrada com sucesso!")
-                        st.session_state.pagina = "batalha_de_equipes"
-                        st.rerun()
-                    except Exception:
-                        st.error("Erro ao finalizar.")
-
-        # Botão rápido de recarregamento do painel do professor
-        if st.button("🔄 Atualizar Painel de Monitoramento", use_container_width=True):
-            st.rerun()
-
-    # Botão de escape seguro
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    if st.button("⬅️ Sair do Painel de Controle", use_container_width=True):
+    if st.button("⬅️ Cancelar e Voltar para a Arena", use_container_width=True):
         st.session_state.pagina = "batalha_de_equipes"
         st.rerun()
