@@ -72,12 +72,15 @@ def liberar_proxima_pergunta(batalha_id, nova_ordem, proximo_time_id):
 def cadastrar_nova_batalha(titulo, descricao, modalidade, data_limite=None, lista_questoes_ids=[]):
     """Grava o cabeçalho da batalha e vincula a esteira de perguntas sequenciais."""
     try:
-        # 1. Monta o payload base
+        # 1. Monta o payload base com blindagem de inicializadores padrão
         payload = {
             "titulo": titulo.strip(),
             "descricao": descricao.strip(),
             "modalidade": modalidade,
-            "status": "agendada"
+            "status": "agendada",
+            "finalizada": False,
+            "pergunta_atual_ordem": 1,
+            "status_sincrono": "aguardando_resposta"
         }
         
         if modalidade == "assincrona" and data_limite:
@@ -105,4 +108,3 @@ def cadastrar_nova_batalha(titulo, descricao, modalidade, data_limite=None, list
     except Exception as e:
         print(f"❌ Erro [cadastrar_nova_batalha]: {e}")
         return {"sucesso": False, "mensagem": f"Erro operacional: {str(e)}"}
-        return False
