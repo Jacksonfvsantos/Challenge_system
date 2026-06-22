@@ -69,4 +69,40 @@ def liberar_proxima_pergunta(batalha_id, nova_ordem, proximo_time_id):
         return len(res.data) > 0
     except Exception as e:
         print(f"❌ Erro [liberar_proxima_pergunta]: {e}")
+def cadastrar_nova_batalha(titulo, descricao, modalidade, data_limite=None, lista_questoes_ids=[]):
+    """Grava o cabeçalho da batalha e vincula a esteira de perguntas sequenciais."""
+    try:
+        # 1. Monta o payload base
+        payload = {
+            "titulo": titulo.strip(),
+            "descricao": descricao.strip(),
+            "modalidade": modalidade,
+            "status": "agendada"
+        }
+        
+        if modalidade == "assincrona" and data_limite:
+            payload["data_limite"] = data_limite.isoformat()
+
+        res_batalha = supabase.table("batalhas").insert(payload).execute()
+        
+        if not res_batalha.data:
+            return {"sucesso": False, "mensagem": "Erro ao criar registro principal da batalha."}
+            
+        batalha_id = res_batalha.data[0]["id"]
+
+        # 2. Se for síncrona, vincula as questões selecionadas na tabela intermediária
+        if modalidade == "sincrona" and lista_questoes_ids:
+            batch_perguntas = []
+            for idx, q_id in enumerate(lista_questoes_ids, start=1):
+                batch_perguntas.append({
+                    "batalha_id": batalha_id,
+                    "questao_id": q_id,
+                    "ordem": idx
+                })
+            supabase.table("batalha_perguntas").insert(batch_perguntas).execute()
+
+        return {"sucesso": True, "mensagem": f"Batalha '{titulo}' provisionada com sucesso!"}
+    except Exception as e:
+        print(f"❌ Erro [cadastrar_nova_batalha]: {e}")
+        return {"sucesso": False, "mensagem": f"Erro operacional: {str(e)}"}
         return False
