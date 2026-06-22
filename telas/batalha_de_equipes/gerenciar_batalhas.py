@@ -1,5 +1,6 @@
 import streamlit as st
 import datetime
+import time  # ✅ IMPORTAÇÃO CORRIGIDA: Resolve o NameError no salvamento
 from database.conexao import supabase
 from utils.estilo import aplicar_estilo, cabecalho
 from services.batalha_service import cadastrar_nova_batalha
@@ -9,7 +10,7 @@ def tela_batalha_gerenciar():
     
     cabecalho(
         "🛠️ Painel de Provisionamento Híbrido",
-        "Abra novos editais assíncronos ou monte circuitos síncronos de Bate-Rebate"
+        "Abra novos editais assíncronos ou monte circuitos sínconos de Bate-Rebate"
     )
 
     # Puxa o banco de questões prontas para o professor selecionar
@@ -35,7 +36,6 @@ def tela_batalha_gerenciar():
         
         with col2:
             if modalidade == "assincrona":
-                # Data limite para o modo assíncrono
                 data_entrega = st.date_input("Data Limite de Entrega:", datetime.date.today() + datetime.timedelta(days=7))
                 hora_entrega = st.time_input("Horário Limite:", datetime.time(23, 59))
                 prazo_final = datetime.datetime.combine(data_entrega, hora_entrega)
@@ -43,7 +43,7 @@ def tela_batalha_gerenciar():
                 st.info("💡 Modo Bate-Rebate selecionado. O controle de tempo será ditado em tempo real por você na sala.")
                 prazo_final = None
 
-        # Se for síncrona, abre a seleção múltipla de questões
+        # Exibição do seletor múltiplo para o formato Síncrono
         questoes_selecionadas = []
         if modalidade == "sincrona":
             st.markdown("---")
@@ -53,7 +53,6 @@ def tela_batalha_gerenciar():
             if not banco_questoes:
                 st.warning("⚠️ Nenhuma questão cadastrada no banco de dados geral. Cadastre questões primeiro.")
             else:
-                # Criar um multiselect amigável mostrando o início do enunciado
                 questoes_selecionadas = st.multiselect(
                     "Selecione as questões participantes:",
                     options=banco_questoes,
@@ -82,7 +81,7 @@ def tela_batalha_gerenciar():
                 
                 if resultado["sucesso"]:
                     st.success(resultado["mensagem"])
-                    time.sleep(1)
+                    time.sleep(1)  # Agora roda sem NameError!
                     st.session_state.pagina = "batalha_de_equipes"
                     st.rerun()
                 else:
