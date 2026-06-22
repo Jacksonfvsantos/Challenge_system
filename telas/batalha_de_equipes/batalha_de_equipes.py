@@ -68,6 +68,15 @@ def tela_batalha_de_equipes():
         st.markdown("### 🎙️ Partidas em Tempo Real")
         st.caption("Estas competições exigem sincronia. O professor dita o ritmo da liberação das questões.")
         
+        # ✅ ATALHO ADICIONADO: Permite que o Aluno funde ou gerencie seu time de forma autônoma
+        if tipo_usuario == "aluno":
+            with st.container(border=True):
+                st.markdown("🏢 **Precisa criar, gerenciar ou sair da sua equipe?**")
+                if st.button("Ir para Central de Equipes", use_container_width=True, key="btn_atalho_central_times"):
+                    st.session_state.pagina = "batalha_times"
+                    st.rerun()
+            st.markdown("<br>", unsafe_allow_html=True)
+        
         batalhas_sincronas = listar_batalhas_por_modalidade("sincrona")
         
         if not batalhas_sincronas:
@@ -81,7 +90,6 @@ def tela_batalha_de_equipes():
                         st.markdown(f"#### ⚔️ {bs['titulo']}")
                         st.write(bs.get("descricao", "Sem descrição informada."))
                         
-                        # Informa visualmente qual equipe detém a vez se a partida estiver rodando
                         if bs.get("status") == "em_andamento":
                             time_vez = bs.get("times", {}).get("nome", "Aguardando...") if bs.get("times") else "Determinar"
                             st.markdown(f"🟢 **Status:** `EM ANDAMENTO` | ⏱️ **Vez do Time:** `{time_vez}`")
@@ -91,13 +99,12 @@ def tela_batalha_de_equipes():
                     with col_action:
                         st.markdown("<br>", unsafe_allow_html=True)
                         if st.button("Entrar na Sala", key=f"join_{bs['id']}", type="primary", use_container_width=True):
-                            # Salva a referência da batalha que o usuário está jogando e joga para a tela da rodada
                             st.session_state.batalha_ativa_id = bs["id"]
                             st.session_state.pagina = "batalha_rodada"
                             st.rerun()
 
     # ========================================================================
-    # MODE 2: ECOSSISTEMA ASSÍNCRONO (PRAZOS / HACKATHON)
+    # MODE 2: ECOSSISTEMA ASSÍNCRONO (PRAZOS)
     # ========================================================================
     with aba_assincrona:
         st.markdown("### 📅 Desafios e Projetos Semanais")
@@ -111,13 +118,11 @@ def tela_batalha_de_equipes():
             agora = datetime.datetime.now(datetime.timezone.utc)
             
             for ba in batalhas_assincronas:
-                # Converte e trata a string de data vinda do banco para validação estável
                 prazo_str = ba.get("data_limite")
                 prazo_valido = True
                 
                 if prazo_str:
                     try:
-                        # Corta milissegundos se existirem no formato ISO do Postgres
                         if "." in prazo_str: prazo_str = prazo_str.split(".")[0]
                         if "Z" in prazo_str: prazo_str = prazo_str.replace("Z", "+00:00")
                         prazo_dt = datetime.datetime.fromisoformat(prazo_str)
@@ -147,13 +152,9 @@ def tela_batalha_de_equipes():
 
                     with col_a_action:
                         st.markdown("<br>", unsafe_allow_html=True)
-                        
-                        # Se o prazo estourou, desativa o botão de envio para blindar o banco de dados
                         btn_label = "Prazo Bloqueado" if expirada else "Enviar Solução"
                         if st.button(btn_label, key=f"sub_{ba['id']}", type="secondary", use_container_width=True, disabled=expirada):
                             st.session_state.batalha_ativa_id = ba["id"]
-                            # Caso decida criar uma tela de upload específica, mude a rota abaixo, 
-                            # ou mantenha o redirecionamento padrão para tratamento do escopo
                             st.session_state.pagina = "batalha_rodada"
                             st.rerun()
 
