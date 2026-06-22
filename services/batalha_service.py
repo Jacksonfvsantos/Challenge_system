@@ -108,3 +108,33 @@ def cadastrar_nova_batalha(titulo, descricao, modalidade, data_limite=None, list
     except Exception as e:
         print(f"❌ Erro [cadastrar_nova_batalha]: {e}")
         return {"sucesso": False, "mensagem": f"Erro operacional: {str(e)}"}
+
+def cadastrar_questao_rapida(enunciado, alternativas_texto, indice_correta):
+    """
+    Cadastra uma questão e insere em lote suas 4 alternativas vinculadas.
+    alternativas_texto: lista com 4 strings
+    indice_correta: int de 0 a 3 indicando qual é a verdadeira
+    """
+    try:
+        # 1. Insere o enunciado principal
+        res_q = supabase.table("questoes").insert({"enunciado": enunciado.strip()}).execute()
+        if not res_q.data:
+            return {"sucesso": False, "mensagem": "Erro ao salvar o enunciado da questão."}
+            
+        questao_id = res_q.data[0]["id"]
+        
+        # 2. Monta o lote (batch) das 4 alternativas com letras lógicas (A=1, B=2, C=3, D=4)
+        lote_alternativas = []
+        for i, texto in enumerate(alternativas_texto, start=1):
+            lote_alternativas.append({
+                "questao_id": questao_id,
+                "texto": texto.strip(),
+                "ordem": i,
+                "correta": (i == (indice_correta + 1))
+            })
+            
+        supabase.table("alternativas").insert(lote_alternativas).execute()
+        return {"sucesso": True, "mensagem": "Questão técnica integrada ao banco de dados com sucesso!"}
+    except Exception as e:
+        print(f"❌ Erro [cadastrar_questao_rapida]: {e}")
+        return {"sucesso": False, "mensagem": f"Falha operacional: {str(e)}"}
