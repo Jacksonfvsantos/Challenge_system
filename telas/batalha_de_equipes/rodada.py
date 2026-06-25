@@ -91,15 +91,13 @@ def calcular_placar_atual(batalha_id, time_a_id, time_b_id):
         return 0, 0
 
 
-# --- 🔄 1. SUB-COMPONENTE DINÂMICO DE SINCRONIZAÇÃO EM TEMPO REAL ---
+# --- 🔄 1. COMPONENTE REATIVO DE ATUALIZAÇÃO DO PLACAR ---
 @st.fragment(run_every=3)
 def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, nome_time_b, dados_pergunta, ordem_renderizada_atualmente):
-    # Escuta o banco de dados em segundo plano para ver se o round avançou
     batalha_live = obter_estado_batalha(batalha_id)
     if batalha_live:
         ordem_banco = int(batalha_live.get("pergunta_atual_ordem", 1))
-        # 🚀 ALTERAÇÃO CRÍTICA: Se houver mudança de round pelo clique do oponente, alteramos o state global
-        # para forçar a renderização completa da página no próximo frame, eliminando o isolamento do fragmento.
+        # Se detetar no banco que a pergunta mudou, ativa a flag para atualizar a tela estrutural externa
         if ordem_banco != int(ordem_renderizada_atualmente):
             st.session_state["forcar_refresh_pergunta"] = True
             st.rerun()
@@ -124,19 +122,16 @@ def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, no
 
         if historico:
             st.markdown("##### 📢 Registro de Submissões do Round:")
-            mapa_alternativas = {str(alt["id"]).strip(): chr(64 + int(alt["ordem"])) for alt in dados_pergunta["alternativas"]}
-            
             for item in historico:
                 id_time_respondido = str(item.get("time_id")).strip()
                 nome_do_respondente = nome_time_a if id_time_respondido == time_a_id else nome_time_b
                 chance = item.get("tentativa_numero", 1)
-                alt_id_submetida = str(item.get("alternativa_id")).strip() if item.get("alternativa_id") else None
-                letra_escolhida = mapa_alternativas.get(alt_id_submetida, "marcada") if alt_id_submetida else "marcada"
                 
+                # Voltamos para a exibição estável (apenas informativo de acerto/erro)
                 if item.get("resposta_correta") is True:
-                    st.success(f"🎯 **{nome_do_respondente}** escolheu a alternativa **({letra_escolhida})** e ACERTOU na {chance}ª tentativa!")
+                    st.success(f"🎯 **{nome_do_respondente}** RESPONDEU e ACERTOU na {chance}ª tentativa!")
                 else:
-                    st.error(f"❌ **{nome_do_respondente}** escolheu a alternativa **({letra_escolhida})** e ERROU na {chance}ª tentativa!")
+                    st.error(f"❌ **{nome_do_respondente}** RESPONDEU e ERROU na {chance}ª tentativa!")
             st.markdown("---")
 
 
@@ -144,7 +139,7 @@ def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, no
 def tela_batalha_rodada():
     aplicar_estilo()
     
-    # 🏁 CAPTURA DO REFRESH GLOBAL: Se o fragmento setou a flag de alteração, limpa a flag e recarrega a página estrutural
+    # Executa o refresh da tela estrutural se o fragmento em background deu sinal de nova pergunta
     if st.session_state.get("forcar_refresh_pergunta", False):
         st.session_state["forcar_refresh_pergunta"] = False
         st.rerun()
@@ -179,7 +174,6 @@ def tela_batalha_rodada():
     pergunta_ordem = int(batalha.get("pergunta_atual_ordem", 1))
     dados_pergunta = obter_pergunta_atual(batalha_id, pergunta_ordem)
 
-    # Renderiza o cabeçalho passando a ordem atual para monitoramento reativo
     painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, nome_time_b, dados_pergunta, pergunta_ordem)
 
     # --- VERIFICAÇÃO DE CONCLUSÃO DO JOGO ---
@@ -273,12 +267,12 @@ def tela_batalha_rodada():
             pode_clicar = eh_a_vez_deste_time and (not eh_espectador)
             
             if st.button(texto_opcao, key=f"btn_alt_{alt['id']}", use_container_width=True, disabled=not pode_clicar):
+                # ✅ CORRIGIDO: Enviando exatamente os 6 argumentos esperados pelo batalha_service.py original!
                 res = processar_resposta_sincrona(
-                    batalha_id, dados_pergunta["id"], time_id, alt["id"],
+                    batalha_id, dados_pergunta["id"], time_id,
                     alt["correta"], time_adversario_id, tentativa_atual
                 )
                 time.sleep(0.5)
-                # Como o clique ocorre fora do fragmento, este rerun é estrutural e seguro
                 st.rerun()
 
     st.markdown("<br><hr style='border-color: #334155;'>", unsafe_allow_html=True)
