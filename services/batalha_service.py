@@ -14,12 +14,10 @@ def aluno_criar_e_entrar_no_time(nome_time, usuario_id):
         res_time = supabase.table("times").insert(dados_time).execute()
         
         if not res_time.data:
-            print(f"⚠️ Retorno do banco vazio na tabela 'times': {res_time}")
             return {"sucesso": False, "mensagem": "Erro ao registrar o nome do time (o nome já pode estar em uso)."}
             
         time_id = res_time.data[0]["id"]
         
-        # Vincula o aluno como membro desse time na tabela intermediária
         res_membro = supabase.table("time_membros").insert({
             "time_id": time_id,
             "usuario_id": usuario_id
@@ -51,12 +49,8 @@ def aluno_sair_do_time(usuario_id):
 # ============================================================================
 
 def cadastrar_nova_batalha(titulo, descricao, modalidade, data_limite=None, lista_questoes_ids=[], time_a_id=None, time_b_id=None):
-    """
-    Grava o cabeçalho da batalha no banco de dados.
-    Para o modo síncrono, vincula as duas equipes selecionadas e a esteira de perguntas.
-    """
+    """Grava o cabeçalho da batalha vinculando as duas equipes escolhidas e as perguntas."""
     try:
-        # Monta o payload respeitando as colunas de restrição das duas equipes
         payload = {
             "titulo": titulo.strip(),
             "descricao": descricao.strip(),
@@ -65,8 +59,8 @@ def cadastrar_nova_batalha(titulo, descricao, modalidade, data_limite=None, list
             "finalizada": False,
             "pergunta_atual_ordem": 1,
             "status_sincrono": "aguardando_resposta",
-            "time_a_id": time_a_id,  # Identificador da Equipe A
-            "time_b_id": time_b_id   # Identificador da Equipe B
+            "time_a_id": time_a_id,
+            "time_b_id": time_b_id
         }
         
         if modalidade == "assincrona" and data_limite:
@@ -79,7 +73,6 @@ def cadastrar_nova_batalha(titulo, descricao, modalidade, data_limite=None, list
             
         batalha_id = res_batalha.data[0]["id"]
 
-        # Se for uma disputa síncrona, vincula as perguntas escolhidas pelo professor na ordem exata
         if modalidade == "sincrona" and lista_questoes_ids:
             batch_perguntas = []
             for idx, q_id in enumerate(lista_questoes_ids, start=1):
@@ -97,7 +90,7 @@ def cadastrar_nova_batalha(titulo, descricao, modalidade, data_limite=None, list
 
 
 # ============================================================================
-# 3. ORQUESTRAÇÃO SÍNCRONA DE ROUNDS (PERFIL PROFESSOR)
+# 3. ORQUESTRAÇÃO SÍNCRONA DE ROUNDS & CICLO DE VIDA (NOVO)
 # ============================================================================
 
 def iniciar_partida_sincrona(batalha_id, primeiro_time_id):
@@ -115,18 +108,48 @@ def iniciar_partida_sincrona(batalha_id, primeiro_time_id):
         return False
 
 
-def liberar_proxima_pergunta(batalha_id, nova_ordem, proximo_time_id):
-    """Avança o ponteiro do round síncrono mudando a questão ativa e alternando a posse da resposta."""
+def encerrar_partida_sincrona(batalha_id):
+    """Força o encerramento manual da batalha, enviando-a para o arquivo de histórico."""
     try:
         res = supabase.table("batalhas").update({
-            "pergunta_atual_ordem": nova_ordem,
-            "status_sincrono": "aguardando_resposta",
-            "time_da_vez_id": proximo_time_id
+            "status": "finalizada",
+            "finalizada": True,
+            "status_sincrono": "encerrado"
         }).eq("id", batalha_id).execute()
         return len(res.data) > 0
     except Exception as e:
-        print(f"❌ Erro [liberar_proxima_pergunta]: {e}")
+        print(f"❌ Erro [encerrar_partida_sincrona]: {e}")
         return False
+
+
+def deletar_batalha(batalha_id):
+    """Apaga completamente os registros e históricos de uma batalha (limpeza de testes)."""
+    try:
+        # Limpa as tabelas filhas para evitar quebra de Foreign Keys
+        supabase.table("batalha_perguntas").delete().eq("batalha_id", batalha_id).execute()
+        supabase.table("batalha_respostas").delete().eq("batalha_id", batalha_id).execute()
+        # Deleta a batalha principal
+        res = supabase.table("batalhas").delete().eq("id", batalha_id).execute()
+        return len(res.data) > 0
+    except Exception as e:
+        print(f"❌ Erro [deletar_batalha]: {e}")
+        return False
+
+
+def obter_batalhas_finalizadas():
+    """Recupera o histórico de confrontos encerrados do banco."""
+    try:
+        res = (
+            supabase.table("batalhas")
+            .select("*, time_a:time_a_id(nome), time_b:time_b_id(nome)")
+            .eq("finalizada", True)
+            .order("created_at", descending=True)
+            .execute()
+        )
+        return res.data or []
+    except Exception as e:
+        print(f"❌ Erro [obter_batalhas_finalizadas]: {e}")
+        return []
 
 
 # ============================================================================
@@ -134,10 +157,7 @@ def liberar_proxima_pergunta(batalha_id, nova_ordem, proximo_time_id):
 # ============================================================================
 
 def cadastrar_questao_rapida(enunciado, alternativas_texto, indice_correta):
-    """
-    Cadastra uma questão injetando o valor na coluna 'indice_correto' (padrão do banco)
-    e popula as alternativas na tabela modular relacionada.
-    """
+    """Cadastra uma questão e insere suas alternativas vinculadas."""
     try:
         res_q = supabase.table("questoes").insert({
             "enunciado": enunciado.strip(),
@@ -149,8 +169,6 @@ def cadastrar_questao_rapida(enunciado, alternativas_texto, indice_correta):
             
         questao_id = res_q.data[0]["id"]
         
-        # Como o seu banco utiliza a tabela própria de alternativas para o quiz,
-        # aqui o lote é preparado dinamicamente:
         lote_alternativas = []
         for i, texto in enumerate(alternativas_texto, start=1):
             lote_alternativas.append({
