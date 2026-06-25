@@ -1,8 +1,10 @@
 import streamlit as st
 import time
 from database.conexao import supabase
-from services.batalha_service import encerrar_partida_sincrona
 from utils.estilo import aplicar_estilo, cabecalho
+
+# ✅ CENTRALIZADO: Importando as funções oficiais diretamente do serviço único
+from services.batalha_service import encerrar_partida_sincrona, processar_resposta_sincrona
 
 # --- FUNÇÕES DE SUPORTE AO BACKEND DA RODADA ---
 
@@ -90,50 +92,18 @@ def calcular_placar_atual(batalha_id, time_a_id, time_b_id):
     except Exception:
         return 0, 0
 
-def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id, alternativa_correta, time_adversario_id, tentativa_atual):
-    try:
-        supabase.table("batalha_respostas").insert({
-            "batalha_id": batalha_id,
-            "questao_id": questao_id,
-            "time_id": time_id,
-            "alternativa_id": alternativa_id,
-            "resposta_correta": alternativa_correta,
-            "tentativa_numero": tentativa_atual
-        }).execute()
 
-        batalha = supabase.table("batalhas").select("pergunta_atual_ordem").eq("id", batalha_id).execute()
-        pergunta_ordem = batalha.data[0]["pergunta_atual_ordem"] if batalha.data else 1
-        proxima_ordem = int(pergunta_ordem) + 1
-
-        if alternativa_correta:
-            supabase.table("batalhas").update({
-                "pergunta_atual_ordem": proxima_ordem,
-                "status_sincrono": "aguardando_resposta",
-                "time_da_vez_id": time_adversario_id
-            }).eq("id", batalha_id).execute()
-            return "acertou"
-        else:
-            if int(tentativa_atual) == 1:
-                supabase.table("batalhas").update({
-                    "status_sincrono": "rebate_ativo",
-                    "time_da_vez_id": time_adversario_id
-                }).eq("id", batalha_id).execute()
-                return "rebate"
-            else:
-                supabase.table("batalhas").update({
-                    "pergunta_atual_ordem": proxima_ordem,
-                    "status_sincrono": "aguardando_resposta",
-                    "time_da_vez_id": time_id  
-                }).eq("id", batalha_id).execute()
-                return "ambos_erraram"
-    except Exception as e:
-        print(f"❌ Erro [processar_resposta_sincrona]: {e}")
-        return "erro"
-
-
-# --- 🔄 1. SUB-COMPONENTE DINÂMICO (PLACAR E LOGS REATIVOS) ---
+# --- 🔄 1. SUB-COMPONENTE DINÂMICO DE SINCRONIZAÇÃO EM TEMPO REAL ---
 @st.fragment(run_every=3)
-def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, nome_time_b, dados_pergunta):
+def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, nome_time_b, dados_pergunta, ordem_renderizada_atualmente):
+    # Força a leitura do estado mais recente do banco de dados
+    batalha_live = obter_estado_batalha(batalha_id)
+    if batalha_live:
+        ordem_banco = int(batalha_live.get("pergunta_atual_ordem", 1))
+        # 🚀 DETECTOR DE AVANÇO: Se o oponente respondeu e mudou de round, força o ecrã a atualizar!
+        if ordem_banco != int(ordem_renderizada_atualmente):
+            st.rerun()
+
     pontos_a, pontos_b = calcular_placar_atual(batalha_id, time_a_id, time_b_id)
     
     st.markdown(f"""
@@ -203,8 +173,8 @@ def tela_batalha_rodada():
     pergunta_ordem = int(batalha.get("pergunta_atual_ordem", 1))
     dados_pergunta = obter_pergunta_atual(batalha_id, pergunta_ordem)
 
-    # 🔄 Injeta apenas os componentes estatísticos mutáveis no Auto-Refresh
-    painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, nome_time_b, dados_pergunta)
+    # 🔄 Injeta os componentes estatísticos passando a ordem atual para monitoramento
+    painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, nome_time_b, dados_pergunta, pergunta_ordem)
 
     # --- VERIFICAÇÃO DE CONCLUSÃO DO JOGO ---
     if batalha.get("finalizada") is True or str(batalha.get("status")).lower() == "finalizada" or not dados_pergunta:
@@ -288,7 +258,6 @@ def tela_batalha_rodada():
 
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # 🔒 ESTÁVEL: Os botões de clique ficam fora do fragmento e nunca sofrem perda de estado!
     if not dados_pergunta["alternativas"]:
         st.warning("⚠️ Esta questão não possui opções vinculadas.")
     else:
