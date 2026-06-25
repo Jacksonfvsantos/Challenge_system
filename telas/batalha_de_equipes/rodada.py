@@ -269,9 +269,14 @@ def tela_batalha_rodada():
             pode_clicar = eh_a_vez_deste_time and (not eh_espectador)
             
             if st.button(texto_opcao, key=f"btn_alt_{alt['id']}", use_container_width=True, disabled=not pode_clicar):
+                # 🚀 CHAMADA CORRIGIDA COM APENAS 6 ARGUMENTOS (Sem alt["id"]):
                 res = processar_resposta_sincrona(
-                    batalha_id, dados_pergunta["id"], time_id,
-                    alt["correta"], time_adversario_id, tentativa_atual
+                    batalha_id, 
+                    dados_pergunta["id"], 
+                    time_id,
+                    alt["correta"], 
+                    time_adversario_id, 
+                    tentativa_atual
                 )
                 time.sleep(0.4)
                 st.rerun()
