@@ -2,6 +2,8 @@ import streamlit as st
 import time
 from database.conexao import supabase
 from services.batalha_service import encerrar_partida_sincrona
+
+# ✅ CORREÇÃO: Imports visuais adicionados corretamente para o ecossistema
 from utils.estilo import aplicar_estilo, cabecalho
 
 # --- FUNÇÕES DE SUPORTE AO BACKEND DA RODADA ---
@@ -93,7 +95,7 @@ def calcular_placar_atual(batalha_id, time_a_id, time_b_id):
 
 def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id, alternativa_correta, time_adversario_id, tentativa_atual):
     try:
-        # ✅ CORRIGIDO: Vinculando corretamente o id da alternativa escolhida no banco de dados
+        # Vincula dinamicamente a alternativa_id escolhida no log para sabermos a letra marcada
         supabase.table("batalha_respostas").insert({
             "batalha_id": batalha_id,
             "questao_id": questao_id,
@@ -161,10 +163,9 @@ def renderizar_conteudo_dinamico_sala(batalha_id, usuario_id, tipo_usuario, time
     """, unsafe_allow_html=True)
 
     pergunta_ordem = int(batalha.get("pergunta_atual_ordem", 1))
-    # ✅ CORRIGIDO: Corrigido o erro de digitação de 'pregunta_ordem' para 'pergunta_ordem'
     dados_pergunta = obter_pergunta_atual(batalha_id, pergunta_ordem)
     
-    # --- INTERFACE EXCLUSIVA DE HISTÓRICO DE SUBMISSÕES DO ROUND ---
+    # --- INTERFACE DE HISTÓRICO DE SUBMISSÕES DO ROUND ---
     if dados_pergunta:
         try:
             res_respostas = supabase.table("batalha_respostas").select("*").eq("batalha_id", batalha_id).eq("questao_id", dados_pergunta["id"]).execute()
@@ -289,6 +290,14 @@ def renderizar_conteudo_dinamico_sala(batalha_id, usuario_id, tipo_usuario, time
                 )
                 time.sleep(0.5)
                 st.rerun()
+
+    # 🚪 BOTÃO DE ESCAPE: Voltar para a listagem da arena a qualquer momento
+    st.markdown("<br><hr style='border-color: #334155;'>", unsafe_allow_html=True)
+    if st.button("🚪 Sair da Sala / Voltar para a Arena", use_container_width=True, type="secondary", key="btn_sair_sala_emergencia"):
+        if "batalha_ativa_id" in st.session_state:
+            del st.session_state["batalha_ativa_id"]
+        st.session_state.pagina = "batalha_de_equipes"
+        st.rerun()
 
 
 # --- ROTEADOR PRINCIPAL ---
