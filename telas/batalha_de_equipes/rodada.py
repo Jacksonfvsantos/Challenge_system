@@ -43,7 +43,7 @@ def obter_pergunta_atual(batalha_id, ordem_pergunta):
         indice_correto_banco = int(dados_questao.get("indice_correto", 0))
         
         alternativas = supabase.table("alternativas").select("*").eq("questao_id", q_id).order("ordem").execute()
-        lista_alt_data = alternatives.data or []
+        lista_alt_data = alternativas.data or []
         
         alternativas_formatadas = []
         for alt in lista_alt_data:
@@ -92,11 +92,12 @@ def calcular_placar_atual(batalha_id, time_a_id, time_b_id):
 
 def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id, alternativa_correta, time_adversario_id, tentativa_atual):
     try:
-        # Armazena também a referência do ID da alternativa escolhida na tabela de logs de submissão
+        # ✅ CORRIGIDO: Vinculando corretamente o id da alternativa escolhida no banco de dados
         supabase.table("batalha_respostas").insert({
             "batalha_id": batalha_id,
             "questao_id": questao_id,
             "time_id": time_id,
+            "alternativa_id": alternativa_id,
             "resposta_correta": alternativa_correta,
             "tentativa_numero": tentativa_atual
         }).execute()
@@ -159,7 +160,8 @@ def renderizar_conteudo_dinamico_sala(batalha_id, usuario_id, tipo_usuario, time
     """, unsafe_allow_html=True)
 
     pergunta_ordem = int(batalha.get("pergunta_atual_ordem", 1))
-    dados_pergunta = obter_pergunta_atual(batalha_id, pregunta_ordem)
+    # ✅ CORRIGIDO: Corrigido o erro de digitação de 'pregunta_ordem' para 'pergunta_ordem'
+    dados_pergunta = obter_pergunta_atual(batalha_id, pergunta_ordem)
     
     # --- INTERFACE EXCLUSIVA DE HISTÓRICO DE SUBMISSÕES DO ROUND ---
     if dados_pergunta:
@@ -173,7 +175,7 @@ def renderizar_conteudo_dinamico_sala(batalha_id, usuario_id, tipo_usuario, time
             st.markdown("##### 📢 Registro de Submissões do Round:")
             
             # Cria um mapeamento rápido para transformar a ordem em letra correspondente (1=A, 2=B, etc.)
-            mapa_alternativas = {alt["id"]: chr(64 + int(alt["ordem"])) for alt in dados_pergunta["alternativas"]}
+            mapa_alternativas = {str(alt["id"]).strip(): chr(64 + int(alt["ordem"])) for alt in dados_pergunta["alternativas"]}
             
             for item in historico:
                 id_time_respondido = str(item.get("time_id")).strip()
@@ -181,10 +183,9 @@ def renderizar_conteudo_dinamico_sala(batalha_id, usuario_id, tipo_usuario, time
                 chance = item.get("tentativa_numero", 1)
                 
                 # Resgata a letra da alternativa escolhida se houver mapeamento
-                alt_id_submetida = item.get("alternativa_id")
-                letra_escolhida = mapa_alternativas.get(alt_id_submetida, "?") if alt_id_submetida else "marcada"
+                alt_id_submetida = str(item.get("alternativa_id")).strip() if item.get("alternativa_id") else None
+                letra_escolhida = mapa_alternativas.get(alt_id_submetida, "marcada") if alt_id_submetida else "marcada"
                 
-                # 🚀 EXIBIÇÃO EXPLÍCITA: Mostra quem errou e quem acertou incluindo a alternativa chutada!
                 if item.get("resposta_correta") is True:
                     st.success(f"🎯 **{nome_do_respondente}** escolheu a alternativa **({letra_escolhida})** e ACERTOU na {chance}ª tentativa!")
                 else:
@@ -198,7 +199,6 @@ def renderizar_conteudo_dinamico_sala(batalha_id, usuario_id, tipo_usuario, time
             
         st.success("🏁 **A batalha foi encerrada oficialmente! Todas as perguntas foram respondidas.**")
         
-        # Consolidação e declaração clara do time vencedor
         if pontos_a > pontos_b:
             st.markdown(f"### 🏆 Vencedor da Arena: **{nome_time_a}** (Placar: {pontos_a} vs {pontos_b})")
         elif pontos_b > pontos_a:
