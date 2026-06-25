@@ -167,10 +167,11 @@ def tela_batalha_rodada():
         if not lista_times_sala:
             st.error("🛑 Erro: As duas equipes escaladas para este confronto não foram encontradas no banco.")
         else:
+            # Localize este bloco por volta da linha 142 no seu rodada.py:
             time_inicial = st.selectbox(
                 "Selecione a Equipe que inicia jogando:",
                 options=lista_times_sala,
-                format_func=lambda x: x["nome"],
+                format_func=lambda x: str(x["nome"]).strip(), # ✅ Extrai apenas o nome amigável do time
                 key="select_time_inicial_batalha"
             )
             
