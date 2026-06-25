@@ -194,7 +194,7 @@ def listar_batalhas():
         print(f"❌ Erro [listar_batalhas]: {erro}")
         return []
 
-def obtener_estado_batalha(batalha_id):
+def obter_estado_batalha(batalha_id):
     """Busca os dados de estado em tempo real de uma batalha específica."""
     try:
         res = supabase.table("batalhas").select("*").eq("id", batalha_id).execute()
@@ -204,7 +204,7 @@ def obtener_estado_batalha(batalha_id):
         return None
 
 def cadastrar_nova_batalha(titulo, descricao, modalidade, data_limite=None, lista_questoes_ids=None, time_a_id=None, time_b_id=None):
-    """Registra a competição e acopla em lote as perguntas na tabela 'batalha_perguntas'."""
+    """Registra a competition e acopla em lote as perguntas na tabela 'batalha_perguntas'."""
     try:
         payload = {
             "titulo": titulo,
@@ -262,21 +262,21 @@ def iniciar_partida_sincrona(batalha_id, time_inicial_id):
         print(f"❌ Erro ao iniciar partida: {e}")
         return False
 
-def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id, alternativa_correta, time_adversario_id, tentativa_atual):
+# 🌟 RESTAURADO DE FORMA SÓLIDA COM EXATOS 6 PARÂMETROS
+def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_correta, time_adversario_id, tentativa_atual):
     """
     Controla as regras estritas do Bate-Rebate:
     Se o time A errar -> Abre o rebate para o time B na mesma pergunta.
     Se o time B errar o rebate -> Ninguém pontua, limpa o estado e avança para a próxima pergunta.
     """
     try:
-        # 1. Registra a submissão incluindo o ID da alternativa escolhida
+        # Registra a submissão no formato original de 6 parâmetros
         supabase.table("batalha_respostas").insert({
             "batalha_id": batalha_id,
             "questao_id": questao_id,
             "time_id": time_id,
-            "alternativa_id": alternativa_id, # 🔗 Vincula qual alternativa foi marcada
-            "resposta_correta": alternativa_correta,
-            "tentativa_numero": tentativa_atual
+            "resposta_correta": bool(alternativa_correta),
+            "tentativa_numero": int(tentativa_atual)
         }).execute()
 
         batalha = obter_estado_batalha(batalha_id)
@@ -284,7 +284,6 @@ def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id,
 
         # --- CASO 1: O TIME ACERTOU ---
         if alternativa_correta:
-            # Garante o ponto, avança de round e dá a preferência do próximo ataque para o oponente
             supabase.table("batalhas").update({
                 "pergunta_atual_ordem": proxima_ordem,
                 "status_sincrono": "aguardando_resposta",
@@ -295,15 +294,12 @@ def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id,
         # --- CASO 2: O TIME ERROU ---
         else:
             if int(tentativa_atual) == 1:
-                # 🛑 Se for o primeiro erro (Equipe A): Ativa o Rebate para a Equipe B (mesma pergunta)
                 supabase.table("batalhas").update({
                     "status_sincrono": "rebate_ativo",
                     "time_da_vez_id": time_adversario_id
                 }).eq("id", batalha_id).execute()
                 return "rebate"
             else:
-                # 🏁 Se for o segundo erro (Equipe B errando o rebate): 
-                # Avança de pergunta limpo, dando o direito de iniciar atacando para a própria Equipe B
                 supabase.table("batalhas").update({
                     "pergunta_atual_ordem": proxima_ordem,
                     "status_sincrono": "aguardando_resposta",
