@@ -52,13 +52,6 @@ try:
     from telas.batalha_de_equipes.integrantes         import tela_batalha_integrantes
     from telas.batalha_de_equipes.gerenciar_batalhas import tela_batalha_gerenciar
     from telas.batalha_de_equipes.rodada             import tela_batalha_rodada
-except ImportError as e:
-    print(f"⚠️ Alerta de Importação em Batalhas: {e}")
-    def tela_batalha_de_equipes(): st.warning("Módulo de batalha de equipes em desenvolvimento.")
-    def tela_batalha_times(): pass
-    def tela_batalha_integrantes(): pass
-    def tela_batalha_gerenciar(): pass
-    def tela_batalha_rodada(): pass
 
 # ----------------------------------------------------------------------------
 # CONFIGURAÇÃO DE AMBIENTE E INICIALIZAÇÃO
