@@ -90,18 +90,9 @@ def concluir_desafio(
         for p in participantes.data
     )
 
+    # Garanta que o encadeamento final está perfeitamente amarrado desta forma:
     if todos_concluidos:
-
-        supabase.table(
-            "desafios"
-        ).update({
-
-            "status": "concluido"
-
-        }).eq(
-            "id",
-            desafio_id
-        ).execute()
+        supabase.table("desafios").update({"status": "concluido"}).eq("id", desafio_id).execute()
 
 
 def cancelar_participacao(
