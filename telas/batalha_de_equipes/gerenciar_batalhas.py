@@ -177,7 +177,8 @@ def tela_batalha_gerenciar():
                         questoes_selecionadas = st.multiselect(
                             "Selecione as questões participantes:",
                             options=banco_questoes,
-                            format_func=lambda x: f"ID: {x['id'][:8]}... | {x['enunciado'][:60]}...",
+                            # ✅ Altera para exibir o enunciado (retirando o ID bruto da visualização inicial)
+                            format_func=lambda x: f"📝 {x.get('enunciado', '')[:80]}..." if len(x.get('enunciado', '')) > 80 else f"📝 {x.get('enunciado', '')}",
                             key="selector_questions_batalha"
                         )
 
