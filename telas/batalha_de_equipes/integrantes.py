@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from database.conexao import supabase
-from services.batalha_de_equipes_service import (
+from services.batalha_service import (
     listar_times, listar_membros_time, listar_alunos,
     adicionar_aluno, remover_aluno, mover_aluno
 )
