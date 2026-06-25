@@ -267,7 +267,7 @@ def tela_batalha_rodada():
             pode_clicar = eh_a_vez_deste_time and (not eh_espectador)
             
             if st.button(texto_opcao, key=f"btn_alt_{alt['id']}", use_container_width=True, disabled=not pode_clicar):
-                # ✅ EXECUÇÃO ALINHADA: Passando exatamente 6 argumentos para o serviço
+                # ✅ Chamada limpa com 6 argumentos direcionada ao batalha_service
                 res = processar_resposta_sincrona(
                     batalha_id, 
                     dados_pergunta["id"], 
@@ -275,9 +275,9 @@ def tela_batalha_rodada():
                     alt["correta"], 
                     time_adversario_id, 
                     tentativa_atual
-                )
-                time.sleep(0.4)
-                st.rerun()
+        )
+        time.sleep(0.5)
+        st.rerun()
 
     st.markdown("<br><hr style='border-color: #334155;'>", unsafe_allow_html=True)
     if st.button("🚪 Sair da Sala / Voltar para a Arena", use_container_width=True, type="secondary", key="btn_sair_sala_emergencia"):
