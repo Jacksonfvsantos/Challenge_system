@@ -1,7 +1,9 @@
 import streamlit as st
 import datetime
+import time
 from database.conexao import supabase
 from utils.estilo import aplicar_estilo, cabecalho
+from services.batalha_service import encerrar_partida_sincrona, deletar_batalha
 
 # --- FUNÇÕES DE SUPORTE AO BACKEND DAS BATALHAS ---
 
@@ -68,7 +70,7 @@ def tela_batalha_de_equipes():
         st.markdown("### 🎙️ Partidas em Tempo Real")
         st.caption("Estas competições exigem sincronia. O professor dita o ritmo da liberação das questões.")
         
-        # ✅ ATALHO ADICIONADO: Permite que o Aluno funde ou gerencie seu time de forma autônoma
+        # Atalho para o Aluno gerenciar o seu time
         if tipo_usuario == "aluno":
             with st.container(border=True):
                 st.markdown("🏢 **Precisa criar, gerenciar ou sair da sua equipe?**")
@@ -102,6 +104,24 @@ def tela_batalha_de_equipes():
                             st.session_state.batalha_ativa_id = bs["id"]
                             st.session_state.pagina = "batalha_rodada"
                             st.rerun()
+
+                        # 🔥 ADICIONADO: Controles de ciclo de vida rápidos visíveis apenas para Professores
+                        if tipo_usuario in ("professor", "admin"):
+                            if st.button("🛑 Encerrar", key=f"card_stop_{bs['id']}", type="secondary", use_container_width=True):
+                                if encerrar_partida_sincrona(bs['id']):
+                                    st.toast("Confronto finalizado e enviado para o histórico!", icon="🛑")
+                                    time.sleep(0.5)
+                                    st.rerun()
+                                else:
+                                    st.error("Erro ao encerrar partida.")
+
+                            if st.button("🗑️ Deletar", key=f"card_del_{bs['id']}", type="secondary", use_container_width=True):
+                                if deletar_batalha(bs['id']):
+                                    st.toast("Batalha de testes apagada com sucesso!", icon="🗑️")
+                                    time.sleep(0.5)
+                                    st.rerun()
+                                else:
+                                    st.error("Erro ao remover do banco.")
 
     # ========================================================================
     # MODE 2: ECOSSISTEMA ASSÍNCRONO (PRAZOS)
@@ -164,7 +184,7 @@ def tela_batalha_de_equipes():
     if tipo_usuario in ("professor", "admin"):
         st.markdown("<br><br>", unsafe_allow_html=True)
         st.divider()
-        st.markdown("### 🛠️ Painel Avançado de Governança Docente")
+        st.markdown("### 🛠️ Painel Advanced de Governança Docente")
         st.caption("Ações de bastidores para provisionar equipes, ajustar integrantes e criar novos editais de competição.")
         
         col_m1, col_m2, col_m3 = st.columns(3)
