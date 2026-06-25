@@ -2,8 +2,6 @@ import streamlit as st
 import time
 from database.conexao import supabase
 from services.batalha_service import encerrar_partida_sincrona
-
-# ✅ CORREÇÃO: Imports visuais adicionados corretamente para o ecossistema
 from utils.estilo import aplicar_estilo, cabecalho
 
 # --- FUNÇÕES DE SUPORTE AO BACKEND DA RODADA ---
@@ -80,8 +78,7 @@ def obter_time_do_usuario(usuario_id):
 def calcular_placar_atual(batalha_id, time_a_id, time_b_id):
     try:
         res = supabase.table("batalha_respostas").select("time_id, resposta_correta").eq("batalha_id", batalha_id).execute()
-        pontos_a = 0
-        pontos_b = 0
+        pontos_a, pontos_b = 0, 0
         if res.data:
             for resp in res.data:
                 if resp.get("resposta_correta") is True:
@@ -95,7 +92,6 @@ def calcular_placar_atual(batalha_id, time_a_id, time_b_id):
 
 def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id, alternativa_correta, time_adversario_id, tentativa_atual):
     try:
-        # Vincula dinamicamente a alternativa_id escolhida no log para sabermos a letra marcada
         supabase.table("batalha_respostas").insert({
             "batalha_id": batalha_id,
             "questao_id": questao_id,
@@ -105,9 +101,7 @@ def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id,
             "tentativa_numero": tentativa_atual
         }).execute()
 
-        batalha = (
-            supabase.table("batalhas").select("pergunta_atual_ordem").eq("id", batalha_id).execute()
-        )
+        batalha = supabase.table("batalhas").select("pergunta_atual_ordem").eq("id", batalha_id).execute()
         pergunta_ordem = batalha.data[0]["pergunta_atual_ordem"] if batalha.data else 1
         proxima_ordem = int(pergunta_ordem) + 1
 
@@ -137,20 +131,9 @@ def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id,
         return "erro"
 
 
-# --- 🔄 COMPONENTE REATIVO AUTO-REFRESH (FRAGMENTS DE 3s) ---
+# --- 🔄 1. SUB-COMPONENTE DINÂMICO (PLACAR E LOGS REATIVOS) ---
 @st.fragment(run_every=3)
-def renderizar_conteudo_dinamico_sala(batalha_id, usuario_id, tipo_usuario, time_id, time_nome):
-    batalha = obter_estado_batalha(batalha_id)
-    
-    if not batalha:
-        st.warning("Batalha não localizada.")
-        return
-
-    time_a_id = str(batalha.get("time_a_id")).strip()
-    time_b_id = str(batalha.get("time_b_id")).strip()
-    nome_time_a, nome_time_b = obter_nomes_dos_times(time_a_id, time_b_id)
-    
-    # 1. Painel de Placar no Topo
+def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, nome_time_b, dados_pergunta):
     pontos_a, pontos_b = calcular_placar_atual(batalha_id, time_a_id, time_b_id)
     
     st.markdown(f"""
@@ -162,10 +145,6 @@ def renderizar_conteudo_dinamico_sala(batalha_id, usuario_id, tipo_usuario, time
     </div>
     """, unsafe_allow_html=True)
 
-    pergunta_ordem = int(batalha.get("pergunta_atual_ordem", 1))
-    dados_pergunta = obter_pergunta_atual(batalha_id, pergunta_ordem)
-    
-    # --- INTERFACE DE HISTÓRICO DE SUBMISSÕES DO ROUND ---
     if dados_pergunta:
         try:
             res_respostas = supabase.table("batalha_respostas").select("*").eq("batalha_id", batalha_id).eq("questao_id", dados_pergunta["id"]).execute()
@@ -175,16 +154,12 @@ def renderizar_conteudo_dinamico_sala(batalha_id, usuario_id, tipo_usuario, time
 
         if historico:
             st.markdown("##### 📢 Registro de Submissões do Round:")
-            
-            # Cria um mapeamento rápido para transformar a ordem em letra correspondente (1=A, 2=B, etc.)
             mapa_alternativas = {str(alt["id"]).strip(): chr(64 + int(alt["ordem"])) for alt in dados_pergunta["alternativas"]}
             
             for item in historico:
                 id_time_respondido = str(item.get("time_id")).strip()
                 nome_do_respondente = nome_time_a if id_time_respondido == time_a_id else nome_time_b
                 chance = item.get("tentativa_numero", 1)
-                
-                # Resgata a letra da alternativa escolhida se houver mapeamento
                 alt_id_submetida = str(item.get("alternativa_id")).strip() if item.get("alternativa_id") else None
                 letra_escolhida = mapa_alternativas.get(alt_id_submetida, "marcada") if alt_id_submetida else "marcada"
                 
@@ -194,12 +169,50 @@ def renderizar_conteudo_dinamico_sala(batalha_id, usuario_id, tipo_usuario, time
                     st.error(f"❌ **{nome_do_respondente}** escolheu a alternativa **({letra_escolhida})** e ERROU na {chance}ª tentativa!")
             st.markdown("---")
 
+
+# --- 🖥️ 2. INTERFACE E ROTEADOR ESTRUTURAL ---
+def tela_batalha_rodada():
+    aplicar_estilo()
+    usuario = st.session_state.get("usuario_logado", {})
+    usuario_id = str(usuario.get("id", "")).strip()
+    tipo_usuario = str(usuario.get("tipo_usuario", "aluno")).lower()
+    
+    if tipo_usuario == "aluno":
+        time_id, time_nome = obter_time_do_usuario(usuario_id)
+        if not time_id:
+            st.error("🛑 Você precisa estar vinculado a uma equipe para acessar esta sala!")
+            return
+    else:
+        time_id, time_nome = "PROFESSOR_CONSOLA", "Painel Docente"
+    
+    if "batalha_ativa_id" not in st.session_state:
+        st.warning("Nenhuma batalha ativa selecionada.")
+        return
+
+    batalha_id = st.session_state.batalha_ativa_id
+    batalha = obter_estado_batalha(batalha_id)
+    
+    if not batalha:
+        st.warning("Batalha não localizada.")
+        return
+
+    time_a_id = str(batalha.get("time_a_id")).strip()
+    time_b_id = str(batalha.get("time_b_id")).strip()
+    nome_time_a, nome_time_b = obter_nomes_dos_times(time_a_id, time_b_id)
+    
+    pergunta_ordem = int(batalha.get("pergunta_atual_ordem", 1))
+    dados_pergunta = obter_pergunta_atual(batalha_id, pergunta_ordem)
+
+    # 🔄 Injeta apenas os componentes estatísticos mutáveis no Auto-Refresh
+    painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, nome_time_b, dados_pergunta)
+
     # --- VERIFICAÇÃO DE CONCLUSÃO DO JOGO ---
     if batalha.get("finalizada") is True or str(batalha.get("status")).lower() == "finalizada" or not dados_pergunta:
         if not batalha.get("finalizada"):
             encerrar_partida_sincrona(batalha_id)
             
         st.success("🏁 **A batalha foi encerrada oficialmente! Todas as perguntas foram respondidas.**")
+        pontos_a, pontos_b = calcular_placar_atual(batalha_id, time_a_id, time_b_id)
         
         if pontos_a > pontos_b:
             st.markdown(f"### 🏆 Vencedor da Arena: **{nome_time_a}** (Placar: {pontos_a} vs {pontos_b})")
@@ -275,6 +288,7 @@ def renderizar_conteudo_dinamico_sala(batalha_id, usuario_id, tipo_usuario, time
 
     st.markdown("<br>", unsafe_allow_html=True)
     
+    # 🔒 ESTÁVEL: Os botões de clique ficam fora do fragmento e nunca sofrem perda de estado!
     if not dados_pergunta["alternativas"]:
         st.warning("⚠️ Esta questão não possui opções vinculadas.")
     else:
@@ -291,33 +305,9 @@ def renderizar_conteudo_dinamico_sala(batalha_id, usuario_id, tipo_usuario, time
                 time.sleep(0.5)
                 st.rerun()
 
-    # 🚪 BOTÃO DE ESCAPE: Voltar para a listagem da arena a qualquer momento
     st.markdown("<br><hr style='border-color: #334155;'>", unsafe_allow_html=True)
     if st.button("🚪 Sair da Sala / Voltar para a Arena", use_container_width=True, type="secondary", key="btn_sair_sala_emergencia"):
         if "batalha_ativa_id" in st.session_state:
             del st.session_state["batalha_ativa_id"]
         st.session_state.pagina = "batalha_de_equipes"
         st.rerun()
-
-
-# --- ROTEADOR PRINCIPAL ---
-def tela_batalha_rodada():
-    aplicar_estilo()
-    usuario = st.session_state.get("usuario_logado", {})
-    usuario_id = str(usuario.get("id", "")).strip()
-    tipo_usuario = str(usuario.get("tipo_usuario", "aluno")).lower()
-    
-    if tipo_usuario == "aluno":
-        time_id, time_nome = obter_time_do_usuario(usuario_id)
-        if not time_id:
-            st.error("🛑 Você precisa estar vinculado a uma equipe para acessar esta sala!")
-            return
-    else:
-        time_id, time_nome = "PROFESSOR_CONSOLA", "Painel Docente"
-    
-    if "batalha_ativa_id" not in st.session_state:
-        st.warning("Nenhuma batalha ativa selecionada.")
-        return
-
-    batalha_id = st.session_state.batalha_ativa_id
-    renderizar_conteudo_dinamico_sala(batalha_id, usuario_id, tipo_usuario, time_id, time_nome)
