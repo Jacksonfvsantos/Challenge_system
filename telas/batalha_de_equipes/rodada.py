@@ -14,9 +14,16 @@ def obter_estado_batalha(batalha_id):
         print(f"❌ Erro [obter_estado_batalha]: {e}")
         return None
 
+def obter_nomes_dos_times(time_a_id, time_b_id):
+    try:
+        res = supabase.table("times").select("id, nome").in_("id", [time_a_id, time_b_id]).execute()
+        mapeamento = {str(t["id"]).strip(): t["nome"] for t in res.data} if res.data else {}
+        return mapeamento.get(str(time_a_id).strip(), "Time A"), mapeamento.get(str(time_b_id).strip(), "Time B")
+    except Exception:
+        return "Time A", "Time B"
+
 def obter_pergunta_atual(batalha_id, ordem_pergunta):
     try:
-        # 1. Busca flexível: tenta localizar o round primeiro como tipo Inteiro
         vinculo = (
             supabase
             .table("batalha_perguntas")
@@ -25,8 +32,6 @@ def obter_pergunta_atual(batalha_id, ordem_pergunta):
             .eq("ordem", int(ordem_pergunta))
             .execute()
         )
-        
-        # Se falhar, tenta localizar passando o round como String pura
         if not vinculo.data:
             vinculo = (
                 supabase
@@ -36,13 +41,10 @@ def obter_pergunta_atual(batalha_id, ordem_pergunta):
                 .eq("ordem", str(ordem_pergunta))
                 .execute()
             )
-            
         if not vinculo.data:
             return None
             
         q_id = str(vinculo.data[0]["questao_id"]).strip()
-        
-        # 2. Busca o enunciado e configurações na tabela 'questoes'
         questao = supabase.table("questoes").select("*").eq("id", q_id).execute()
         if not questao.data:
             return None
@@ -50,14 +52,12 @@ def obter_pergunta_atual(batalha_id, ordem_pergunta):
         dados_questao = questao.data[0]
         indice_correto_banco = int(dados_questao.get("indice_correto", 0))
         
-        # 3. Busca alternativas associadas na tabela 'alternativas'
         alternativas = supabase.table("alternativas").select("*").eq("questao_id", q_id).order("ordem").execute()
         lista_alt_data = alternativas.data or []
         
         alternativas_formatadas = []
         for alt in lista_alt_data:
             eh_correta = alt.get("correta") if alt.get("correta") is not None else (int(alt["ordem"]) == (indice_correto_banco + 1))
-            
             alternativas_formatadas.append({
                 "id": alt["id"],
                 "texto": alt["texto"],
@@ -83,6 +83,22 @@ def obter_time_do_usuario(usuario_id):
     except Exception as e:
         print(f"❌ Erro [obter_time_do_usuario]: {e}")
         return None, None
+
+def calcular_placar_atual(batalha_id, time_a_id, time_b_id):
+    try:
+        res = supabase.table("batalha_respostas").select("time_id, resposta_correta").eq("batalha_id", batalha_id).execute()
+        pontos_a = 0
+        pontos_b = 0
+        if res.data:
+            for resp in res.data:
+                if resp.get("resposta_correta") is True:
+                    if str(resp.get("time_id")).strip() == str(time_a_id).strip():
+                        pontos_a += 1
+                    elif str(resp.get("time_id")).strip() == str(time_b_id).strip():
+                        pontos_b += 1
+        return pontos_a, pontos_b
+    except Exception:
+        return 0, 0
 
 def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_correta, time_adversario_id, tentativa_atual):
     try:
@@ -115,7 +131,7 @@ def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_cor
                 supabase.table("batalhas").update({
                     "pergunta_atual_ordem": proxima_ordem,
                     "status_sincrono": "aguardando_resposta",
-                    "time_da_vez_id": time_id
+                    "time_da_vez_id": time_id  
                 }).eq("id", batalha_id).execute()
                 return "ambos_erraram"
     except Exception as e:
@@ -128,9 +144,66 @@ def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_cor
 def renderizar_conteudo_dinamico_sala(batalha_id, usuario_id, tipo_usuario, time_id, time_nome):
     batalha = obter_estado_batalha(batalha_id)
     
-    if not batalha or batalha.get("finalizada") is True or str(batalha.get("status")).lower() == "finalizada":
-        st.balloons()
-        st.success("🎉 A batalha foi encerrada oficialmente!")
+    if not batalha:
+        st.warning("Batalha não localizada.")
+        return
+
+    time_a_id = str(batalha.get("time_a_id")).strip()
+    time_b_id = str(batalha.get("time_b_id")).strip()
+    nome_time_a, nome_time_b = obter_nomes_dos_times(time_a_id, time_b_id)
+    
+    # Calcula e exibe o painel de pontuação no topo da sala
+    pontos_a, pontos_b = calcular_placar_atual(batalha_id, time_a_id, time_b_id)
+    
+    st.markdown(f"""
+    <div style="background-color: #1e293b; padding: 12px; border-radius: 8px; text-align: center; margin-bottom: 15px; border: 1px solid #334155;">
+        <span style="color: #94a3b8; font-size: 14px; font-weight: bold;">📊 PLACAR AO VIVO</span><br>
+        <span style="color: #38bdf8; font-size: 18px; font-weight: bold;">{nome_time_a}: {pontos_a} XP</span> 
+        <span style="color: #64748b; font-size: 18px;"> vs </span> 
+        <span style="color: #fb923c; font-size: 18px; font-weight: bold;">{nome_time_b}: {pontos_b} XP</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # --- HISTÓRICO DE SUBMISSÕES DA QUESTÃO ATUAL ---
+    pergunta_ordem = int(batalha.get("pergunta_atual_ordem", 1))
+    dados_pergunta = obter_pergunta_atual(batalha_id, pergunta_ordem)
+    
+    if dados_pergunta:
+        try:
+            res_respostas = supabase.table("batalha_respostas").select("*").eq("batalha_id", batalha_id).eq("questao_id", dados_pergunta["id"]).execute()
+            historico = res_respostas.data or []
+        except Exception:
+            historico = []
+
+        if historico:
+            st.markdown("##### 📢 Log de Respostas do Round:")
+            for item in historico:
+                id_time_respondido = str(item.get("time_id")).strip()
+                nome_do_respondente = nome_time_a if id_time_respondido == time_a_id else nome_time_b
+                chance = item.get("tentativa_numero", 1)
+                
+                if item.get("resposta_correta") is True:
+                    st.success(f"🎯 **{nome_do_respondente}** ACERTOU na {chance}ª tentativa!")
+                else:
+                    st.error(f"❌ **{nome_do_respondente}** ERROU na {chance}ª tentativa!")
+            st.markdown("---")
+
+    # --- VERIFICAÇÃO DE FIM DE JOGO ---
+    if batalha.get("finalizada") is True or str(batalha.get("status")).lower() == "finalizada" or not dados_pergunta:
+        # Garante o encerramento no banco se ainda não foi feito
+        if not batalha.get("finalizada"):
+            encerrar_partida_sincrona(batalha_id)
+            
+        st.success("🏁 **A batalha foi encerrada oficialmente! Todas as perguntas foram respondidas.**")
+        
+        # Lógica matemática de determinação do vencedor
+        if pontos_a > pontos_b:
+            st.markdown(f"### 🏆 Vencedor: **{nome_time_a}** (Placar: {pontos_a} vs {pontos_b})")
+        elif pontos_b > pontos_a:
+            st.markdown(f"### 🏆 Vencedor: **{nome_time_b}** (Placar: {pontos_b} vs {pontos_a})")
+        else:
+            st.markdown(f"### 🤝 Resultado: **Empate Técnico!** (Placar: {pontos_a} vs {pontos_b})")
+            
         if st.button("Voltar para a Arena", use_container_width=True, key="btn_batalha_fim"):
             st.session_state.pagina = "batalha_de_equipes"
             st.rerun()
@@ -139,11 +212,6 @@ def renderizar_conteudo_dinamico_sala(batalha_id, usuario_id, tipo_usuario, time
     # Painel de controle inicial exclusivo do docente
     if tipo_usuario in ("professor", "admin") and str(batalha.get("status")).lower() == "agendada":
         st.markdown("### 🎛️ Painel de Controle de Início da Partida")
-        st.info("Selecione qual equipe começará atacando na rodada ao vivo:")
-        
-        time_a_id = str(batalha.get("time_a_id")).strip()
-        time_b_id = str(batalha.get("time_b_id")).strip()
-        
         try:
             res_times = supabase.table("times").select("id, nome").in_("id", [time_a_id, time_b_id]).execute()
             lista_times_sala = res_times.data or []
@@ -151,10 +219,9 @@ def renderizar_conteudo_dinamico_sala(batalha_id, usuario_id, tipo_usuario, time
             lista_times_sala = []
             
         if not lista_times_sala:
-            st.error("🛑 Erro relacional: As equipes selecionadas não existem no banco de dados.")
+            st.error("🛑 Erro relacional: As equipes selecionadas não existem no banco.")
         else:
             time_inicial = st.selectbox("Quem joga primeiro?", options=lista_times_sala, format_func=lambda x: str(x["nome"]).strip())
-            
             from services.batalha_service import iniciar_partida_sincrona
             if st.button("🔥 Começar Partida Agora!", type="primary", use_container_width=True):
                 if iniciar_partida_sincrona(batalha_id, time_inicial["id"]):
@@ -166,23 +233,18 @@ def renderizar_conteudo_dinamico_sala(batalha_id, usuario_id, tipo_usuario, time
         st.info("⏳ **Sala de Espera:** Aguardando o professor dar o sinal de início. Esta tela atualizará sozinha.")
         return
 
-    # Resolução de permissões
+    # Resolução de permissões de times
     eh_espectador = False
     if tipo_usuario == "aluno":
-        if str(time_id) != str(batalha.get("time_a_id")).strip() and str(time_id) != str(batalha.get("time_b_id")).strip():
+        if str(time_id) != time_a_id and str(time_id) != time_b_id:
             st.warning("👁️ Modo Espectador ativado.")
             eh_espectador = True
     else:
         eh_espectador = True
 
-    if str(time_id) == str(batalha.get("time_a_id")).strip():
-        time_adversario_id = str(batalha.get("time_b_id")).strip()
-    else:
-        time_adversario_id = str(batalha.get("time_a_id")).strip()
-    
+    time_adversario_id = time_b_id if str(time_id) == time_a_id else time_a_id
     time_da_vez_id = str(batalha.get("time_da_vez_id")).strip() if batalha.get("time_da_vez_id") else ""
     status_sincrono = batalha.get("status_sincrono", "aguardando_resposta")
-    pergunta_ordem = int(batalha.get("pergunta_atual_ordem", 1))
     
     tentativa_atual = 2 if status_sincrono == "rebate_ativo" else 1
     eh_a_vez_deste_time = (str(time_id).strip() == time_da_vez_id)
@@ -204,20 +266,6 @@ def renderizar_conteudo_dinamico_sala(batalha_id, usuario_id, tipo_usuario, time
             </div>
             """, unsafe_allow_html=True)
 
-    # Coleta a pergunta baseada na ordem lógica
-    dados_pergunta = obter_pergunta_atual(batalha_id, pergunta_ordem)
-    
-    if not dados_pergunta:
-        st.warning("🏁 Todas as perguntas desta rodada foram respondidas!")
-        if tipo_usuario in ("professor", "admin"):
-            if st.button("🏁 Finalizar e Arquivar Batalha", type="primary", use_container_width=True):
-                if encerrar_partida_sincrona(batalha_id):
-                    st.success("Batalha finalizada!")
-                    time.sleep(0.5)
-                    st.session_state.pagina = "batalha_de_equipes"
-                    st.rerun()
-        return
-
     with st.container(border=True):
         st.markdown(f"**Enunciado:**\n{dados_pergunta['enunciado']}")
 
@@ -229,7 +277,6 @@ def renderizar_conteudo_dinamico_sala(batalha_id, usuario_id, tipo_usuario, time
         for alt in dados_pergunta["alternativas"]:
             letra = chr(64 + int(alt["ordem"]))
             texto_opcao = f"{letra}) {alt['texto']}"
-            
             pode_clicar = eh_a_vez_deste_time and (not eh_espectador)
             
             if st.button(texto_opcao, key=f"btn_alt_{alt['id']}", use_container_width=True, disabled=not pode_clicar):

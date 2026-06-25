@@ -194,7 +194,7 @@ def listar_batalhas():
         print(f"❌ Erro [listar_batalhas]: {erro}")
         return []
 
-def obter_estado_batalha(batalha_id):
+def obtener_estado_batalha(batalha_id):
     """Busca os dados de estado em tempo real de uma batalha específica."""
     try:
         res = supabase.table("batalhas").select("*").eq("id", batalha_id).execute()
@@ -241,7 +241,6 @@ def cadastrar_nova_batalha(titulo, descricao, modalidade, data_limite=None, list
                     "questao_id": q_id,
                     "ordem": i + 1
                 })
-            # CORRIGIDO: Validação limpa sem o bug de sintaxe do lines_vinculo
             if linhas_vinculo:
                 supabase.table("batalha_perguntas").insert(linhas_vinculo).execute()
 
@@ -264,11 +263,6 @@ def iniciar_partida_sincrona(batalha_id, time_inicial_id):
         return False
 
 def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_correta, time_adversario_id, tentativa_atual):
-    """
-    Controla as regras estritas do Bate-Rebate:
-    Se o time A errar -> Abre o rebate para o time B na mesma pergunta.
-    Se o time B errar o rebate -> Ninguém pontua, limpa o estado e avança para a próxima pergunta.
-    """
     try:
         # 1. Registra a submissão na tabela de respostas
         supabase.table("batalha_respostas").insert({
@@ -284,7 +278,6 @@ def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_cor
 
         # --- CASO 1: O TIME ACERTOU ---
         if alternativa_correta:
-            # Garante o ponto, avança de round e dá a preferência do próximo ataque para o oponente
             supabase.table("batalhas").update({
                 "pergunta_atual_ordem": proxima_ordem,
                 "status_sincrono": "aguardando_resposta",
@@ -295,15 +288,14 @@ def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_cor
         # --- CASO 2: O TIME ERROU ---
         else:
             if int(tentativa_atual) == 1:
-                # 🛑 Se for o primeiro erro (Equipe A): Ativa o Rebate para a Equipe B (mesma pergunta)
+                # 1º Erro: Passa o rebate para o oponente na mesma pergunta
                 supabase.table("batalhas").update({
                     "status_sincrono": "rebate_ativo",
                     "time_da_vez_id": time_adversario_id
                 }).eq("id", batalha_id).execute()
                 return "rebate"
             else:
-                # 🏁 NOVO REQUISITO AJUSTADO: Se for o segundo erro (Equipe B errando o rebate): 
-                # Avança de pergunta limpo, dando o direito de iniciar atacando para a própria Equipe B
+                # 2º Erro (Errou o rebate): Avança de pergunta limpo
                 supabase.table("batalhas").update({
                     "pergunta_atual_ordem": proxima_ordem,
                     "status_sincrono": "aguardando_resposta",
