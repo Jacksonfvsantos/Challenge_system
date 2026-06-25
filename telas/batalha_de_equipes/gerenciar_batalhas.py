@@ -10,11 +10,11 @@ def tela_batalha_gerenciar():
     
     cabecalho(
         "🛠️ Painel de Provisionamento Híbrido",
-        "Abra novos editais assíncronos ou monte circuitos síncronos de Bate-Rebate"
+        "Abra novos editais assíncronos ou monte circuitos síncronos de Bate-Rebate entre duas equipes"
     )
 
     # ------------------------------------------------------------------------
-    # GAVETA EXPANSÍVEL: CADASTRO COMPLEMENTAR DIRETO DE QUESTÕES (NOVO)
+    # GAVETA EXPANSÍVEL: CADASTRO COMPLEMENTAR DIRETO DE QUESTÕES
     # ------------------------------------------------------------------------
     with st.expander("➕ Não tem questões prontas? Cadastrar Nova Questão no Banco agora mesmo", expanded=False):
         st.markdown("#### 📝 Nova Questão de Engenharia")
@@ -47,18 +47,24 @@ def tela_batalha_gerenciar():
                 if res_q["sucesso"]:
                     st.success(res_q["mensagem"])
                     time.sleep(1)
-                    st.rerun() # Recarrega a tela para popular o seletor da batalha instantaneamente
+                    st.rerun()
                 else:
                     st.error(res_q["mensagem"])
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Puxa o banco de questões atualizado do Supabase
+    # Puxa o banco de dados de questões e equipes do Supabase para os seletores
     try:
         questoes_res = supabase.table("questoes").select("id, enunciado").execute()
         banco_questoes = questoes_res.data or []
     except Exception:
         banco_questoes = []
+
+    try:
+        times_res = supabase.table("times").select("id, nome").execute()
+        banco_times = times_res.data or []
+    except Exception:
+        banco_times = []
 
     # ------------------------------------------------------------------------
     # FORMULÁRIO PRINCIPAL: PROVISIONAMENTO DA COMPETIÇÃO
@@ -83,18 +89,55 @@ def tela_batalha_gerenciar():
                 hora_entrega = st.time_input("Horário Limite:", datetime.time(23, 59))
                 prazo_final = datetime.datetime.combine(data_entrega, hora_entrega)
             else:
-                st.info("💡 Modo Bate-Rebate selecionado. O controle de tempo será ditado em tempo real por você na sala.")
+                st.info("💡 Modo Bate-Rebate selecionado. O controle de tempo será ditado em tempo real por si na sala.")
                 prazo_final = None
 
-        # Exibição das questões disponíveis
+        # ------------------------------------------------------------------------
+        # SELEÇÃO SELETIVA DE DUAS EQUIPES COMPETIDORAS (NOVO)
+        # ------------------------------------------------------------------------
+        time_a_id = None
+        time_b_id = None
+        
+        if modalidade == "sincrona":
+            st.markdown("---")
+            st.markdown("### 👥 Seleção de Equipes Competidoras")
+            st.caption("Escolha as duas equipes específicas que se irão enfrentar ao vivo nesta sala.")
+            
+            if not banco_times:
+                st.warning("⚠️ Nenhuma equipe cadastrada no sistema. Cadastre equipas antes de abrir uma batalha síncrona.")
+            elif len(banco_times) < 2:
+                st.warning("⚠️ São necessárias pelo menos 2 equipes cadastradas no sistema para realizar um confronto.")
+            else:
+                col_t1, col_t2 = st.columns(2)
+                with col_t1:
+                    time_a_selecionado = st.selectbox(
+                        "Selecione a Equipe A (Desafiante):",
+                        options=banco_times,
+                        format_func=lambda x: x["nome"],
+                        key="sb_time_a"
+                    )
+                    time_a_id = time_a_selecionado["id"] if time_a_selecionado else None
+                
+                with col_t2:
+                    # Filtra a lista da Equipe B para remover o time escolhido na Equipe A
+                    banco_times_filtrado_b = [t for t in banco_times if t["id"] != time_a_id]
+                    time_b_selecionado = st.selectbox(
+                        "Selecione a Equipe B (Desafiada):",
+                        options=banco_times_filtrado_b,
+                        format_func=lambda x: x["nome"],
+                        key="sb_time_b"
+                    )
+                    time_b_id = time_b_selecionado["id"] if time_b_selecionado else None
+
+        # Exibição das questões disponíveis para o circuito síncrono
         questoes_selecionadas = []
         if modalidade == "sincrona":
             st.markdown("---")
             st.markdown("### 🗂️ Seleção de Questões para o Circuito Síncrono")
-            st.caption("Selecione na ordem exata em que deseja que elas apareçam para os alunos durante o Bate-Rebate.")
+            st.caption("Selecione na ordem exata em que deseja que apareçam para os alunos durante o Bate-Rebate.")
             
             if not banco_questoes:
-                st.warning("⚠️ Nenhuma questão cadastrada no banco de dados geral. Use a gaveta no topo da página para cadastrar questões primeiro.")
+                st.warning("⚠️ Nenhuma questão cadastrada no banco de dados geral. Utilize a gaveta no topo da página para cadastrar questões primeiro.")
             else:
                 questoes_selecionadas = st.multiselect(
                     "Selecione as questões participantes:",
@@ -109,6 +152,8 @@ def tela_batalha_gerenciar():
         if btn_publicar:
             if not titulo.strip():
                 st.error("O título da batalha é obrigatório.")
+            elif modalidade == "sincrona" and (not time_a_id or not time_b_id):
+                st.error("Para o modo Bate-Rebate, deve selecionar duas equipas distintas para competir.")
             elif modalidade == "sincrona" and not questoes_selecionadas:
                 st.error("Para o modo Bate-Rebate, selecione pelo menos 1 questão para compor a rodada.")
             else:
@@ -119,7 +164,9 @@ def tela_batalha_gerenciar():
                     descricao=descricao,
                     modalidade=modalidade,
                     data_limite=prazo_final,
-                    lista_questoes_ids=lista_ids
+                    lista_questoes_ids=lista_ids,
+                    time_a_id=time_a_id,
+                    time_b_id=time_b_id
                 )
                 
                 if resultado["sucesso"]:
