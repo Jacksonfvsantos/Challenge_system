@@ -1,18 +1,10 @@
 import streamlit as st
 import time
 from database.conexao import supabase
-from services.batalha_service import encerrar_partida_sincrona, processar_resposta_sincrona
+from services.batalha_service import encerrar_partida_sincrona, processar_resposta_sincrona, obter_estado_batalha
 from utils.estilo import aplicar_estilo, cabecalho
 
 # --- FUNÇÕES DE SUPORTE AO BACKEND DA RODADA ---
-
-def obter_estado_batalha(batalha_id):
-    try:
-        res = supabase.table("batalhas").select("*").eq("id", batalha_id).execute()
-        return res.data[0] if res.data else None
-    except Exception as e:
-        print(f"❌ Erro [obter_estado_batalha]: {e}")
-        return None
 
 def obter_nomes_dos_times(time_a_id, time_b_id):
     try:
@@ -91,13 +83,16 @@ def calcular_placar_atual(batalha_id, time_a_id, time_b_id):
         return 0, 0
 
 
-# --- 🔄 1. COMPONENTE REATIVO DE ATUALIZAÇÃO DO PLACAR ---
+# --- 🔄 1. COMPONENTE REATIVO COM DETECTOR DE TURNO ACELERADO ---
 @st.fragment(run_every=3)
-def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, nome_time_b, dados_pergunta, ordem_renderizada_atualmente):
+def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, nome_time_b, dados_pergunta, ordem_renderizada_atualmente, status_renderizado_atualmente):
     batalha_live = obter_estado_batalha(batalha_id)
     if batalha_live:
         ordem_banco = int(batalha_live.get("pergunta_atual_ordem", 1))
-        if ordem_banco != int(ordem_renderizada_atualmente):
+        status_banco = str(batalha_live.get("status_sincrono", "aguardando_resposta"))
+        
+        # 🚀 SINAL DE ATUALIZAÇÃO: Se a rodada mudou OU o status do Bate-Rebate mudou, força o rerun estrutural!
+        if ordem_banco != int(ordem_renderizada_atualmente) or status_banco != str(status_renderizado_atualmente):
             st.session_state["forcar_refresh_pergunta"] = True
             st.rerun()
 
@@ -112,14 +107,11 @@ def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, no
     </div>
     """, unsafe_allow_html=True)
 
-    # 🚀 SOLUÇÃO DO HISTÓRICO FIXADO: Determina qual questão exibir no log.
-    # Se o round avançou, buscamos as respostas da questão anterior para fixar o indicativo na tela!
+    # Mantém a persistência visual inteligente do round anterior
     ordem_alvo_log = ordem_renderizada_atualmente
     pergunta_alvo_dados = dados_pergunta
 
     if int(ordem_renderizada_atualmente) > 1:
-        # Verifica se a pergunta atual ainda não recebeu nenhuma submissão.
-        # Se estiver zerada, significa que acabamos de mudar de round, então mostramos o log do round anterior!
         try:
             check_atual = supabase.table("batalha_respostas").select("id").eq("batalha_id", batalha_id).eq("questao_id", dados_pergunta["id"] if dados_pergunta else "").execute()
             if not check_atual.data:
@@ -142,7 +134,7 @@ def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, no
                 nome_do_respondente = nome_time_a if id_time_respondido == time_a_id else nome_time_b
                 
                 if item.get("resposta_correta") is True:
-                    st.success(f"f🎯 **{nome_do_respondente}** respondeu e ACERTOU a questão {ordem_alvo_log}!")
+                    st.success(f"🎯 **{nome_do_respondente}** respondeu e ACERTOU a questão {ordem_alvo_log}!")
                 else:
                     st.error(f"❌ **{nome_do_respondente}** respondeu e ERROU a questão {ordem_alvo_log}!")
             st.markdown("---")
@@ -184,9 +176,11 @@ def tela_batalha_rodada():
     nome_time_a, nome_time_b = obter_nomes_dos_times(time_a_id, time_b_id)
     
     pergunta_ordem = int(batalha.get("pergunta_atual_ordem", 1))
+    status_sincrono = str(batalha.get("status_sincrono", "aguardando_resposta"))
     dados_pergunta = obter_pergunta_atual(batalha_id, pergunta_ordem)
 
-    painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, nome_time_b, dados_pergunta, pergunta_ordem)
+    # Injeta o painel monitorando a ordem e o status síncrono atual simultaneamente
+    painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, nome_time_b, dados_pergunta, pergunta_ordem, status_sincrono)
 
     # --- VERIFICAÇÃO DE CONCLUSÃO DO JOGO ---
     if batalha.get("finalizada") is True or str(batalha.get("status")).lower() == "finalizada" or not dados_pergunta:
@@ -243,7 +237,6 @@ def tela_batalha_rodada():
 
     time_adversario_id = time_b_id if str(time_id) == time_a_id else time_a_id
     time_da_vez_id = str(batalha.get("time_da_vez_id")).strip() if batalha.get("time_da_vez_id") else ""
-    status_sincrono = batalha.get("status_sincrono", "aguardando_resposta")
     
     tentativa_atual = 2 if status_sincrono == "rebate_ativo" else 1
     eh_a_vez_deste_time = (str(time_id).strip() == time_da_vez_id)
@@ -283,7 +276,8 @@ def tela_batalha_rodada():
                     batalha_id, dados_pergunta["id"], time_id,
                     alt["correta"], time_adversario_id, tentativa_atual
                 )
-                time.sleep(0.5)
+                time.sleep(0.4)
+                # Força a limpeza estrutural e recarrega com o novo status obtido
                 st.rerun()
 
     st.markdown("<br><hr style='border-color: #334155;'>", unsafe_allow_html=True)
