@@ -109,6 +109,10 @@ def processar_resposta_sincrona(batalha_id, questao_id, time_id, resposta_corret
         print(f"❌ Erro em [processar_resposta_sincrona]: {e}")
         return False
 
+def encerra_partida_sincrona(batalha_id):
+    # Aliás mantido por compatibilidade de escrita
+    return encerrar_partida_sincrona(batalha_id)
+
 def encerrar_partida_sincrona(batalha_id):
     try:
         supabase.table("batalhas").update({
@@ -118,4 +122,15 @@ def encerrar_partida_sincrona(batalha_id):
         return True
     except Exception as e:
         print(f"❌ Erro ao encerrar partida: {e}")
+        return False
+
+# 🚀 REINTRODUZIDO: Função exigida por outras telas da aplicação para limpar o erro de importação
+def deletar_batalha(batalha_id):
+    try:
+        supabase.table("batalha_perguntas").delete().eq("batalha_id", batalha_id).execute()
+        supabase.table("batalha_respostas").delete().eq("batalha_id", batalha_id).execute()
+        supabase.table("batalhas").delete().eq("id", batalha_id).execute()
+        return True
+    except Exception as e:
+        print(f"❌ Erro ao deletar batalha: {e}")
         return False
