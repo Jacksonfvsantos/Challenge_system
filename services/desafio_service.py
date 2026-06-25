@@ -50,14 +50,11 @@ def listar_desafios():
 
 
 def criar_desafio(titulo, descricao, criador_id, data_limite=None, nivel_dificuldade="Medio"):
-    """
-    Insere um novo desafio respeitando o esquema oficial do banco de dados.
-    """
     try:
         dados = {
             "titulo": str(titulo),
             "descricao": str(descricao),
-            "criador_id": int(criador_id),
+            "criador_id": str(criador_id).strip(),
             "nivel_dificuldade": str(nivel_dificuldade)
         }
         if data_limite:
