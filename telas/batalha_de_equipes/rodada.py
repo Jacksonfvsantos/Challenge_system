@@ -1,12 +1,12 @@
 import streamlit as st
 import time
 from database.conexao import supabase
-from services.batalha_service import encerrar_partida_sincrona, processar_resposta_sincrona
+from services.batalha_service import encerrar_partida_sincrona, processar_resposta_sincrona, obter_estado_batalha
 from utils.estilo import aplicar_estilo, cabecalho
 
 # --- FUNÇÕES DE SUPORTE AO BACKEND DA RODADA ---
 
-def obter_estado_batalha(batalha_id):
+def obtener_estado_batalha(batalha_id):
     try:
         res = supabase.table("batalhas").select("*").eq("id", batalha_id).execute()
         return res.data[0] if res.data else None
@@ -97,7 +97,6 @@ def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, no
     batalha_live = obter_estado_batalha(batalha_id)
     if batalha_live:
         ordem_banco = int(batalha_live.get("pergunta_atual_ordem", 1))
-        # Se detetar no banco que a pergunta mudou, ativa a flag para atualizar a tela estrutural externa
         if ordem_banco != int(ordem_renderizada_atualmente):
             st.session_state["forcar_refresh_pergunta"] = True
             st.rerun()
@@ -125,13 +124,12 @@ def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, no
             for item in historico:
                 id_time_respondido = str(item.get("time_id")).strip()
                 nome_do_respondente = nome_time_a if id_time_respondido == time_a_id else nome_time_b
-                chance = item.get("tentativa_numero", 1)
                 
-                # Voltamos para a exibição estável (apenas informativo de acerto/erro)
+                # 🎯 FORMATO REVISADO CONFORME EXPLICITADO
                 if item.get("resposta_correta") is True:
-                    st.success(f"🎯 **{nome_do_respondente}** RESPONDEU e ACERTOU na {chance}ª tentativa!")
+                    st.success(f"🎯 **{nome_do_respondente}** respondeu e ACERTOU a questão {ordem_renderizada_atualmente}!")
                 else:
-                    st.error(f"❌ **{nome_do_respondente}** RESPONDEU e ERROU na {chance}ª tentativa!")
+                    st.error(f"❌ **{nome_do_respondente}** respondeu e ERROU a questão {ordem_renderizada_atualmente}!")
             st.markdown("---")
 
 
@@ -139,7 +137,6 @@ def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, no
 def tela_batalha_rodada():
     aplicar_estilo()
     
-    # Executa o refresh da tela estrutural se o fragmento em background deu sinal de nova pergunta
     if st.session_state.get("forcar_refresh_pergunta", False):
         st.session_state["forcar_refresh_pergunta"] = False
         st.rerun()
@@ -267,7 +264,6 @@ def tela_batalha_rodada():
             pode_clicar = eh_a_vez_deste_time and (not eh_espectador)
             
             if st.button(texto_opcao, key=f"btn_alt_{alt['id']}", use_container_width=True, disabled=not pode_clicar):
-                # ✅ CORRIGIDO: Enviando exatamente os 6 argumentos esperados pelo batalha_service.py original!
                 res = processar_resposta_sincrona(
                     batalha_id, dados_pergunta["id"], time_id,
                     alt["correta"], time_adversario_id, tentativa_atual
