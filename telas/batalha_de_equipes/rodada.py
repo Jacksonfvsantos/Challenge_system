@@ -1,10 +1,8 @@
 import streamlit as st
 import time
 from database.conexao import supabase
-from utils.estilo import aplicar_estilo, cabecalho
-
-# ✅ CENTRALIZADO: Importando as funções oficiais diretamente do serviço único
 from services.batalha_service import encerrar_partida_sincrona, processar_resposta_sincrona
+from utils.estilo import aplicar_estilo, cabecalho
 
 # --- FUNÇÕES DE SUPORTE AO BACKEND DA RODADA ---
 
@@ -96,12 +94,14 @@ def calcular_placar_atual(batalha_id, time_a_id, time_b_id):
 # --- 🔄 1. SUB-COMPONENTE DINÂMICO DE SINCRONIZAÇÃO EM TEMPO REAL ---
 @st.fragment(run_every=3)
 def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, nome_time_b, dados_pergunta, ordem_renderizada_atualmente):
-    # Força a leitura do estado mais recente do banco de dados
+    # Escuta o banco de dados em segundo plano para ver se o round avançou
     batalha_live = obter_estado_batalha(batalha_id)
     if batalha_live:
         ordem_banco = int(batalha_live.get("pergunta_atual_ordem", 1))
-        # 🚀 DETECTOR DE AVANÇO: Se o oponente respondeu e mudou de round, força o ecrã a atualizar!
+        # 🚀 ALTERAÇÃO CRÍTICA: Se houver mudança de round pelo clique do oponente, alteramos o state global
+        # para forçar a renderização completa da página no próximo frame, eliminando o isolamento do fragmento.
         if ordem_banco != int(ordem_renderizada_atualmente):
+            st.session_state["forcar_refresh_pergunta"] = True
             st.rerun()
 
     pontos_a, pontos_b = calcular_placar_atual(batalha_id, time_a_id, time_b_id)
@@ -143,6 +143,12 @@ def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, no
 # --- 🖥️ 2. INTERFACE E ROTEADOR ESTRUTURAL ---
 def tela_batalha_rodada():
     aplicar_estilo()
+    
+    # 🏁 CAPTURA DO REFRESH GLOBAL: Se o fragmento setou a flag de alteração, limpa a flag e recarrega a página estrutural
+    if st.session_state.get("forcar_refresh_pergunta", False):
+        st.session_state["forcar_refresh_pergunta"] = False
+        st.rerun()
+
     usuario = st.session_state.get("usuario_logado", {})
     usuario_id = str(usuario.get("id", "")).strip()
     tipo_usuario = str(usuario.get("tipo_usuario", "aluno")).lower()
@@ -173,7 +179,7 @@ def tela_batalha_rodada():
     pergunta_ordem = int(batalha.get("pergunta_atual_ordem", 1))
     dados_pergunta = obter_pergunta_atual(batalha_id, pergunta_ordem)
 
-    # 🔄 Injeta os componentes estatísticos passando a ordem atual para monitoramento
+    # Renderiza o cabeçalho passando a ordem atual para monitoramento reativo
     painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, nome_time_b, dados_pergunta, pergunta_ordem)
 
     # --- VERIFICAÇÃO DE CONCLUSÃO DO JOGO ---
@@ -272,6 +278,7 @@ def tela_batalha_rodada():
                     alt["correta"], time_adversario_id, tentativa_atual
                 )
                 time.sleep(0.5)
+                # Como o clique ocorre fora do fragmento, este rerun é estrutural e seguro
                 st.rerun()
 
     st.markdown("<br><hr style='border-color: #334155;'>", unsafe_allow_html=True)
