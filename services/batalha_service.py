@@ -182,8 +182,26 @@ def mover_aluno(usuario_id: str, destino_time_id: str) -> bool:
 
 
 # ============================================================================
-# 3. MOTOR ATIVO DE PARTIDAS & ESTEIRA DE QUESTÕES
+# 3. MOTOR ATIVO DE PARTIDAS & CONTROLE DE TURNOS (BATE-REBATE)
 # ============================================================================
+
+def listar_batalhas():
+    """Busca o histórico de batalhas registradas no banco."""
+    try:
+        resposta = supabase.table("batalhas").select("*").order("created_at", descending=True).execute()
+        return resposta.data or []
+    except Exception as erro:
+        print(f"❌ Erro [listar_batalhas]: {erro}")
+        return []
+
+def obter_estado_batalha(batalha_id):
+    """Busca os dados de estado em tempo real de uma batalha específica."""
+    try:
+        res = supabase.table("batalhas").select("*").eq("id", batalha_id).execute()
+        return res.data[0] if res.data else None
+    except Exception as e:
+        print(f"❌ Erro [obter_estado_batalha]: {e}")
+        return None
 
 def cadastrar_nova_batalha(titulo, descricao, modalidade, data_limite=None, lista_questoes_ids=None, time_a_id=None, time_b_id=None):
     """Registra a competição e acopla em lote as perguntas na tabela 'batalha_perguntas'."""
@@ -223,7 +241,8 @@ def cadastrar_nova_batalha(titulo, descricao, modalidade, data_limite=None, list
                     "questao_id": q_id,
                     "ordem": i + 1
                 })
-            if linhas_vinculo := linhas_vinculo:
+            # CORRIGIDO: Validação limpa sem o bug de sintaxe do lines_vinculo
+            if linhas_vinculo:
                 supabase.table("batalha_perguntas").insert(linhas_vinculo).execute()
 
         return {"sucesso": True, "mensagem": "🚀 Competição publicada e questões vinculadas com sucesso!"}
@@ -243,6 +262,58 @@ def iniciar_partida_sincrona(batalha_id, time_inicial_id):
     except Exception as e:
         print(f"❌ Erro ao iniciar partida: {e}")
         return False
+
+def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_correta, time_adversario_id, tentativa_atual):
+    """
+    Controla as regras estritas do Bate-Rebate:
+    Se o time A errar -> Abre o rebate para o time B na mesma pergunta.
+    Se o time B errar o rebate -> Ninguém pontua, limpa o estado e avança para a próxima pergunta.
+    """
+    try:
+        # 1. Registra a submissão na tabela de respostas
+        supabase.table("batalha_respostas").insert({
+            "batalha_id": batalha_id,
+            "questao_id": questao_id,
+            "time_id": time_id,
+            "resposta_correta": alternativa_correta,
+            "tentativa_numero": tentativa_atual
+        }).execute()
+
+        batalha = obter_estado_batalha(batalha_id)
+        proxima_ordem = int(batalha["pergunta_atual_ordem"]) + 1
+
+        # --- CASO 1: O TIME ACERTOU ---
+        if alternativa_correta:
+            # Garante o ponto, avança de round e dá a preferência do próximo ataque para o oponente
+            supabase.table("batalhas").update({
+                "pergunta_atual_ordem": proxima_ordem,
+                "status_sincrono": "aguardando_resposta",
+                "time_da_vez_id": time_adversario_id
+            }).eq("id", batalha_id).execute()
+            return "acertou"
+            
+        # --- CASO 2: O TIME ERROU ---
+        else:
+            if int(tentativa_atual) == 1:
+                # 🛑 Se for o primeiro erro (Equipe A): Ativa o Rebate para a Equipe B (mesma pergunta)
+                supabase.table("batalhas").update({
+                    "status_sincrono": "rebate_ativo",
+                    "time_da_vez_id": time_adversario_id
+                }).eq("id", batalha_id).execute()
+                return "rebate"
+            else:
+                # 🏁 NOVO REQUISITO AJUSTADO: Se for o segundo erro (Equipe B errando o rebate): 
+                # Avança de pergunta limpo, dando o direito de iniciar atacando para a própria Equipe B
+                supabase.table("batalhas").update({
+                    "pergunta_atual_ordem": proxima_ordem,
+                    "status_sincrono": "aguardando_resposta",
+                    "time_da_vez_id": time_id  
+                }).eq("id", batalha_id).execute()
+                return "ambos_erraram"
+                
+    except Exception as e:
+        print(f"❌ Erro [processar_resposta_sincrona]: {e}")
+        return "erro"
 
 def encerrar_partida_sincrona(batalha_id):
     try:
