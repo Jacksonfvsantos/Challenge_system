@@ -47,16 +47,15 @@ except ImportError:
 
 # Sub-módulos: Arena de Batalha de Equipes (Bate-Rebate Síncrono)
 try:
-    # Importação das telas com base exata no seu diretório físico
     from telas.batalha_de_equipes.batalha_de_equipes import tela_batalha_de_equipes
     from telas.batalha_de_equipes.times              import tela_batalha_times
     from telas.batalha_de_equipes.integrantes         import tela_batalha_integrantes
     from telas.batalha_de_equipes.gerenciar_batalhas import tela_batalha_gerenciar
     from telas.batalha_de_equipes.rodada             import tela_batalha_rodada
 except ImportError as e:
-    # Se cair aqui, o Streamlit vai printar no terminal qual sub-import interno quebrou
-    print(f"❌ Erro crítico de importação interna no ecossistema: {e}")
-    def tela_batalha_de_equipes(): st.error(f"Erro ao carregar o módulo: {e}")
+    # Captura a variável 'e' corretamente para evitar NameError
+    def tela_batalha_de_equipes(): 
+        st.error(f"Erro interno de importação: {e}")
     def tela_batalha_times(): pass
     def tela_batalha_integrantes(): pass
     def tela_batalha_gerenciar(): pass
