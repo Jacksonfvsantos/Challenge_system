@@ -33,7 +33,7 @@ def obter_pergunta_atual(batalha_id, ordem_pergunta):
         return {
             "id": q_id,
             "enunciado": questao.data[0]["enunciado"] if questao.data else "Questão não encontrada",
-            "alternativas": alternativas.data or []
+            "alternativas": alternatives.data or []
         }
     except Exception:
         return None
@@ -96,14 +96,14 @@ def tela_batalha_rodada():
     usuario_id = str(usuario.get("id", "")).strip()
     tipo_usuario = str(usuario.get("tipo_usuario", "aluno")).lower()
     
-    # ========================================================================
-    # ✅ VALIDAÇÃO DE SEGURANÇA: BARRA DE ENTRADA DE ALUNOS SEM EQUIPE
-    # ========================================================================
+    # ------------------------------------------------------------------------
+    # 🛡️ TRAVA DE SEGURANÇA: ALUNOS SEM EQUIPE SÃO BARRADOS NO PORTÃO
+    # ------------------------------------------------------------------------
     if tipo_usuario == "aluno":
         time_id, time_nome = obter_time_do_usuario(usuario_id)
         if not time_id:
             st.error("🛑 Acesso Negado: Você precisa fazer parte de uma equipe para entrar na partida síncrona!")
-            st.info("Fundimente um novo time ou solicite sua alocação antes de entrar na sala de disputas.")
+            st.info("Fundamente um novo time ou solicite sua alocação antes de entrar na sala de disputas.")
             
             if st.button("🏢 Criar minha Equipe Agora", type="primary", use_container_width=True):
                 st.session_state.pagina = "batalha_times"
@@ -114,7 +114,7 @@ def tela_batalha_rodada():
                 st.rerun()
             return
 
-    # Ativa o Polling (Auto-Refresh) a cada 3s apenas após passar na validação de equipe
+    # Ativa o sistema de Polling automático (Atualização de tela a cada 3s)
     st.caption("🔄 Sincronização automática ativa (3s)")
     time.sleep(3)
     
@@ -135,7 +135,7 @@ def tela_batalha_rodada():
     batalha_id = st.session_state.batalha_ativa_id
     batalha = obter_estado_batalha(batalha_id)
     
-    if not batalha or batalha.get("finalizada"):
+    if not batalha or batalha.get("finalizada") or batalha.get("status") == "finalizada":
         st.success("🎉 A batalha foi encerrada! Verifique o placar final com o professor.")
         if st.button("Voltar para a Arena"):
             st.session_state.pagina = "batalha_de_equipes"
@@ -144,17 +144,62 @@ def tela_batalha_rodada():
 
     cabecalho(f"⚔️ Partida Síncrona: {batalha['titulo']}", "Modo de Jogo atual: Bate-Rebate")
 
-    # Resgata o time atual (se chegou aqui e é aluno, possui time)
+    # ------------------------------------------------------------------------
+    # 🎮 PAINEL DE INICIALIZAÇÃO EXCLUSIVO DO PROFESSOR (RESOLVE O LOBBY)
+    # ------------------------------------------------------------------------
+    if tipo_usuario in ("professor", "admin") and batalha.get("status") == "agendada":
+        st.markdown("### 🎛️ Painel de Controle de Início da Partida")
+        st.info("A batalha está aguardando seu comando para começar. Escolha qual equipe iniciará respondendo:")
+        
+        try:
+            times_res = supabase.table("times").select("id, nome").execute()
+            lista_times = times_res.data or []
+        except Exception:
+            lista_times = []
+            
+        if not lista_times:
+            st.error("🛑 Não é possível iniciar: Nenhuma equipe foi cadastrada no sistema ainda.")
+        else:
+            time_inicial = st.selectbox(
+                "Selecione a Equipe que inicia jogando:",
+                options=lista_times,
+                format_func=lambda x: x["nome"],
+                key="select_time_inicial_batalha"
+            )
+            
+            from services.batalha_service import iniciar_partida_sincrona
+            
+            if st.button("🔥 Começar Partida Agora!", type="primary", use_container_width=True):
+                if iniciar_partida_sincrona(batalha_id, time_inicial["id"]):
+                    st.success("🚀 Partida iniciada com sucesso! Desbloqueando telas...")
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error("Falha ao atualizar o status da partida no Supabase.")
+        
+        st.markdown("---")
+
+    # ------------------------------------------------------------------------
+    # ⏳ LOBBY DE ESPERA PARA O ALUNO (AQUÁRIO DE ESPERA DO START)
+    # ------------------------------------------------------------------------
+    if tipo_usuario == "aluno" and batalha.get("status") == "agendada":
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        st.info("⏳ **Sala de Espera:** A partida ainda não foi iniciada pelo professor. Aguarde no lobby, esta página vai atualizar sozinha assim que o cronômetro começar!")
+        if st.button("⬅️ Sair da Sala", use_container_width=True):
+            st.session_state.pagina = "batalha_de_equipes"
+            st.rerun()
+        return
+
+    # Resolve identidades locais para andamento do fluxo síncrono
     if tipo_usuario == "aluno":
         time_id, time_nome = obter_time_do_usuario(usuario_id)
     else:
         time_id, time_nome = "PROFESSOR_CONSOLA", "Painel Docente"
 
-    # Resolve o ID da equipe adversária para processar o rebate
     try:
         todos_times = supabase.table("times").select("id, nome").execute()
         adversarios = [t for t in todos_times.data if str(t["id"]) != str(time_id)]
-        time_adversario_id = adversarios[0]["id"] if adversarios else None
+        time_adversario_id = adversaries = adversarios[0]["id"] if adversarios else None
     except Exception:
         time_adversario_id = None
 
@@ -167,6 +212,7 @@ def tela_batalha_rodada():
 
     st.markdown(f"### 📍 Pergunta Atual: N° {pergunta_ordem}")
     
+    # Renderização dinâmica dos cartões de turno (Feedback visual)
     if tipo_usuario == "aluno":
         if eh_a_vez_deste_time:
             st.markdown(f"""
@@ -203,6 +249,7 @@ def tela_batalha_rodada():
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("**Selecione a alternativa correta:**")
     
+    # Constrói os botões interativos das alternativas (A, B, C, D)
     for alt in dados_pergunta["alternativas"]:
         letra_ordem = chr(64 + int(alt["ordem"]))
         texto_opcao = f"{letra_ordem}) {alt['texto']}"
