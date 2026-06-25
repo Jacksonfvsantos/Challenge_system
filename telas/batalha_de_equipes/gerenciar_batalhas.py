@@ -174,10 +174,11 @@ def tela_batalha_gerenciar():
                     if not banco_questoes:
                         st.warning("⚠️ Cadastre questões no banco de dados primeiro.")
                     else:
+                        # O options recebe a lista de dicionários completa do banco
                         questoes_selecionadas = st.multiselect(
                             "Selecione as questões participantes:",
                             options=banco_questoes,
-                            # ✅ Altera para exibir o enunciado (retirando o ID bruto da visualização inicial)
+                            # Exibe o enunciado de forma amigável na interface
                             format_func=lambda x: f"📝 {x.get('enunciado', '')[:80]}..." if len(x.get('enunciado', '')) > 80 else f"📝 {x.get('enunciado', '')}",
                             key="selector_questions_batalha"
                         )
@@ -193,12 +194,24 @@ def tela_batalha_gerenciar():
                     elif modalidade == "sincrona" and not questoes_selecionadas:
                         st.error("Selecione pelo menos 1 questão para compor a rodada.")
                     else:
-                        lista_ids = [q["id"] for q in questoes_selecionadas] if modalidade == "sincrona" else []
+                        # ✅ CORREÇÃO DEFENSIVA: Extrai o ID usando .get() prevenindo KeyError se a estrutura variar
+                        lista_ids = []
+                        for q in questoes_selecionadas:
+                            if isinstance(q, dict) and "id" in q:
+                                lista_ids.append(q["id"])
+                            elif isinstance(q, dict) and "_id" in q:
+                                lista_ids.append(q["_id"])
+                                
                         resultado = cadastrar_nova_batalha(
-                            titulo=titulo, descricao=descricao, modalidade=modalidade,
-                            data_limite=prazo_final, lista_questoes_ids=lista_ids,
-                            time_a_id=time_a_id, time_b_id=time_b_id
+                            titulo=titulo, 
+                            descricao=descricao, 
+                            modalidade=modalidade,
+                            data_limite=prazo_final, 
+                            lista_questoes_ids=lista_ids, # Passa a lista limpa de IDs
+                            time_a_id=time_a_id, 
+                            time_b_id=time_b_id
                         )
+                        
                         if resultado["sucesso"]:
                             st.success(resultado["mensagem"])
                             time.sleep(0.5)
