@@ -2,6 +2,7 @@ import streamlit as st
 import time
 from database.conexao import supabase
 from services.batalha_service import encerrar_partida_sincrona
+from utils.estilo import aplicar_estilo, cabecalho
 
 # --- FUNÇÕES DE SUPORTE AO BACKEND DA RODADA ---
 
