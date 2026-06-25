@@ -82,7 +82,6 @@ def tela_batalha_gerenciar():
         if not lista_ativas:
             st.info("Não há nenhuma batalha ativa ou agendada listada no momento.")
         else:
-            # ✅ SOLUÇÃO CRÍTICA: Os botões de ação rodam fora de qualquer escopo de formulário
             for bat in lista_ativas:
                 t_a = bat.get("time_a", {}).get("nome", "Equipe Desafiante") if bat.get("time_a") else "N/A"
                 t_b = bat.get("time_b", {}).get("nome", "Equipe Desafiada") if bat.get("time_b") else "N/A"
@@ -114,7 +113,7 @@ def tela_batalha_gerenciar():
                             if deletar_batalha(bat['id']):
                                 st.toast("Registro de teste apagado permanentemente!", icon="🗑️")
                                 time.sleep(0.5)
-                                st.rerun()
+                                rerun()
                             else:
                                 st.error("Erro ao deletar registro.")
 
@@ -129,7 +128,6 @@ def tela_batalha_gerenciar():
 
         st.markdown("<br><hr><br>", unsafe_allow_html=True)
         
-        # ✅ CONTAINER ISOLADO: Impede interferência nos botões de cima
         with st.container():
             st.markdown("### 📋 Formular Nova Competição Híbrida")
             
@@ -174,11 +172,10 @@ def tela_batalha_gerenciar():
                     if not banco_questoes:
                         st.warning("⚠️ Cadastre questões no banco de dados primeiro.")
                     else:
-                        # O options recebe a lista de dicionários completa do banco
+                        # ✅ MAPEAMENTO SEGURO: Armazena o objeto dicionário completo, mas exibe de forma amigável
                         questoes_selecionadas = st.multiselect(
                             "Selecione as questões participantes:",
                             options=banco_questoes,
-                            # Exibe o enunciado de forma amigável na interface
                             format_func=lambda x: f"📝 {x.get('enunciado', '')[:80]}..." if len(x.get('enunciado', '')) > 80 else f"📝 {x.get('enunciado', '')}",
                             key="selector_questions_batalha"
                         )
@@ -194,24 +191,30 @@ def tela_batalha_gerenciar():
                     elif modalidade == "sincrona" and not questoes_selecionadas:
                         st.error("Selecione pelo menos 1 questão para compor a rodada.")
                     else:
-                        # ✅ CORREÇÃO DEFENSIVA: Extrai o ID usando .get() prevenindo KeyError se a estrutura variar
+                        # ✅ MOTOR DE RESOLUÇÃO SEGURO CONTRA KEYERROR:
                         lista_ids = []
                         for q in questoes_selecionadas:
+                            # Se for um dicionário padrão, extrai o id diretamente
                             if isinstance(q, dict) and "id" in q:
                                 lista_ids.append(q["id"])
-                            elif isinstance(q, dict) and "_id" in q:
-                                lista_ids.append(q["_id"])
-                                
+                            # Caso o Streamlit tenha devolvido apenas a string bruta do enunciado
+                            elif isinstance(q, str):
+                                # Faz uma varredura reversa procurando a questão correspondente no banco original
+                                id_encontrado = None
+                                for bq in banco_questoes:
+                                    # Monta a mesma string que foi exibida no format_func para casar perfeitamente
+                                    string_formatada = f"📝 {bq.get('enunciado', '')[:80]}..." if len(bq.get('enunciado', '')) > 80 else f"📝 {bq.get('enunciado', '')}"
+                                    if string_formatada == q or bq.get('enunciado') == q:
+                                        id_encontrado = bq["id"]
+                                        break
+                                if id_encontrado:
+                                    lista_ids.append(id_encontrado)
+
                         resultado = cadastrar_nova_batalha(
-                            titulo=titulo, 
-                            descricao=descricao, 
-                            modalidade=modalidade,
-                            data_limite=prazo_final, 
-                            lista_questoes_ids=lista_ids, # Passa a lista limpa de IDs
-                            time_a_id=time_a_id, 
-                            time_b_id=time_b_id
+                            titulo=titulo, descricao=descricao, modalidade=modalidade,
+                            data_limite=prazo_final, lista_questoes_ids=lista_ids,
+                            time_a_id=time_a_id, time_b_id=time_b_id
                         )
-                        
                         if resultado["sucesso"]:
                             st.success(resultado["mensagem"])
                             time.sleep(0.5)
@@ -224,7 +227,6 @@ def tela_batalha_gerenciar():
     # ------------------------------------------------------------------------
     with aba_finalizadas:
         st.markdown("### 📜 Arquivo de Confrontos Encerrados")
-        
         batalhas_passadas = obter_batalhas_finalizadas()
         
         if not batalhas_passadas:
