@@ -48,10 +48,10 @@ except ImportError:
 # Sub-módulos: Arena de Batalha de Equipes (Bate-Rebate Síncrono)
 try:
     from telas.batalha_de_equipes.batalha_de_equipes import tela_batalha_de_equipes
-    from telas.batalha_de_equipes.times             import tela_batalha_times
-    from telas.batalha_de_equipes.integrantes       import tela_batalha_integrantes
+    from telas.batalha_de_equipes.times              import tela_batalha_times
+    from telas.batalha_de_equipes.integrantes         import tela_batalha_integrantes
     from telas.batalha_de_equipes.gerenciar_batalhas import tela_batalha_gerenciar
-    from telas.batalha_de_equipes.rodada            import tela_batalha_rodada
+    from telas.batalha_de_equipes.rodada             import tela_batalha_rodada
 except ImportError as e:
     print(f"⚠️ Alerta de Importação em Batalhas: {e}")
     def tela_batalha_de_equipes(): st.warning("Módulo de batalha de equipes em desenvolvimento.")
