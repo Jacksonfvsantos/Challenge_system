@@ -53,9 +53,14 @@ try:
     from telas.batalha_de_equipes.gerenciar_batalhas import tela_batalha_gerenciar
     from telas.batalha_de_equipes.rodada             import tela_batalha_rodada
 except ImportError as e:
-    # Captura a variável 'e' corretamente para evitar NameError
-    def tela_batalha_de_equipes(): 
-        st.error(f"Erro interno de importação: {e}")
+    # Salvamos o texto do erro imediatamente para blindar o escopo
+    mensagem_fixa = str(e)
+    
+    # Usamos o argumento padrão (err=mensagem_fixa) para embutir o texto na função
+    def tela_batalha_de_equipes(err=mensagem_fixa): 
+        st.error(f"❌ Erro interno de importação: {err}")
+        st.info("💡 Dica: Verifique se algum arquivo dentro de 'telas/batalha_de_equipes/' ainda está importando o antigo 'batalha_de_equipes_service'.")
+        
     def tela_batalha_times(): pass
     def tela_batalha_integrantes(): pass
     def tela_batalha_gerenciar(): pass
