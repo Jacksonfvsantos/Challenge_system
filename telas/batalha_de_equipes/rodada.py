@@ -34,19 +34,17 @@ def obter_pergunta_atual(batalha_id, ordem_pergunta):
             
         dados_questao = questao.data[0]
         
-        # 🚀 CORREÇÃO: Buscando as alternativas ordenadas e lendo a coluna 'correta' diretamente
+        # Leitura limpa e relacional das alternativas mapeadas no Postgres
         alternativas = supabase.table("alternativas").select("*").eq("questao_id", q_id).order("ordem").execute()
         lista_alt_data = alternativas.data or []
         
         alternativas_formatadas = []
         for alt in lista_alt_data:
-            # Não fazemos mais cálculos com 'indice_correto', lemos direto o booleano do banco
-            eh_correta = bool(alt.get("correta", False))
             alternativas_formatadas.append({
                 "id": alt["id"],
                 "texto": alt["texto"],
                 "ordem": alt["ordem"],
-                "correta": eh_correta
+                "correta": bool(alt.get("correta", False))
             })
         
         return {
@@ -84,7 +82,7 @@ def calcular_placar_atual(batalha_id, time_a_id, time_b_id):
         return 0, 0
 
 
-# --- 🔄 COMPONENTE REATIVO AUTO-REFRESH ---
+# --- COMPONENTE REATIVO AUTO-REFRESH ---
 @st.fragment(run_every=3)
 def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, nome_time_b, dados_pergunta, ordem_renderizada_atualmente, status_renderizado_atualmente):
     batalha_live = obter_estado_batalha(batalha_id)
@@ -138,7 +136,7 @@ def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, no
             st.markdown("---")
 
 
-# --- 🖥️ INTERFACE E ROTEADOR ESTRUTURAL ---
+# --- INTERFACE PRINCIPAL ---
 def tela_batalha_rodada():
     aplicar_estilo()
     
@@ -179,7 +177,7 @@ def tela_batalha_rodada():
 
     painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, nome_time_b, dados_pergunta, pergunta_ordem, status_sincrono)
 
-    # --- VERIFICAÇÃO DE CONCLUSÃO DO JOGO ---
+    # Verificação de fim do jogo
     if batalha.get("finalizada") is True or str(batalha.get("status")).lower() == "finalizada" or not dados_pergunta:
         if not batalha.get("finalizada"):
             encerrar_partida_sincrona(batalha_id)
@@ -199,7 +197,7 @@ def tela_batalha_rodada():
             st.rerun()
         return
 
-    # Controles iniciais do professor na sala de espera
+    # Controles do professor
     if tipo_usuario in ("professor", "admin") and str(batalha.get("status")).lower() == "agendada":
         st.markdown("### 🎛️ Painel de Controle de Início da Partida")
         try:
@@ -223,7 +221,7 @@ def tela_batalha_rodada():
         st.info("⏳ **Sala de Espera:** Aguardando o professor dar o sinal de início. Esta tela atualizará sozinha.")
         return
 
-    # Gerenciamento de Visibilidade e Modo Espectador
+    # Modos de Visualização e Vez de Jogar
     eh_espectador = False
     if tipo_usuario == "aluno":
         if str(time_id) != time_a_id and str(time_id) != time_b_id:
@@ -269,7 +267,7 @@ def tela_batalha_rodada():
             pode_clicar = eh_a_vez_deste_time and (not eh_espectador)
             
             if st.button(texto_opcao, key=f"btn_alt_{alt['id']}", use_container_width=True, disabled=not pode_clicar):
-                # 🚀 CHAMADA CORRIGIDA COM APENAS 6 ARGUMENTOS (Sem alt["id"]):
+                # ✅ EXECUÇÃO ALINHADA: Passando exatamente 6 argumentos para o serviço
                 res = processar_resposta_sincrona(
                     batalha_id, 
                     dados_pergunta["id"], 
