@@ -223,8 +223,8 @@ def cadastrar_nova_batalha(titulo, descricao, modalidade, data_limite=None, list
                     "questao_id": q_id,
                     "ordem": i + 1
                 })
-            if lines_vinculo := linhas_vinculo:
-                supabase.table("batalha_perguntas").insert(lines_vinculo).execute()
+            if linhas_vinculo := linhas_vinculo:
+                supabase.table("batalha_perguntas").insert(linhas_vinculo).execute()
 
         return {"sucesso": True, "mensagem": "🚀 Competição publicada e questões vinculadas com sucesso!"}
     except Exception as e:
