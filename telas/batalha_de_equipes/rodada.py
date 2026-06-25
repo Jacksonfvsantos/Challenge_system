@@ -1,12 +1,12 @@
 import streamlit as st
 import time
 from database.conexao import supabase
-from services.batalha_service import encerrar_partida_sincrona, processar_resposta_sincrona, obter_estado_batalha
+from services.batalha_service import encerrar_partida_sincrona, processar_resposta_sincrona
 from utils.estilo import aplicar_estilo, cabecalho
 
 # --- FUNÇÕES DE SUPORTE AO BACKEND DA RODADA ---
 
-def obtener_estado_batalha(batalha_id):
+def obter_estado_batalha(batalha_id):
     try:
         res = supabase.table("batalhas").select("*").eq("id", batalha_id).execute()
         return res.data[0] if res.data else None
@@ -112,24 +112,39 @@ def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, no
     </div>
     """, unsafe_allow_html=True)
 
-    if dados_pergunta:
+    # 🚀 SOLUÇÃO DO HISTÓRICO FIXADO: Determina qual questão exibir no log.
+    # Se o round avançou, buscamos as respostas da questão anterior para fixar o indicativo na tela!
+    ordem_alvo_log = ordem_renderizada_atualmente
+    pergunta_alvo_dados = dados_pergunta
+
+    if int(ordem_renderizada_atualmente) > 1:
+        # Verifica se a pergunta atual ainda não recebeu nenhuma submissão.
+        # Se estiver zerada, significa que acabamos de mudar de round, então mostramos o log do round anterior!
         try:
-            res_respostas = supabase.table("batalha_respostas").select("*").eq("batalha_id", batalha_id).eq("questao_id", dados_pergunta["id"]).execute()
+            check_atual = supabase.table("batalha_respostas").select("id").eq("batalha_id", batalha_id).eq("questao_id", dados_pergunta["id"] if dados_pergunta else "").execute()
+            if not check_atual.data:
+                ordem_alvo_log = int(ordem_renderizada_atualmente) - 1
+                pergunta_alvo_dados = obter_pergunta_atual(batalha_id, ordem_alvo_log)
+        except Exception:
+            pass
+
+    if pergunta_alvo_dados:
+        try:
+            res_respostas = supabase.table("batalha_respostas").select("*").eq("batalha_id", batalha_id).eq("questao_id", pergunta_alvo_dados["id"]).execute()
             historico = res_respostas.data or []
         except Exception:
             historico = []
 
         if historico:
-            st.markdown("##### 📢 Registro de Submissões do Round:")
+            st.markdown(f"##### 📢 Registro de Submissões (Questão {ordem_alvo_log}):")
             for item in historico:
                 id_time_respondido = str(item.get("time_id")).strip()
                 nome_do_respondente = nome_time_a if id_time_respondido == time_a_id else nome_time_b
                 
-                # 🎯 FORMATO REVISADO CONFORME EXPLICITADO
                 if item.get("resposta_correta") is True:
-                    st.success(f"🎯 **{nome_do_respondente}** respondeu e ACERTOU a questão {ordem_renderizada_atualmente}!")
+                    st.success(f"f🎯 **{nome_do_respondente}** respondeu e ACERTOU a questão {ordem_alvo_log}!")
                 else:
-                    st.error(f"❌ **{nome_do_respondente}** respondeu e ERROU a questão {ordem_renderizada_atualmente}!")
+                    st.error(f"❌ **{nome_do_respondente}** respondeu e ERROU a questão {ordem_alvo_log}!")
             st.markdown("---")
 
 
