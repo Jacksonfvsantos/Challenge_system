@@ -33,14 +33,15 @@ def obter_pergunta_atual(batalha_id, ordem_pergunta):
             return None
             
         dados_questao = questao.data[0]
-        indice_correto_banco = int(dados_questao.get("indice_correto", 0))
         
+        # 🚀 CORREÇÃO: Buscando as alternativas ordenadas e lendo a coluna 'correta' diretamente
         alternativas = supabase.table("alternativas").select("*").eq("questao_id", q_id).order("ordem").execute()
         lista_alt_data = alternativas.data or []
         
         alternativas_formatadas = []
         for alt in lista_alt_data:
-            eh_correta = alt.get("correta") if alt.get("correta") is not None else (int(alt["ordem"]) == (indice_correto_banco + 1))
+            # Não fazemos mais cálculos com 'indice_correto', lemos direto o booleano do banco
+            eh_correta = bool(alt.get("correta", False))
             alternativas_formatadas.append({
                 "id": alt["id"],
                 "texto": alt["texto"],
@@ -83,15 +84,13 @@ def calcular_placar_atual(batalha_id, time_a_id, time_b_id):
         return 0, 0
 
 
-# --- 🔄 1. COMPONENTE REATIVO COM DETECTOR DE TURNO ACELERADO ---
+# --- 🔄 COMPONENTE REATIVO AUTO-REFRESH ---
 @st.fragment(run_every=3)
 def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, nome_time_b, dados_pergunta, ordem_renderizada_atualmente, status_renderizado_atualmente):
     batalha_live = obter_estado_batalha(batalha_id)
     if batalha_live:
         ordem_banco = int(batalha_live.get("pergunta_atual_ordem", 1))
         status_banco = str(batalha_live.get("status_sincrono", "aguardando_resposta"))
-        
-        # 🚀 SINAL DE ATUALIZAÇÃO: Se a rodada mudou OU o status do Bate-Rebate mudou, força o rerun estrutural!
         if ordem_banco != int(ordem_renderizada_atualmente) or status_banco != str(status_renderizado_atualmente):
             st.session_state["forcar_refresh_pergunta"] = True
             st.rerun()
@@ -107,7 +106,6 @@ def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, no
     </div>
     """, unsafe_allow_html=True)
 
-    # Mantém a persistência visual inteligente do round anterior
     ordem_alvo_log = ordem_renderizada_atualmente
     pergunta_alvo_dados = dados_pergunta
 
@@ -140,7 +138,7 @@ def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, no
             st.markdown("---")
 
 
-# --- 🖥️ 2. INTERFACE E ROTEADOR ESTRUTURAL ---
+# --- 🖥️ INTERFACE E ROTEADOR ESTRUTURAL ---
 def tela_batalha_rodada():
     aplicar_estilo()
     
@@ -179,7 +177,6 @@ def tela_batalha_rodada():
     status_sincrono = str(batalha.get("status_sincrono", "aguardando_resposta"))
     dados_pergunta = obter_pergunta_atual(batalha_id, pergunta_ordem)
 
-    # Injeta o painel monitorando a ordem e o status síncrono atual simultaneamente
     painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, nome_time_b, dados_pergunta, pergunta_ordem, status_sincrono)
 
     # --- VERIFICAÇÃO DE CONCLUSÃO DO JOGO ---
@@ -277,7 +274,6 @@ def tela_batalha_rodada():
                     alt["correta"], time_adversario_id, tentativa_atual
                 )
                 time.sleep(0.4)
-                # Força a limpeza estrutural e recarrega com o novo status obtido
                 st.rerun()
 
     st.markdown("<br><hr style='border-color: #334155;'>", unsafe_allow_html=True)
