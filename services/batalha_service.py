@@ -1,185 +1,126 @@
+import datetime
 from database.conexao import supabase
 
-# ============================================================================
-# 1. GESTÃO DE EQUIPES E MEMBROS (PERFIL ALUNO)
-# ============================================================================
-
-def aluno_criar_e_entrar_no_time(nome_time, usuario_id):
-    """Cria o time e vincula o aluno criador como primeiro membro automaticamente."""
+def cadastrar_nova_batalha(titulo, descricao, modalidade, data_limite=None, lista_questoes_ids=None, time_a_id=None, time_b_id=None):
+    """
+    Registra uma nova competição no Supabase e vincula as questões selecionadas na tabela batalha_perguntas.
+    """
     try:
-        dados_time = {
-            "nome": nome_time.strip()
-        }
-        
-        res_time = supabase.table("times").insert(dados_time).execute()
-        
-        if not res_time.data:
-            return {"sucesso": False, "mensagem": "Erro ao registrar o nome do time (o nome já pode estar em uso)."}
-            
-        time_id = res_time.data[0]["id"]
-        
-        res_membro = supabase.table("time_membros").insert({
-            "time_id": time_id,
-            "usuario_id": usuario_id
-        }).execute()
-        
-        if res_membro.data:
-            return {"sucesso": True, "mensagem": f"Equipe '{nome_time}' criada com sucesso!"}
-            
-        return {"sucesso": False, "mensagem": "Time criado, mas falha ao vincular seu perfil de estudante."}
-    except Exception as e:
-        print(f"❌ Erro operacional [aluno_criar_e_entrar_no_time]: {e}")
-        return {"sucesso": False, "mensagem": f"Erro interno de comunicação com o servidor: {str(e)}"}
-
-
-def aluno_sair_do_time(usuario_id):
-    """Remove o vínculo do aluno com o seu time atual."""
-    try:
-        res = supabase.table("time_membros").delete().eq("usuario_id", usuario_id).execute()
-        if res.data:
-            return {"sucesso": True, "mensagem": "Você saiu da equipe com sucesso!"}
-        return {"sucesso": False, "mensagem": "Você não possui um time ativo no momento."}
-    except Exception as e:
-        print(f"❌ Erro [aluno_sair_do_time]: {e}")
-        return {"sucesso": False, "mensagem": "Erro ao processar desligamento."}
-
-
-# ============================================================================
-# 2. PROVISIONAMENTO DA ARENA HÍBRIDA (PERFIL PROFESSOR)
-# ============================================================================
-
-def cadastrar_nova_batalha(titulo, descricao, modalidade, data_limite=None, lista_questoes_ids=[], time_a_id=None, time_b_id=None):
-    """Grava o cabeçalho da batalha vinculando as duas equipes escolhidas e as perguntas."""
-    try:
+        # 1. Prepara o payload da batalha principal
         payload = {
-            "titulo": titulo.strip(),
-            "descricao": descricao.strip(),
+            "titulo": titulo,
+            "descricao": descricao,
             "modalidade": modalidade,
-            "status": "agendada",
             "finalizada": False,
             "pergunta_atual_ordem": 1,
-            "status_sincrono": "aguardando_resposta",
-            "time_a_id": time_a_id,
-            "time_b_id": time_b_id
+            "status": "em_andamento" if modalidade == "assincrona" else "agendada",
+            "status_sincrono": "aguardando_resposta" if modalidade == "sincrona" else None
         }
-        
-        if modalidade == "assincrona" and data_limite:
-            payload["data_limite"] = data_limite.isoformat()
 
+        if modalidade == "assincrona" and data_limite:
+            # Garante formato ISO com fuso horário
+            if isinstance(data_limite, datetime.datetime):
+                payload["data_limite"] = data_limite.isoformat()
+            else:
+                payload["data_limite"] = str(data_limite)
+        
+        if modalidade == "sincrona":
+            payload["time_a_id"] = time_a_id
+            payload["time_b_id"] = time_b_id
+            # O professor define o time da vez ao clicar em iniciar, entra como None por enquanto
+            payload["time_da_vez_id"] = None
+
+        # 2. Insere na tabela 'batalhas'
         res_batalha = supabase.table("batalhas").insert(payload).execute()
         
         if not res_batalha.data:
-            return {"sucesso": False, "mensagem": "Erro ao criar registro principal da batalha."}
+            return {"sucesso": False, "mensagem": "❌ Falha ao criar o registro da batalha."}
             
-        batalha_id = res_batalha.data[0]["id"]
+        nova_batalha_id = res_batalha.data[0]["id"]
 
+        # 3. CRUCIAL: Vincula as questões na tabela intermediária 'batalha_perguntas'
         if modalidade == "sincrona" and lista_questoes_ids:
-            batch_perguntas = []
-            for idx, q_id in enumerate(lista_questoes_ids, start=1):
-                batch_perguntas.append({
-                    "batalha_id": batalha_id,
+            linhas_vinculo = []
+            for i, q_id in enumerate(lista_questoes_ids):
+                linhas_vinculo.append({
+                    "batalha_id": nova_batalha_id,
                     "questao_id": q_id,
-                    "ordem": idx
+                    "ordem": i + 1  # Round 1, Round 2, etc.
                 })
-            supabase.table("batalha_perguntas").insert(batch_perguntas).execute()
+            
+            # Executa o insert em lote no Supabase
+            if linhas_vinculo:
+                supabase.table("batalha_perguntas").insert(linhas_vinculo).execute()
 
-        return {"sucesso": True, "mensagem": f"Batalha '{titulo}' provisionada com sucesso!"}
+        return {"sucesso": True, "mensagem": "🚀 Competição publicada e questões vinculadas com sucesso!"}
+
     except Exception as e:
-        print(f"❌ Erro [cadastrar_nova_batalha]: {e}")
-        return {"sucesso": False, "mensagem": f"Erro operacional: {str(e)}"}
+        print(f"❌ Erro em [cadastrar_nova_batalha]: {e}")
+        return {"sucesso": False, "mensagem": f"Erro interno: {str(e)}"}
 
-
-# ============================================================================
-# 3. ORQUESTRAÇÃO SÍNCRONA DE ROUNDS & CICLO DE VIDA (NOVO)
-# ============================================================================
-
-def iniciar_partida_sincrona(batalha_id, primeiro_time_id):
-    """Muda o status da batalha para em_andamento e define qual das duas equipes abre o primeiro turno."""
+def iniciar_partida_sincrona(batalha_id, time_inicial_id):
     try:
-        res = supabase.table("batalhas").update({
+        supabase.table("batalhas").update({
             "status": "em_andamento",
+            "time_da_vez_id": time_inicial_id,
             "status_sincrono": "aguardando_resposta",
-            "pergunta_atual_ordem": 1,
-            "time_da_vez_id": primeiro_time_id
+            "pergunta_atual_ordem": 1
         }).eq("id", batalha_id).execute()
-        return len(res.data) > 0
+        return True
     except Exception as e:
-        print(f"❌ Erro [iniciar_partida_sincrona]: {e}")
+        print(f"❌ Erro ao iniciar partida: {e}")
         return False
-
 
 def encerrar_partida_sincrona(batalha_id):
-    """Força o encerramento manual da batalha, enviando-a para o arquivo de histórico."""
     try:
-        res = supabase.table("batalhas").update({
-            "status": "finalizada",
-            "finalizada": True,
-            "status_sincrono": "encerrado"
-        }).eq("id", batalha_id).execute()
-        return len(res.data) > 0
+        supabase.table("batalhas").update({"finalizada": True, "status": "finalizada"}).eq("id", batalha_id).execute()
+        return True
     except Exception as e:
-        print(f"❌ Erro [encerrar_partida_sincrona]: {e}")
+        print(f"❌ Erro ao encerrar partida: {e}")
         return False
-
 
 def deletar_batalha(batalha_id):
-    """Apaga completamente os registros e históricos de uma batalha (limpeza de testes)."""
     try:
-        # Limpa as tabelas filhas para evitar quebra de Foreign Keys
+        # Deleta vínculos primeiro por causa de Foreign Keys (se não houver ON DELETE CASCADE)
         supabase.table("batalha_perguntas").delete().eq("batalha_id", batalha_id).execute()
         supabase.table("batalha_respostas").delete().eq("batalha_id", batalha_id).execute()
-        # Deleta a batalha principal
-        res = supabase.table("batalhas").delete().eq("id", batalha_id).execute()
-        return len(res.data) > 0
+        supabase.table("batalhas").delete().eq("id", batalha_id).execute()
+        return True
     except Exception as e:
-        print(f"❌ Erro [deletar_batalha]: {e}")
+        print(f"❌ Erro ao deletar batalha: {e}")
         return False
 
-
 def obter_batalhas_finalizadas():
-    """Recupera o histórico de confrontos encerrados do banco."""
     try:
-        res = (
-            supabase.table("batalhas")
-            .select("*, time_a:time_a_id(nome), time_b:time_b_id(nome)")
-            .eq("finalizada", True)
-            .order("created_at", descending=True)
-            .execute()
-        )
+        res = supabase.table("batalhas").select("*, time_a:time_a_id(nome), time_b:time_b_id(nome)").eq("finalizada", True).execute()
         return res.data or []
-    except Exception as e:
-        print(f"❌ Erro [obter_batalhas_finalizadas]: {e}")
+    except Exception:
         return []
 
-
-# ============================================================================
-# 4. SUPORTE AUXILIAR: CADASTRO COMPLEMENTAR DE QUESTÕES
-# ============================================================================
-
 def cadastrar_questao_rapida(enunciado, alternativas_texto, indice_correta):
-    """Cadastra uma questão e insere suas alternativas vinculadas."""
     try:
+        # Insere a questão
         res_q = supabase.table("questoes").insert({
-            "enunciado": enunciado.strip(),
-            "indice_correto": int(indice_correta)
+            "enunciado": enunciado,
+            "indice_correto": indice_correta
         }).execute()
         
         if not res_q.data:
-            return {"sucesso": False, "mensagem": "Erro ao salvar o enunciado da questão."}
+            return {"sucesso": False, "mensagem": "Erro ao criar enunciado."}
             
-        questao_id = res_q.data[0]["id"]
+        q_id = res_q.data[0]["id"]
         
-        lote_alternativas = []
-        for i, texto in enumerate(alternativas_texto, start=1):
-            lote_alternativas.append({
-                "questao_id": questao_id,
-                "texto": texto.strip(),
-                "ordem": i,
-                "correta": (i == (indice_correta + 1))
+        # Insere as alternativas correspondentes
+        linhas_alt = []
+        for i, texto in enumerate(alternativas_texto):
+            linhas_alt.append({
+                "questao_id": q_id,
+                "texto": texto,
+                "ordem": i + 1,
+                "correta": (i == indice_correta)
             })
             
-        supabase.table("alternativas").insert(lote_alternativas).execute()
-        return {"sucesso": True, "mensagem": "Questão técnica integrada com sucesso!"}
+        supabase.table("alternativas").insert(linhas_alt).execute()
+        return {"sucesso": True, "mensagem": "Questão e alternativas salvas com sucesso!"}
     except Exception as e:
-        print(f"❌ Erro [cadastrar_questao_rapida]: {e}")
-        return {"sucesso": False, "mensagem": f"Falha operacional: {str(e)}"}
+        return {"sucesso": False, "mensagem": str(e)}

@@ -16,21 +16,33 @@ def obter_estado_batalha(batalha_id):
 
 def obter_pergunta_atual(batalha_id, ordem_pergunta):
     try:
-        # 1. Busca qual questão está vinculada a este round/ordem na batalha
+        # 1. Busca flexível: tenta localizar o round primeiro como tipo Inteiro
         vinculo = (
             supabase
             .table("batalha_perguntas")
             .select("questao_id")
             .eq("batalha_id", batalha_id)
-            .eq("ordem", ordem_pergunta)
+            .eq("ordem", int(ordem_pergunta))
             .execute()
         )
+        
+        # Se falhar, tenta localizar passando o round como String pura
+        if not vinculo.data:
+            vinculo = (
+                supabase
+                .table("batalha_perguntas")
+                .select("questao_id")
+                .eq("batalha_id", batalha_id)
+                .eq("ordem", str(ordem_pergunta))
+                .execute()
+            )
+            
         if not vinculo.data:
             return None
             
         q_id = str(vinculo.data[0]["questao_id"]).strip()
         
-        # 2. Busca o enunciado e as configurações da tabela 'questoes'
+        # 2. Busca o enunciado e configurações na tabela 'questoes'
         questao = supabase.table("questoes").select("*").eq("id", q_id).execute()
         if not questao.data:
             return None
@@ -38,13 +50,12 @@ def obter_pergunta_atual(batalha_id, ordem_pergunta):
         dados_questao = questao.data[0]
         indice_correto_banco = int(dados_questao.get("indice_correto", 0))
         
-        # 3. Busca as alternativas associadas a essa questão na tabela 'alternativas'
+        # 3. Busca alternativas associadas na tabela 'alternativas'
         alternativas = supabase.table("alternativas").select("*").eq("questao_id", q_id).order("ordem").execute()
         lista_alt_data = alternativas.data or []
         
         alternativas_formatadas = []
         for alt in lista_alt_data:
-            # Usa o booleano 'correta' da tabela se existir, caso contrário calcula pelo indice_correto
             eh_correta = alt.get("correta") if alt.get("correta") is not None else (int(alt["ordem"]) == (indice_correto_banco + 1))
             
             alternativas_formatadas.append({
@@ -57,7 +68,7 @@ def obter_pergunta_atual(batalha_id, ordem_pergunta):
         return {
             "id": q_id,
             "enunciado": dados_questao.get("enunciado", "Questão sem enunciado"),
-            "alternativas": alternatives_formatadas
+            "alternativas": alternativas_formatadas
         }
     except Exception as e:
         print(f"❌ Erro crítico em [obter_pergunta_atual]: {e}")
@@ -112,25 +123,23 @@ def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_cor
         return "erro"
 
 
-# --- 🔄 FRAGMENTO AUTO-REFRESH SÍNCRONO (POLLING SEGURO) ---
+# --- 🔄 COMPONENTE REATIVO AUTO-REFRESH ---
 @st.fragment(run_every=3)
 def renderizar_conteudo_dinamico_sala(batalha_id, usuario_id, tipo_usuario, time_id, time_nome):
     batalha = obter_estado_batalha(batalha_id)
     
-    # Validação de encerramento em tempo real para alunos e professores
     if not batalha or batalha.get("finalizada") is True or str(batalha.get("status")).lower() == "finalizada":
         st.balloons()
-        st.success("🎉 A batalha foi encerrada oficialmente! O confronto foi arquivado.")
-        st.info("Consulte o painel de histórico para verificar as pontuações finais.")
+        st.success("🎉 A batalha foi encerrada oficialmente!")
         if st.button("Voltar para a Arena", use_container_width=True, key="btn_batalha_fim"):
             st.session_state.pagina = "batalha_de_equipes"
             st.rerun()
         return
 
-    # --- CONTROLADOR DO PROFESSOR (LOBBY DE ENTRADA) ---
+    # Painel de controle inicial exclusivo do docente
     if tipo_usuario in ("professor", "admin") and str(batalha.get("status")).lower() == "agendada":
         st.markdown("### 🎛️ Painel de Controle de Início da Partida")
-        st.info("Escolha qual das duas equipes iniciará atacando para libertar os botões dos alunos:")
+        st.info("Selecione qual equipe começará atacando na rodada ao vivo:")
         
         time_a_id = str(batalha.get("time_a_id")).strip()
         time_b_id = str(batalha.get("time_b_id")).strip()
@@ -142,33 +151,26 @@ def renderizar_conteudo_dinamico_sala(batalha_id, usuario_id, tipo_usuario, time
             lista_times_sala = []
             
         if not lista_times_sala:
-            st.error("🛑 Erro: As duas equipes escaladas não foram encontradas no banco de dados.")
+            st.error("🛑 Erro relacional: As equipes selecionadas não existem no banco de dados.")
         else:
-            time_inicial = st.selectbox(
-                "Selecione a Equipe que inicia jogando:",
-                options=lista_times_sala,
-                format_func=lambda x: str(x["nome"]).strip(),
-                key="select_time_inicial_batalha"
-            )
+            time_inicial = st.selectbox("Quem joga primeiro?", options=lista_times_sala, format_func=lambda x: str(x["nome"]).strip())
             
             from services.batalha_service import iniciar_partida_sincrona
             if st.button("🔥 Começar Partida Agora!", type="primary", use_container_width=True):
                 if iniciar_partida_sincrona(batalha_id, time_inicial["id"]):
-                    st.success("🚀 Partida iniciada com sucesso!")
+                    st.success("🚀 Partida iniciada!")
                     st.rerun()
         return
 
-    # --- LOBBY DE ESPERA DO ESTUDANTE ---
     if tipo_usuario == "aluno" and str(batalha.get("status")).lower() == "agendada":
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.info("⏳ **Sala de Espera:** A partida ainda não foi iniciada pelo professor. Aguarde neste lobby, ele vai ativar-se automaticamente!")
+        st.info("⏳ **Sala de Espera:** Aguardando o professor dar o sinal de início. Esta tela atualizará sozinha.")
         return
 
-    # --- RESOLUÇÃO DE PERMISSÕES E PAPÉIS ---
+    # Resolução de permissões
     eh_espectador = False
     if tipo_usuario == "aluno":
         if str(time_id) != str(batalha.get("time_a_id")).strip() and str(time_id) != str(batalha.get("time_b_id")).strip():
-            st.warning("👁️ Modo Espectador: A sua equipe não está escalada para esta disputa.")
+            st.warning("👁️ Modo Espectador ativado.")
             eh_espectador = True
     else:
         eh_espectador = True
@@ -191,81 +193,57 @@ def renderizar_conteudo_dinamico_sala(batalha_id, usuario_id, tipo_usuario, time
         if eh_a_vez_deste_time:
             st.markdown(f"""
             <div style="background-color: #065f46; border-left: 6px solid #10b981; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
-                <h4 style="color: #a7f3d0; margin: 0;">🟢 É A VEZ DO SEU TIME! ({time_nome})</h4>
-                <p style="color: #a7f3d0; margin: 5px 0 0 0; font-size: 14px;">
-                    Sua equipe está com o controle. Tentativa: <strong>{tentativa_atual}ª Chance</strong> {"(REBATE ATIVADO!)" if tentativa_atual == 2 else ""}
-                </p>
+                <h4 style="color: #a7f3d0; margin: 0;">🟢 SEU TIME RESPONDE AGORA! ({time_nome})</h4>
+                <p style="color: #a7f3d0; margin: 5px 0 0 0; font-size: 14px;">Tentativa: {tentativa_atual}ª Chance</p>
             </div>
             """, unsafe_allow_html=True)
         else:
             st.markdown(f"""
             <div style="background-color: #7c2d12; border-left: 6px solid #ea580c; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
                 <h4 style="color: #ffedd5; margin: 0;">⏱️ AGUARDANDO ADVERSÁRIO...</h4>
-                <p style="color: #ffedd5; margin: 5px 0 0 0; font-size: 14px;">
-                    A outra equipe está respondendo a questão neste momento.
-                </p>
             </div>
             """, unsafe_allow_html=True)
 
-    # --- BUSCA DA QUESTÃO ATUAL ---
+    # Coleta a pergunta baseada na ordem lógica
     dados_pergunta = obter_pergunta_atual(batalha_id, pergunta_ordem)
     
-    # Tratamento explícito quando as perguntas chegam ao fim
     if not dados_pergunta:
         st.warning("🏁 Todas as perguntas desta rodada foram respondidas!")
         if tipo_usuario in ("professor", "admin"):
-            st.info("👨‍🏫 Professor, utilize o painel abaixo para encerrar oficialmente a partida e consolidar as notas:")
-            if st.button("🏁 Finalizar e Arquivar Batalha", type="primary", use_container_width=True, key="btn_prof_encerrar"):
+            if st.button("🏁 Finalizar e Arquivar Batalha", type="primary", use_container_width=True):
                 if encerrar_partida_sincrona(batalha_id):
-                    st.success("Batalha finalizada com sucesso! Redirecionando...")
-                    time.sleep(1)
+                    st.success("Batalha finalizada!")
+                    time.sleep(0.5)
                     st.session_state.pagina = "batalha_de_equipes"
                     st.rerun()
-        else:
-            st.info("⏳ Aguardando o professor encerrar a sala e publicar o placar final...")
         return
 
     with st.container(border=True):
         st.markdown(f"**Enunciado:**\n{dados_pergunta['enunciado']}")
 
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("**Selecione a alternativa correta:**")
     
     if not dados_pergunta["alternativas"]:
-        st.warning("⚠️ Atenção: Esta questão não possui opções cadastradas na tabela 'alternativas' vinculadas ao seu ID.")
+        st.warning("⚠️ Esta questão não possui opções vinculadas.")
     else:
         for alt in dados_pergunta["alternativas"]:
-            letra_ordem = chr(64 + int(alt["ordem"]))
-            texto_opcao = f"{letra_ordem}) {alt['texto']}"
+            letra = chr(64 + int(alt["ordem"]))
+            texto_opcao = f"{letra}) {alt['texto']}"
             
-            liberado_para_clique = eh_a_vez_deste_time and (not eh_espectador)
+            pode_clicar = eh_a_vez_deste_time and (not eh_espectador)
             
-            if st.button(texto_opcao, key=f"alt_{alt['id']}", use_container_width=True, disabled=not liberado_para_clique):
-                resultado = processar_resposta_sincrona(
-                    batalha_id, 
-                    dados_pergunta["id"], 
-                    time_id, 
-                    alt["correta"], 
-                    time_adversario_id,
-                    tentativa_atual
+            if st.button(texto_opcao, key=f"btn_alt_{alt['id']}", use_container_width=True, disabled=not pode_clicar):
+                res = processar_resposta_sincrona(
+                    batalha_id, dados_pergunta["id"], time_id, 
+                    alt["correta"], time_adversario_id, tentativa_atual
                 )
-                
-                if resultado == "acertou":
-                    st.toast("🎉 Excelente! Sua equipe acertou e garantiu o ponto!", icon="🔥")
-                elif resultado == "rebate":
-                    st.toast("❌ Errado! O Rebate foi ativado. A bola passou para o adversário!", icon="⚠️")
-                elif resultado == "ambos_erraram":
-                    st.toast("🛑 Ambos falharam nesta questão. Avançando de round...", icon="💀")
-                    
                 time.sleep(0.5)
                 st.rerun()
 
 
-# --- INTERFACE VISUAL PRINCIPAL STREAMLIT ---
-
+# --- ROTEADOR PRINCIPAL ---
 def tela_batalha_rodada():
     aplicar_estilo()
-    
     usuario = st.session_state.get("usuario_logado", {})
     usuario_id = str(usuario.get("id", "")).strip()
     tipo_usuario = str(usuario.get("tipo_usuario", "aluno")).lower()
@@ -273,39 +251,14 @@ def tela_batalha_rodada():
     if tipo_usuario == "aluno":
         time_id, time_nome = obter_time_do_usuario(usuario_id)
         if not time_id:
-            st.error("🛑 Acesso Negado: Precisa de fazer parte de uma equipe para entrar na partida síncrona!")
-            if st.button("🏢 Criar minha Equipe Agora", type="primary", use_container_width=True):
-                st.session_state.pagina = "batalha_times"
-                st.rerun()
+            st.error("🛑 Você precisa estar em um time para participar!")
             return
     else:
         time_id, time_nome = "PROFESSOR_CONSOLA", "Painel Docente"
     
     if "batalha_ativa_id" not in st.session_state:
-        try:
-            res = supabase.table("batalhas").select("id").eq("finalizada", False).execute()
-            if res.data:
-                st.session_state.batalha_ativa_id = res.data[0]["id"]
-            else:
-                st.warning("Nenhuma batalha ativa localizada no momento.")
-                return
-        except Exception:
-            return
+        st.warning("Nenhuma batalha selecionada.")
+        return
 
     batalha_id = st.session_state.batalha_ativa_id
-    
-    try:
-        b_tit = supabase.table("batalhas").select("titulo").eq("id", batalha_id).execute()
-        titulo_sala = b_tit.data[0]["titulo"] if b_tit.data else "Partida Síncrona"
-    except Exception:
-        titulo_sala = "Partida Síncrona"
-
-    cabecalho(f"⚔️ {titulo_sala}", "Arena Síncrona ao Vivo — Modo Bate-Rebate")
-    
-    # Aciona o fragmento reativo isolado
     renderizar_conteudo_dinamico_sala(batalha_id, usuario_id, tipo_usuario, time_id, time_nome)
-
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    if st.button("⬅️ Sair da Sala (Voltar para Arena)", type="secondary", use_container_width=True):
-        st.session_state.pagina = "batalha_de_equipes"
-        st.rerun()
