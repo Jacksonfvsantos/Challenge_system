@@ -82,6 +82,7 @@ def tela_batalha_gerenciar():
         if not lista_ativas:
             st.info("Não há nenhuma batalha ativa ou agendada listada no momento.")
         else:
+            # ✅ SOLUÇÃO CRÍTICA: Os botões de ação rodam fora de qualquer escopo de formulário
             for bat in lista_ativas:
                 t_a = bat.get("time_a", {}).get("nome", "Equipe Desafiante") if bat.get("time_a") else "N/A"
                 t_b = bat.get("time_b", {}).get("nome", "Equipe Desafiada") if bat.get("time_b") else "N/A"
@@ -106,14 +107,18 @@ def tela_batalha_gerenciar():
                                 st.toast("Partida movida para o histórico!", icon="🛑")
                                 time.sleep(0.5)
                                 st.rerun()
+                            else:
+                                st.error("Falha ao encerrar a batalha no banco de dados.")
                                 
                         if st.button("🗑️ Deletar (Apagar Teste)", key=f"del_{bat['id']}", type="primary", use_container_width=True):
                             if deletar_batalha(bat['id']):
                                 st.toast("Registro de teste apagado permanentemente!", icon="🗑️")
                                 time.sleep(0.5)
                                 st.rerun()
+                            else:
+                                st.error("Erro ao deletar registro.")
 
-        # Puxa o banco de dados de questões e equipes para o formulário base de criação abaixo
+        # Puxa o banco de dados de questões e equipes para alimentar o form abaixo
         try:
             questoes_res = supabase.table("questoes").select("id, enunciado").execute()
             banco_questoes = questoes_res.data or []
@@ -122,81 +127,83 @@ def tela_batalha_gerenciar():
         except Exception:
             banco_questoes, banco_times = [], []
 
-        st.markdown("---")
+        st.markdown("<br><hr><br>", unsafe_allow_html=True)
         
-        # Formulário integrado de provisionamento de novas competições
-        with st.form("form_abrir_batalha", clear_on_submit=False):
+        # ✅ CONTAINER ISOLADO: Impede interferência nos botões de cima
+        with st.container():
             st.markdown("### 📋 Formular Nova Competição Híbrida")
-            titulo = st.text_input("Título do Desafio / Batalha:", placeholder="Ex: Batalha de Ponteiros e Alocação Dinâmica")
-            descricao = st.text_area("Instruções e Diretrizes Técnicas:", placeholder="Descreva os critérios de avaliação...")
             
-            col_m1, col_m2 = st.columns(2)
-            with col_m1:
-                modalidade = st.selectbox(
-                    "Modalidade da Competição:",
-                    options=["sincrona", "assincrona"],
-                    format_func=lambda x: "⚡ Síncrona (Ao Vivo / Bate-Rebate)" if x == "sincrona" else "⏳ Assíncrona (Com Prazo Estendido)"
-                )
-            with col_m2:
-                if modalidade == "assincrona":
-                    data_entrega = st.date_input("Data Limite de Entrega:", datetime.date.today() + datetime.timedelta(days=7))
-                    hora_entrega = st.time_input("Horário Limite:", datetime.time(23, 59))
-                    prazo_final = datetime.datetime.combine(data_entrega, hora_entrega)
-                else:
-                    st.info("💡 Modo Bate-Rebate. O controle de tempo é ditado na sala ao vivo.")
-                    prazo_final = None
-
-            time_a_id, time_b_id = None, None
-            if modalidade == "sincrona":
-                st.markdown("#### 👥 Seleção de Equipes Competidoras")
-                if len(banco_times) < 2:
-                    st.warning("⚠️ São necessárias pelo menos 2 equipes cadastradas para realizar uma disputa.")
-                else:
-                    col_t1, col_t2 = st.columns(2)
-                    with col_t1:
-                        time_a_sel = st.selectbox("Equipe A (Desafiante):", options=banco_times, format_func=lambda x: x["nome"], key="sb_time_a")
-                        time_a_id = time_a_sel["id"] if time_a_sel else None
-                    with col_t2:
-                        banco_times_b = [t for t in banco_times if t["id"] != time_a_id]
-                        time_b_sel = st.selectbox("Equipe B (Desafiada):", options=banco_times_b, format_func=lambda x: x["nome"], key="sb_time_b")
-                        time_b_id = time_b_sel["id"] if time_b_sel else None
-
-            questoes_selecionadas = []
-            if modalidade == "sincrona":
-                st.markdown("#### 🗂️ Seleção de Questões para a Rodada")
-                if not banco_questoes:
-                    st.warning("⚠️ Cadastre questões no banco de dados primeiro.")
-                else:
-                    questoes_selecionadas = st.multiselect(
-                        "Selecione as questões participantes:",
-                        options=banco_questoes,
-                        format_func=lambda x: f"ID: {x['id'][:8]}... | {x['enunciado'][:60]}...",
-                        key="selector_questions_batalha"
+            with st.form("form_abrir_batalha", clear_on_submit=True):
+                titulo = st.text_input("Título do Desafio / Batalha:", placeholder="Ex: Batalha de Ponteiros e Alocação Dinâmica")
+                descricao = st.text_area("Instruções e Diretrizes Técnicas:", placeholder="Descreva os critérios de avaliação...")
+                
+                col_m1, col_m2 = st.columns(2)
+                with col_m1:
+                    modalidade = st.selectbox(
+                        "Modalidade da Competição:",
+                        options=["sincrona", "assincrona"],
+                        format_func=lambda x: "⚡ Síncrona (Ao Vivo / Bate-Rebate)" if x == "sincrona" else "⏳ Assíncrona (Com Prazo Estendido)"
                     )
-
-            st.markdown("<br>", unsafe_allow_html=True)
-            btn_publicar = st.form_submit_button("🚀 Gravar e Publicar Competição", type="primary", use_container_width=True)
-
-            if btn_publicar:
-                if not titulo.strip():
-                    st.error("O título da batalha é obrigatório.")
-                elif modalidade == "sincrona" and (not time_a_id or not time_b_id):
-                    st.error("Para o modo Bate-Rebate, selecione duas equipes distintas.")
-                elif modalidade == "sincrona" and not questoes_selecionadas:
-                    st.error("Selecione pelo menos 1 questão para compor a rodada.")
-                else:
-                    lista_ids = [q["id"] for q in questoes_selecionadas] if modalidade == "sincrona" else []
-                    resultado = cadastrar_nova_batalha(
-                        titulo=titulo, descricao=descricao, modalidade=modalidade,
-                        data_limite=prazo_final, lista_questoes_ids=lista_ids,
-                        time_a_id=time_a_id, time_b_id=time_b_id
-                    )
-                    if resultado["sucesso"]:
-                        st.success(resultado["mensagem"])
-                        time.sleep(0.5)
-                        st.rerun()
+                with col_m2:
+                    if modalidade == "assincrona":
+                        data_entrega = st.date_input("Data Limite de Entrega:", datetime.date.today() + datetime.timedelta(days=7))
+                        hora_entrega = st.time_input("Horário Limite:", datetime.time(23, 59))
+                        prazo_final = datetime.datetime.combine(data_entrega, hora_entrega)
                     else:
-                        st.error(resultado["mensagem"])
+                        st.info("💡 Modo Bate-Rebate. O controle de tempo é ditado na sala ao vivo.")
+                        prazo_final = None
+
+                time_a_id, time_b_id = None, None
+                if modalidade == "sincrona":
+                    st.markdown("#### 👥 Seleção de Equipes Competidoras")
+                    if len(banco_times) < 2:
+                        st.warning("⚠️ São necessárias pelo menos 2 equipes cadastradas para realizar uma disputa.")
+                    else:
+                        col_t1, col_t2 = st.columns(2)
+                        with col_t1:
+                            time_a_sel = st.selectbox("Equipe A (Desafiante):", options=banco_times, format_func=lambda x: x["nome"], key="sb_time_a")
+                            time_a_id = time_a_sel["id"] if time_a_sel else None
+                        with col_t2:
+                            banco_times_b = [t for t in banco_times if t["id"] != time_a_id]
+                            time_b_sel = st.selectbox("Equipe B (Desafiada):", options=banco_times_b, format_func=lambda x: x["nome"], key="sb_time_b")
+                            time_b_id = time_b_sel["id"] if time_b_sel else None
+
+                questoes_selecionadas = []
+                if modalidade == "sincrona":
+                    st.markdown("#### 🗂️ Seleção de Questões para a Rodada")
+                    if not banco_questoes:
+                        st.warning("⚠️ Cadastre questões no banco de dados primeiro.")
+                    else:
+                        questoes_selecionadas = st.multiselect(
+                            "Selecione as questões participantes:",
+                            options=banco_questoes,
+                            format_func=lambda x: f"ID: {x['id'][:8]}... | {x['enunciado'][:60]}...",
+                            key="selector_questions_batalha"
+                        )
+
+                st.markdown("<br>", unsafe_allow_html=True)
+                btn_publicar = st.form_submit_button("🚀 Gravar e Publicar Competição", type="primary", use_container_width=True)
+
+                if btn_publicar:
+                    if not titulo.strip():
+                        st.error("O título da batalha é obrigatório.")
+                    elif modalidade == "sincrona" and (not time_a_id or not time_b_id):
+                        st.error("Para o modo Bate-Rebate, selecione duas equipes distintas.")
+                    elif modalidade == "sincrona" and not questoes_selecionadas:
+                        st.error("Selecione pelo menos 1 questão para compor a rodada.")
+                    else:
+                        lista_ids = [q["id"] for q in questoes_selecionadas] if modalidade == "sincrona" else []
+                        resultado = cadastrar_nova_batalha(
+                            titulo=titulo, descricao=descricao, modalidade=modalidade,
+                            data_limite=prazo_final, lista_questoes_ids=lista_ids,
+                            time_a_id=time_a_id, time_b_id=time_b_id
+                        )
+                        if resultado["sucesso"]:
+                            st.success(resultado["mensagem"])
+                            time.sleep(0.5)
+                            st.rerun()
+                        else:
+                            st.error(resultado["mensagem"])
 
     # ------------------------------------------------------------------------
     # ABA 2: HISTÓRICO DE CONFRONTOS ENCERRADOS
