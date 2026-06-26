@@ -24,7 +24,7 @@ def buscar_alternativas(pergunta_id):
     except Exception:
         return []
 
-def salvar_resposta_aluno(quiz_id, pergunta_id, usuario_id, alternativa_id, correta):
+def salvar_resposta_aluno(quiz_id, pergunta_id, usuario_id, alternativa_id, correta, indice_resposta):
     try:
         pontos = 1000.0 if correta else 0.0
         
@@ -32,20 +32,17 @@ def salvar_resposta_aluno(quiz_id, pergunta_id, usuario_id, alternativa_id, corr
             "quiz_id": quiz_id,
             "pergunta_id": pergunta_id,
             "usuario_id": usuario_id,
-            "participante_id": usuario_id,
+            "participante_id": usuario_id,    # Mantido para compatibilidade com o campo NOT NULL legado
             "alternativa_id": alternativa_id,
-            "pontuacao_obtida": pontos
+            "pontuacao_obtida": pontos,
+            "indice_resposta": int(indice_resposta) # Força o inteiro exigido pela restrição do banco
         }
         
-        # Executa o insert no Supabase
         res = supabase.table("respostas_quiz").insert(payload).execute()
-        
-        if res.data:
-            return True
-        return False
+        return bool(res.data)
         
     except Exception as e:
-        # 🚨 DIAGNÓSTICO: Mostra o erro real do banco na barra de notificações do Streamlit
+        # Exibe o diagnóstico em tempo real caso alguma outra restrição do banco atue
         st.error(f"Erro estrutural no banco: {str(e)}")
         return False
 
@@ -67,7 +64,7 @@ def tela_quiz_rodada():
         st.error("Erro ao carregar dados da sala.")
         return
 
-    # Sincronização automatizada via iframe no perfil do aluno
+    # Sincronização automatizada via iframe no perfil do aluno (Long Pooling)
     if tipo == "aluno":
         st.iframe(
             src="data:text/html;charset=utf-8," + """
@@ -91,11 +88,11 @@ def tela_quiz_rodada():
             st.rerun()
         return
 
-    # Gerenciamento do ID da pergunta atual
+    # Gerenciamento do ID da pergunta atual e etapas da rodada
     p_atual_id = quiz.get("pergunta_atual_id")
     etapa = quiz.get("etapa_rodada", "pergunta")
 
-    # Se nenhuma pergunta foi disparada ainda
+    # Se nenhuma pergunta foi disparada ainda (Sala de Espera)
     if not p_atual_id:
         if tipo in ("professor", "admin"):
             st.subheader("👨‍🏫 Painel de Moderação")
@@ -113,19 +110,19 @@ def tela_quiz_rodada():
     pergunta_ativa = next((p for p in perguntas if p["id"] == p_atual_id), perguntas[0])
     alternativas = buscar_alternativas(pergunta_ativa["id"])
 
-    st.subheader(f"Questão {pergunta_ativa['ordem']}: {pergunta_ativa['enunciado']}")
+    st.subheader(f"Questão {pergunta_ativa['ordem']}: {pergunta_ativa.get('enunciado') or pergunta_ativa.get('texto')}")
     
-    # ------------------ VISÃO DO PROFESSOR (CORRIGIDA) ------------------
+    # ------------------ VISÃO DO PROFESSOR ------------------
     if tipo in ("professor", "admin"):
         col1, col2 = st.columns(2)
         with col1:
-            # 1º Passo independente da questão: Travar e mostrar o gabarito
+            # 1º Passo: Bloquear submissões e revelar o Gabarito oficial na tela
             if etapa == "pergunta":
                 if st.button("👁️ Mostrar Gabarito e Bloquear Respostas", type="primary", use_container_width=True):
                     supabase.table("quizzes").update({"etapa_rodada": "gabarito"}).eq("id", quiz_id).execute()
                     st.rerun()
             
-            # 2º Passo (etapa == "gabarito"): Decidir se avança ou finaliza o quiz inteiro
+            # 2º Passo: Verificar se há mais questões ou se encerra a partida síncrona
             else:
                 idx_atual = next((i for i, p in enumerate(perguntas) if p["id"] == p_atual_id), 0)
                 
@@ -156,17 +153,18 @@ def tela_quiz_rodada():
         if etapa == "pergunta":
             st.caption("⏱️ Escolha a alternativa correta antes do professor travar a rodada!")
             
-            # Renderiza as 4 opções como botões para o aluno clicar
+            # Renderiza as 4 opções como botões dinâmicos de resposta
             for alt in alternativas:
                 if st.button(f"🔘 {alt['texto']}", key=f"btn_alt_{alt['id']}", use_container_width=True):
-                    sucesso = salvar_resposta_aluno(quiz_id, pergunta_ativa["id"], user_id, alt["id"], alt["correta"])
+                    # Passa o alt['ordem'] correspondente para satisfazer a coluna indice_resposta do banco
+                    sucesso = salvar_resposta_aluno(quiz_id, pergunta_ativa["id"], user_id, alt["id"], alt["correta"], alt["ordem"])
                     if sucesso:
                         st.toast("Resposta registrada! Aguardando o gabarito do professor...", icon="📥")
                     else:
                         st.warning("Você já respondeu esta questão!")
         else:
-            st.markdown("### 🔒 Rodada Encerrada!")
-            # Verifica o que o aluno marcou
+            st.markdown("### 🔒 Rodada Encerrada pelo Docente!")
+            # Validação imediata do acerto/erro baseado na resposta guardada
             try:
                 resp = supabase.table("respostas_quiz").select("*, alternativas_quiz(correta, texto)").eq("pergunta_id", pergunta_ativa["id"]).eq("usuario_id", user_id).single().execute()
                 if resp.data and resp.data["alternativas_quiz"]["correta"]:
@@ -174,6 +172,6 @@ def tela_quiz_rodada():
                 elif resp.data:
                     st.error(f"😞 Você ERROU! Você marcou: {resp.data['alternativas_quiz']['texto']}")
                 else:
-                    st.info("⏱️ O tempo acabou e você não enviou uma resposta.")
+                    st.info("⏱️ O tempo acabou e você não enviou nenhuma resposta a tempo.")
             except Exception:
-                st.info("Aguardando computação geral dos pontos.")
+                st.info("Aguardando computação geral dos pontos no telão de líderes...")
