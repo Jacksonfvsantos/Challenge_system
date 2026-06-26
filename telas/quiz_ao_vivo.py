@@ -20,11 +20,18 @@ def listar_quizzes_do_banco():
 
 def alterar_status_quiz(quiz_id, novo_status):
     try:
-        supabase.table("quizzes").update({"status": novo_status}).eq("id", quiz_id).execute()
+        res = supabase.table("quizzes").update({"status": novo_status}).eq("id", quiz_id).execute()
+        # Se res.data vier vazio, significa que o banco não alterou nenhuma linha (RLS ou ID inválido)
+        if not res.data:
+            st.error(f"⚠️ O banco de dados recebeu o comando, mas nenhuma linha foi alterada. Pode ser bloqueio de RLS.")
+            print(f"⚠️ Banco não alterou linhas para o ID: {quiz_id}")
+            return False
         return True
-    except Exception:
+    except Exception as e:
+        # Se o banco rejeitar o tipo de dado ou a coluna, o erro aparecerá na tela do Streamlit
+        st.error(f"❌ Erro direto do Supabase ao mudar status: {e}")
+        print(f"❌ Erro operacional no UPDATE: {e}")
         return False
-
 
 def tela_quiz_ao_vivo():
     aplicar_estilo()
