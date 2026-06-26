@@ -28,7 +28,15 @@ def tela_mini_provas():
 
     cabecalho("Mini-provas", "Realize as provas disponíveis e modularizadas")
 
-    # 🎛️ Botões Superiores de Navegação
+    # 👑 INTERCEPTADOR DO PROFESSOR: Atalho de gerenciamento direto no escopo da tela
+    if tipo_usuario == "professor":
+        st.markdown("### 🛠️ Painel de Controle Docente")
+        if st.button("➕ Criar Nova Mini Prova ou Fazer Upload (PDF / WORD)", type="primary", use_container_width=True):
+            st.session_state.pagina = "mini_provas_professor"
+            st.rerun()
+        st.divider()
+
+    # 🎛️ Botões Superiores de Navegação (Visão Geral)
     col1, col2, col3 = st.columns(3)
 
     with col1:
@@ -64,7 +72,7 @@ def tela_mini_provas():
             st.session_state.pagina = "resultados_mini_provas"
             st.rerun()
 
-    # Consome a lista limpa diretamente do service sem o .data que quebrava o fluxo
+    # Consome a lista limpa diretamente do service
     mini_provas = listar_mini_provas()
 
     if pesquisa:
@@ -82,7 +90,7 @@ def tela_mini_provas():
                 <strong style="color:#0d1b2a; font-size:16px;">{prova.get('titulo', 'Sem Título')}</strong><br>
                 <span style="color:#555; font-size:13px;">{prova.get('descricao', 'Sem descrição definida para este exame.')}</span><br>
                 <span style="color:#00b4d8; font-size:12px; font-weight:600;">
-                    📚 {prova.get('disciplina', '-')} &nbsp;|&nbsp; 📝 {prova.get('qtde_questoes', '-')} Questões &nbsp;|&nbsp; ⏱️ {prova.get('duracao_minutos', '-')} min
+                    📝 {prova.get('quantidade_questoes', '-')} Questões &nbsp;|&nbsp; ⏱️ {prova.get('duracao_minutos', '-')} min
                 </span>
             </div>
             """, unsafe_allow_html=True)
@@ -93,6 +101,6 @@ def tela_mini_provas():
                     st.session_state.pagina = "realizar_mini_prova"
                     st.rerun()
             else:
-                # Se for Professor, exibe as opções de compartilhamento de QR Code / Link Direto
+                # Se for Professor visualizando a lista, exibe as opções de compartilhamento do QR Code daquela prova
                 with st.expander("📢 Links de Acesso Direto & QR Code para Alunos", expanded=False):
                     exibir_painel_compartilhamento(tipo_sala="prova", sala_id=prova["id"])
