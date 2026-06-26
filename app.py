@@ -180,6 +180,5 @@ elif pagina == "batalha_gerenciar":
 
 elif pagina == "batalha_rodada":
     tela_batalha_rodada()
-
 else:
     tela_home()
