@@ -106,7 +106,7 @@ def tela_batalha_gerenciar():
                             if deletar_batalha(bat['id']):
                                 st.toast("Registro de teste apagado permanentemente!", icon="🗑️")
                                 time.sleep(0.5)
-                                st.rerun()  # ✅ CORRIGIDO: Adicionado st. antes do rerun
+                                st.rerun()
                             else:
                                 st.error("Erro ao deletar registro.")
 
@@ -154,8 +154,8 @@ def tela_batalha_gerenciar():
                             time_a_sel = st.selectbox("Equipe A (Desafiante):", options=banco_times, format_func=lambda x: x["nome"], key="sb_time_a")
                             time_a_id = time_a_sel["id"] if time_a_sel else None
                         with col_t2:
-                            banco_times_b = [t for t in banco_times if t["id"] != time_a_id]
-                            time_b_sel = st.selectbox("Equipe B (Desafiada):", options=banco_times_b, format_func=lambda x: x["nome"], key="sb_time_b")
+                            # ✅ ALTERAÇÃO: Removido o filtro. Agora a Equipe B lista todas as equipas cadastradas nativamente
+                            time_b_sel = st.selectbox("Equipe B (Desafiada):", options=banco_times, format_func=lambda x: x["nome"], key="sb_time_b")
                             time_b_id = time_b_sel["id"] if time_b_sel else None
 
                 questoes_selecionadas = []
@@ -178,7 +178,10 @@ def tela_batalha_gerenciar():
                     if not titulo.strip():
                         st.error("O título da batalha é obrigatório.")
                     elif modalidade == "sincrona" and (not time_a_id or not time_b_id):
-                        st.error("Para o modo Bate-Rebate, selecione duas equipes distintas.")
+                        st.error("Selecione duas equipes para compor a disputa.")
+                    elif modalidade == "sincrona" and (time_a_id == time_b_id):
+                        # 🔒 PROTEÇÃO: Impede que a mesma equipe dispute contra si mesma já que listamos todas
+                        st.error("🛑 Erro: Uma equipe não pode duelar contra si mesma na Arena. Selecione equipes distintas!")
                     elif modalidade == "sincrona" and not questoes_selecionadas:
                         st.error("Selecione pelo menos 1 questão para compor a rodada.")
                     else:
