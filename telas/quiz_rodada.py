@@ -32,17 +32,17 @@ def salvar_resposta_aluno(quiz_id, pergunta_id, usuario_id, alternativa_id, corr
             "quiz_id": quiz_id,
             "pergunta_id": pergunta_id,
             "usuario_id": usuario_id,
-            "participante_id": usuario_id,    # Mantido para compatibilidade com o campo NOT NULL legado
+            "participante_id": usuario_id,
             "alternativa_id": alternativa_id,
             "pontuacao_obtida": pontos,
-            "indice_resposta": int(indice_resposta) # Força o inteiro exigido pela restrição do banco
+            "indice_resposta": int(indice_resposta),
+            "correta": bool(correta)  # ✅ SOLUÇÃO: Preenche a coluna obrigatória "correta" que o banco antigo exige
         }
         
         res = supabase.table("respostas_quiz").insert(payload).execute()
         return bool(res.data)
         
     except Exception as e:
-        # Exibe o diagnóstico em tempo real caso alguma outra restrição do banco atue
         st.error(f"Erro estrutural no banco: {str(e)}")
         return False
 
