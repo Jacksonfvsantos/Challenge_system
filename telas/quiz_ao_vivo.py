@@ -76,18 +76,27 @@ def tela_quiz_ao_vivo():
 
         for q in quizzes:
             q_id = q.get("id")
-            status = q.get("status", "criado")
+            
+            # ✅ CORRIGIDO: Forçando o tratamento de string para evitar erros de case-sensitive
+            status = str(q.get("status", "criado")).strip().lower()
             tema_txt = q.get("tema") or "Geral"
             
-            # ✅ CORRIGIDO: Tratamento seguro para o nome do autor do quiz, evitando quebras por nós nulos do relacionamento
             autor_objeto = q.get("usuarios")
             if isinstance(autor_objeto, dict):
                 autor = autor_objeto.get("nome", "Professor")
             else:
                 autor = usuario.get("nome", "Professor") if tipo in ("professor", "admin") else "Docente"
             
-            cor_status = "#00b4d8" if status == "criado" else "#2a9d8f" if status == "em_andamento" else "#e63946"
-            txt_status = "Aguardando Início ⏱️" if status == "criado" else "Em Andamento 🟢" if status == "em_andamento" else "Finalizado 🛑"
+            # Ajuste dinâmico das cores com base no status limpo
+            if status == "em_andamento":
+                cor_status = "#2a9d8f"
+                txt_status = "Em Andamento 🟢"
+            elif status == "finalizado":
+                cor_status = "#e63946"
+                txt_status = "Finalizado 🛑"
+            else:
+                cor_status = "#00b4d8"
+                txt_status = "Aguardando Início ⏱️"
 
             with st.container(border=True):
                 st.markdown(f"""
@@ -132,12 +141,13 @@ def tela_quiz_ao_vivo():
                 
                 else:
                     st.markdown("<br>", unsafe_allow_html=True)
-                    if status == "criado":
-                        st.button("⏳ Aguardando Professor Iniciar...", key=f"play_{q_id}", use_container_width=True, disabled=True)
-                    elif status == "em_andamento":
+                    # ✅ CORRIGIDO: Checagem de status limpa para liberar o botão de ingresso do aluno instantaneamente
+                    if status == "em_andamento":
                         if st.button("🎯 Ingressar na Sala e Responder", key=f"play_{q_id}", type="primary", use_container_width=True):
                             st.session_state.quiz_ativo_id = q_id
                             st.session_state.pagina = "quiz_rodada"
                             st.rerun()
-                    else:
+                    elif status == "finalizado":
                         st.button("🔒 Quiz Encerrado", key=f"play_{q_id}", use_container_width=True, disabled=True)
+                    else:
+                        st.button("⏳ Aguardando Professor Iniciar...", key=f"play_{q_id}", use_container_width=True, disabled=True)
