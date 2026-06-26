@@ -28,7 +28,7 @@ def extrair_texto_docx(arquivo_bytes):
 
 def parsear_questoes_com_ia(texto_bruto):
     """
-    Envia o texto extraído para o Gemini estruturar estritamente como JSON válido.
+    Envia o texto extraído para a nova API do Gemini 2.5 estruturar estritamente como JSON válido.
     """
     api_key = st.secrets.get("GEMINI_API_KEY")
     if not api_key:
@@ -38,8 +38,8 @@ def parsear_questoes_com_ia(texto_bruto):
     try:
         genai.configure(api_key=api_key)
         
-        # 🚀 RESOLUÇÃO DEFINITIVA DO 404: Mapeamento canônico universal para a chamada síncrona
-        model = genai.GenerativeModel('models/gemini-1.5-flash')
+        # 🚀 ATUALIZAÇÃO TECNOLÓGICA: Substituído o modelo descontinuado pelo novo Gemini 2.5 Flash
+        model = genai.GenerativeModel('gemini-2.5-flash')
         
         prompt = f"""
         Você é um assistente de engenharia de software especializado em estruturar dados.
