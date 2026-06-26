@@ -1,17 +1,14 @@
 from database.conexao import supabase
 
+# Dentro de services/cadastro_quiz_service.py
+
 def cadastrar_pergunta_completa(quiz_id, enunciado, tempo_limite, alternativas, alternativa_correta_idx):
-    """
-    Cadastra uma pergunta e suas 4 alternativas vinculadas no banco.
-    alternativas: lista de 4 strings
-    alternativa_correta_idx: int (0 a 3) indicando qual é a correta
-    """
     try:
-        # 1. Descobrir a próxima ordem da pergunta para esse quiz
+        # 1. Descobrir a próxima ordem para este quiz específico
         res_ordem = supabase.table("perguntas_quiz").select("ordem").eq("quiz_id", quiz_id).execute()
         proxima_ordem = len(res_ordem.data) + 1 if res_ordem.data else 1
 
-        # 2. Inserir a Pergunta tratando todas as colunas antigas obrigatórias
+        # 2. Inserir a Pergunta tratando todas as colunas legadas obrigatórias
         res_pergunta = supabase.table("perguntas_quiz").insert({
             "quiz_id": quiz_id,
             "texto": enunciado.strip(),
@@ -19,30 +16,34 @@ def cadastrar_pergunta_completa(quiz_id, enunciado, tempo_limite, alternativas, 
             "tempo_limite_segundos": int(tempo_limite),
             "ordem": proxima_ordem,
             "alternativas": alternativas,
-            "indice_correto": int(alternativa_correta_idx)  # ✅ SOLUÇÃO: Preenche a coluna faltante do banco antigo
+            "indice_correto": int(alternativa_correta_idx)
         }).execute()
 
         if not res_pergunta.data:
-            return {"sucesso": False, "mensagem": "Falha ao registrar a estrutura da pergunta."}
+            return {"sucesso": False, "mensagem": "Falha operacional ao obter retorno da pergunta inserida."}
 
-        pergunta_id = res_pergunta.data[0]["id"]
+        # ✅ CAPTURA BLINDADA DO ID DA PERGUNTA:
+        # Aceita se vier como lista de um dicionário ou objeto direto
+        dados_p = res_pergunta.data
+        pergunta_id = dados_p[0]["id"] if isinstance(dados_p, list) else dados_p.get("id")
 
-        # 3. Inserir as 4 Alternativas
-        payload_alternativas = []
-        for idx, texto_alt in enumerate(alternativas):
-            payload_alternativas.append({
-                "pergunta_id": pergunta_id,
+        if not pergunta_id:
+            return {"sucesso": False, "mensagem": "Não foi possível recuperar o ID gerado para vincular as alternativas."}
+
+        # 3. Preparar o lote (bulk) de alternativas para a nova tabela relacional
+        lote_alternativas = []
+        for i, texto_alt in enumerate(alternativas):
+            lote_alternativas.append({
+                "pergunta_id": pergunta_id, # <-- Agora garantido!
                 "texto": texto_alt.strip(),
-                "correta": (idx == alternativa_correta_idx),
-                "ordem": idx + 1
+                "correta": (i == int(alternativa_correta_idx)),
+                "ordem": i + 1
             })
 
-        res_alt = supabase.table("alternativas_quiz").insert(payload_alternativas).execute()
-        
-        if res_alt.data:
-            return {"sucesso": True, "mensagem": f"Pergunta {proxima_ordem} salva com sucesso!"}
-        
-        return {"sucesso": False, "mensagem": "Erro ao salvar as alternativas da pergunta."}
+        # 4. Inserir todas as alternativas de uma vez só no banco
+        supabase.table("alternativas_quiz").insert(lote_alternativas).execute()
+
+        return {"sucesso": True, "mensagem": f"✨ Pergunta {proxima_ordem} salva com sucesso no caderno!"}
 
     except Exception as e:
-        return {"sucesso": False, "mensagem": f"Erro operacional: {e}"}
+        return {"sucesso": False, "mensagem": f"Erro operacional: {str(e)}"}
