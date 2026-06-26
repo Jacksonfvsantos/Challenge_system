@@ -16,7 +16,7 @@ def tela_resultados_mini_provas():
 
     # 🔍 BUSCA O HISTÓRICO REAL DO ALUNO COM A SINTAXE DE ORDENAÇÃO CORRIGIDA (.order(..., desc=True))
     try:
-        res = supabase.table("historico_mini_provas")\
+        res = supabase.table("historico_provas")\
             .select("*, mini_provas(titulo, disciplina, assunto)")\
             .eq("usuario_id", usuario_id)\
             .order("created_at", desc=True)\

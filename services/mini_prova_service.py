@@ -170,7 +170,7 @@ def computar_resultado_avaliacao(aluno_id, prova_id, respostas_aluno: dict, cade
         }
 
         # Salva o log definitivo de desempenho do estudante
-        supabase.table("historico_mini_provas").insert(payload_historico).execute()
+        supabase.table("historico_provas").insert(payload_historico).execute()
 
         return {
             "sucesso": True,
