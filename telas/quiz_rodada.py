@@ -31,12 +31,12 @@ def salvar_resposta_aluno(quiz_id, pergunta_id, usuario_id, alternativa_id, corr
             "quiz_id": quiz_id,
             "pergunta_id": pergunta_id,
             "usuario_id": usuario_id,
+            "participante_id": usuario_id,  # ✅ SOLUÇÃO: Preenche a coluna antiga obrigatória do seu banco
             "alternativa_id": alternativa_id,
-            "pontuacao_obtida": pontos  # ✅ CORRIGIDO: de points para pontos
+            "pontuacao_obtida": pontos
         }).execute()
         return True
     except Exception as e:
-        st.error(f"Erro ao salvar resposta: {str(e)}")
         return False
 
 def tela_quiz_rodada():
