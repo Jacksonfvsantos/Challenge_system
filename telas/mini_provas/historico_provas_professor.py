@@ -15,7 +15,7 @@ def tela_historico_provas_professor():
         st.error("Sessão inválida.")
         return
 
-    # 🔍 Busca todas as mini-provas deste professor que estão 'Indisponível'
+    # 🔍 Busca todas as mini-provas deste professor que estão com status 'Indisponível'
     try:
         res = supabase.table("mini_provas")\
             .select("id, titulo, descricao, quantidade_questoes, data_criacao")\
@@ -55,18 +55,34 @@ def tela_historico_provas_professor():
             
             with col_btn:
                 st.write("")  # Ajuste de espaçamento vertical
-                # Botão de deleção perigosa (usa popover para confirmação dupla de segurança)
+                
+                # Botão de deleção relacional segura usando popover de confirmação dupla
                 with st.popover("🗑️ Deletar Prova", use_container_width=True):
-                    st.warning("Tem certeza? Esta ação não pode ser desfeita!")
+                    st.warning("Tem certeza? Esta ação apagará permanentemente a prova, as questões e as notas!")
                     if st.button("Sim, Excluir do Banco", key=f"del_{prova['id']}", type="primary", use_container_width=True):
                         try:
-                            # Executa o delete relacional no Supabase
+                            # 1️⃣ Busca todas as questões vinculadas a esta mini-prova para conseguir apagar as alternativas primeiro
+                            res_questoes = supabase.table("questoes").select("id").eq("mini_prova_id", prova["id"]).execute()
+                            lista_ids_questoes = [q["id"] for q in (res_questoes.data or [])]
+                            
+                            if lista_ids_questoes:
+                                # 2️⃣ Remove em lote todas as alternativas ligadas a essas questões
+                                supabase.table("alternativas").delete().in_("questao_id", lista_ids_questoes).execute()
+                                
+                                # 3️⃣ Remove em lote as questões da prova
+                                supabase.table("questoes").delete().eq("mini_prova_id", prova["id"]).execute()
+                            
+                            # 4️⃣ Remove os registros vinculados do histórico de notas dos alunos
+                            supabase.table("historico_provas").delete().eq("mini_prova_id", prova["id"]).execute()
+
+                            # 5️⃣ Remove o registro pai (Mini Prova) liberado de restrições de FK
                             supabase.table("mini_provas").delete().eq("id", prova["id"]).execute()
-                            st.success("Prova removida com sucesso!")
+                            
+                            st.success("Prova e todas as suas dependências removidas com sucesso!")
                             time.sleep(0.5)
                             st.rerun()
                         except Exception as e:
-                            st.error(f"Erro ao deletar: {e}")
+                            st.error(f"Erro ao deletar estrutura relacional: {e}")
 
     st.divider()
     if st.button("⬅️ Voltar para o Painel Geral", use_container_width=True, type="secondary"):
