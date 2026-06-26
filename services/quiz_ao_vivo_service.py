@@ -8,9 +8,9 @@ def criar_quiz(titulo, usuario_id, disciplina, tema):
         res = supabase.table("quizzes").insert({
             "titulo": titulo.strip(),
             "criado_por": usuario_id,
-            "disciplina": disciplina.strip(), # Tratando como string livre relacional
-            "tema": tema.strip(),
-            "status": "criado" # Garante o estado inicial
+            "disciplina": disciplina.strip() if disciplina else None,
+            "tema": tema.strip() if tema else None,
+            "status": "criado"
         }).execute()
         
         if res.data:

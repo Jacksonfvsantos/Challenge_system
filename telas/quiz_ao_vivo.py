@@ -55,12 +55,14 @@ def tela_quiz_ao_vivo():
                     if not titulo.strip():
                         st.error("O título do quiz é obrigatório para abrir a sala.")
                     else:
-                        resultado = criar_quiz(titulo, user_id, disciplina, tema)
-                        if resultado.get("sucesso"):
-                            st.success(f"✅ {resultado.get('mensagem')}")
-                            st.rerun()
-                        else:
-                            st.error(resultado.get("mensagem", "Erro operacional."))
+                        with st.spinner("Ativando sala..."):
+                            resultado = criar_quiz(titulo, user_id, disciplina, tema)
+                            if resultado and resultado.get("sucesso") == True:
+                                st.success(f"✅ {resultado.get('mensagem')}")
+                                time.sleep(0.5)
+                                st.rerun()
+                            else:
+                                st.error(resultado.get("mensagem", "Erro operacional ao tentar abrir sala."))
 
     with aba_lista:
         st.subheader("Salas de Quiz Registradas")
