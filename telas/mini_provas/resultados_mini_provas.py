@@ -1,23 +1,89 @@
 import streamlit as st
+from database.conexao import supabase
+from utils.estilo import aplicar_estilo, cabecalho
 
 def tela_resultados_mini_provas():
-    st.title("Resultados")
-    st.subheader("Mini provas finalizadas")
+    aplicar_estilo()
+    
+    usuario = st.session_state.get("usuario_logado", {})
+    usuario_id = usuario.get("id")
+    
+    cabecalho("Meu Histórico", "Consulte as mini-provas já finalizadas e revise seus resultados")
 
-    # Exemplo simulado de iteração sobre o histórico (substituível pela chamada do banco)
-    for i in range(3):
+    if not usuario_id:
+        st.error("Sessão de usuário inválida.")
+        return
+
+    # 🔍 Busca o histórico real do aluno integrado com os dados da mini prova
+    try:
+        res = supabase.table("historico_mini_provas")\
+            .select("*, mini_provas(titulo, disciplina, assunto)")\
+            .eq("usuario_id", usuario_id)\
+            .order("created_at", descending=True)\
+            .execute()
+        historico = res.data or []
+    except Exception as e:
+        st.error(f"Erro ao carregar histórico do banco de dados: {e}")
+        historico = []
+
+    if not historico:
+        st.info("💡 Você ainda não realizou nenhuma mini-prova neste semestre.")
+        
+        st.divider()
+        if st.button("⬅️ Voltar para o Painel", use_container_width=True):
+            st.session_state.pagina = "mini_provas"
+            st.rerun()
+        return
+
+    st.caption(f"Você concluiu um total de {len(historico)} avaliação(ões).")
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # 📜 Listagem dinâmica das tentativas do aluno
+    for idx, tentativa in enumerate(historico):
+        prova_dados = tentativa.get("mini_provas", {})
+        titulo_prova = prova_dados.get("titulo", "Mini Prova Antiga")
+        disciplina = prova_dados.get("disciplina", "Geral")
+        
+        nota = tentativa.get("nota", 0.0)
+        pontos = tentativa.get("pontos_obtidos", 0.0)
+        acertos = tentativa.get("total_acertos", 0)
+        total_q = tentativa.get("total_questoes", 0)
+        
+        # Define a cor do card com base no aproveitamento (Acima ou abaixo de 60%)
+        cor_borda = "#2a9d8f" if nota >= 6.0 else "#e63946"
+
         with st.container(border=True):
-            st.write(f"Mini Prova {i+1}")
-            st.write("Nota: 8.0")
-            st.write("Pontuação: 0.8")
-
-            if st.button(f"Ver resultado detalhado", key=f"ver_res_{i}", use_container_width=True):
-                # Guarda o contexto de qual prova visualizar e muda de página
+            st.markdown(f"""
+            <div style="border-left: 4px solid {cor_borda}; padding-left: 12px; margin-bottom: 8px;">
+                <strong style="color: #1b3a5c; font-size: 16px;">{titulo_prova}</strong><br>
+                <span style="color: #666; font-size: 13px;">📚 Disciplina: {disciplina}</span>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Exibição das métricas da tentativa
+            col1, col2, col3 = st.columns(3)
+            col1.metric("🎯 Nota", f"{nota} / 10.0")
+            col2.metric("⭐ XP Ganho", f"+{pontos} pts")
+            col3.metric("📈 Acertos", f"{acertos} de {total_q}")
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            # Botão reativo para abrir o Gabarito Detalhado daquela prova específica
+            if st.button(f"🔍 Ver Detalhes e Gabarito", key=f"ver_gabarito_{tentativa['id']}_{idx}", use_container_width=True):
+                # Estrutura o payload esperado pela tela 'resultado_mini_prova.py'
+                st.session_state.resultado_prova_calculado = {
+                    "sucesso": True,
+                    "nota": nota,
+                    "pontos": pontos,
+                    "acertos": f"{acertos}/{total_q}",
+                    "mini_prova_id": tentativa.get("mini_prova_id"),
+                    "historico_id": tentativa.get("id")
+                }
                 st.session_state.pagina = "resultado_mini_prova"
                 st.rerun()
 
     st.divider()
 
-    if st.button("Voltar", use_container_width=True):
+    if st.button("⬅️ Voltar para o Painel Principal", use_container_width=True):
         st.session_state.pagina = "mini_provas"
         st.rerun()
