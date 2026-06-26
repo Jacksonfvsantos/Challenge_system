@@ -10,7 +10,7 @@ from database.conexao import supabase
 def listar_quizzes_do_banco():
     try:
         # ✅ BLINDADO: Se der qualquer inconsistência no Join nativo do PostgREST, pegamos os dados brutos da tabela
-        res = supabase.table("quizzes").select("*").order("created_at", desc=True).execute()
+        res = supabase.table("quizzes").select("*").order("data_criacao", desc=True).execute()
         return res.data or []
     except Exception as e:
         st.error(f"Erro ao ler tabela de quizzes: {e}")
