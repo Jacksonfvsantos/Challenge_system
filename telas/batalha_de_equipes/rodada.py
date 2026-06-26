@@ -2,8 +2,6 @@ import streamlit as st
 import time
 from database.conexao import supabase
 from services.batalha_service import encerrar_partida_sincrona, processar_resposta_sincrona, obter_estado_batalha
-
-# 🚀 CORREÇÃO DO NAMEERROR: Importando a função utilitária de layout que estava faltando
 from utils.estilo import aplicar_estilo 
 
 # --- FUNÇÕES DE SUPORTE AO BACKEND DA RODADA ---
@@ -28,8 +26,10 @@ def obter_pergunta_atual(batalha_id, ordem_pergunta):
             return None
             
         dados_questao = questao.data[0]
+        
+        # ✅ CORRIGIDO: Vinculado corretamente à variável 'alternativas' eliminando o retorno nulo fantasma
         alternativas = supabase.table("alternativas").select("*").eq("questao_id", q_id).order("ordem").execute()
-        lista_alt_data = alternatives.data or []
+        lista_alt_data = alternativas.data or []
         
         alternativas_formatadas = []
         for alt in lista_alt_data:
@@ -132,7 +132,7 @@ def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, no
 
 # --- INTERFACE VISUAL PRINCIPAL ---
 def tela_batalha_rodada():
-    aplicar_estilo() # ✅ Agora a chamada funcionará perfeitamente sem NameError
+    aplicar_estilo()
     
     if st.session_state.get("forcar_refresh_global", False):
         st.session_state["forcar_refresh_global"] = False
@@ -170,10 +170,16 @@ def tela_batalha_rodada():
 
     painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, nome_time_b, dados_pergunta, pergunta_ordem, status_sincrono)
 
-    if batalha.get("finalizada") is True or str(batalha.get("status")).lower() == "finalizada" or not dados_pergunta:
+    # ✅ CORRIGIDO: Validação blindada. Só encerra se o banco estiver marcado ou se realmente não houver mais perguntas cadastradas para a rodada
+    if batalha.get("finalizada") is True or str(batalha.get("status")).lower() == "finalizada":
+        st.success("🏁 **A batalha foi encerrada oficialmente!**")
+        return
+
+    if not dados_pergunta:
+        # Se não trouxe dados mas o banco não está finalizado, significa que as perguntas cadastradas acabaram
         if not batalha.get("finalizada"):
             encerrar_partida_sincrona(batalha_id)
-        st.success("🏁 **A batalha foi encerrada oficialmente!**")
+        st.success("🏁 **Todas as perguntas foram respondidas! Fim do jogo.**")
         return
 
     if tipo_usuario in ("professor", "admin") and str(batalha.get("status")).lower() == "agendada":
