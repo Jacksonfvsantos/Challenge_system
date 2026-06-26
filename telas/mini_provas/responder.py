@@ -78,8 +78,8 @@ def tela_responder_mini_prova():
     # RENDERIZAÇÃO DA QUESTÃO DO CADERNO ATIVO
     questao = caderno[questao_idx]
     
-    # Mapeamento de alternativas estruturadas
-    opcoes_alternativas = []
+    # Mapeamento dinâmico vindo do caderno relacional estruturado pelo novo service
+    opcoes_alternativas = questao.get("alternativas", [])
     if questao.get("alternativa_a"): opcoes_alternativas.append(questao["alternativa_a"])
     if questao.get("alternativa_b"): opcoes_alternativas.append(questao["alternativa_b"])
     if questao.get("alternativa_c"): opcoes_alternativas.append(questao["alternativa_c"])

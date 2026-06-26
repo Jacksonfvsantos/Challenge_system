@@ -3,92 +3,62 @@ import random
 from database.conexao import supabase
 
 # ============================================================================
-# 1. FUNÇÕES PARA QUESTÕES (BANCO DE PERGUNTAS)
+# 1. FUNÇÕES PARA QUESTÕES (BANCO DE PERGUNTAS RELACIONAL)
 # ============================================================================
 
 def criar_pergunta(dados: dict) -> dict:
     """
-    Cadastra uma nova pergunta de múltipla escolha vinculada a uma disciplina e assunto.
+    Cadastra uma nova pergunta associando-a à tabela relacional de questões e alternativas.
     """
     try:
-        payload = {
-            "email_professor": dados.get("email_professor"),
-            "disciplina": str(dados.get("disciplina")).strip(),
-            "assunto": str(dados.get("assunto")).strip(),
-            "enunciado": str(dados.get("enunciado")).strip(),
-            "nivel": str(dados.get("nivel", "facil")).strip().lower(),
-            "alternativa_a": str(dados.get("alternativa_a")).strip(),
-            "alternativa_b": str(dados.get("alternativa_b")).strip(),
-            "alternativa_c": str(dados.get("alternativa_c")).strip(),
-            "alternativa_d": str(dados.get("alternativa_d")).strip(),
-            "alternativa_e": str(dados.get("alternativa_e")).strip(),
-            "resposta_correta": str(dados.get("resposta_correta")).strip().upper()
+        # 1. Insere a questão atrelada à prova
+        payload_questao = {
+            "mini_prova_id": dados.get("mini_prova_id"),
+            "enunciado": str(dados.get("enunciado")).strip()
         }
-        supabase.table("perguntas_mini_provas").insert(payload).execute()
-        return {"sucesso": True, "mensagem": "Questão cadastrada com sucesso!"}
+        res_q = supabase.table("questoes").insert(payload_questao).execute()
+        if not res_q.data:
+            return {"sucesso": False, "mensagem": "Erro ao gerar ID da questão."}
+        
+        questao_id = res_q.data[0]["id"]
+        
+        # 2. Prepara o lote de alternativas seguindo o DDL original
+        alternativas_lote = []
+        opcoes = ['A', 'B', 'C', 'D', 'E']
+        gabarito = str(dados.get("resposta_correta")).strip().upper()
+        
+        for idx, letra in enumerate(opcoes):
+            campo_texto = dados.get(f"alternativa_{letra.lower()}")
+            if campo_texto:
+                alternativas_lote.append({
+                    "questao_id": questao_id,
+                    "texto": str(campo_texto).strip(),
+                    "ordem": idx + 1,
+                    "correta": (letra == gabarito)
+                })
+                
+        if alternativas_lote:
+            supabase.table("alternativas").insert(alternativas_lote).execute()
+            
+        return {"sucesso": True, "mensagem": "Questão e alternativas salvas com sucesso!"}
     except Exception as e:
-        return {"sucesso": False, "mensagem": f"Erro ao cadastrar questão: {str(e)}"}
-
-def listar_perguntas():
-    """
-    Retorna todas as perguntas cadastradas no repositório.
-    """
-    try:
-        res = supabase.table("perguntas_mini_provas").select("*").order("created_at", descending=True).execute()
-        return res.data or []
-    except Exception as e:
-        print(f"❌ Erro [listar_perguntas]: {e}")
-        return []
-
-def excluir_pergunta(id_pergunta: str) -> bool:
-    """
-    Remove uma questão específica do banco de dados.
-    """
-    try:
-        supabase.table("perguntas_mini_provas").delete().eq("id", id_pergunta).execute()
-        return True
-    except Exception as e:
-        print(f"❌ Erro [excluir_pergunta]: {e}")
-        return False
-
-# ============================================================================
-# 2. FUNÇÕES PARA ESTRUTURAÇÃO DAS MINI PROVAS
-# ============================================================================
-
-def criar_mini_prova(dados: dict) -> dict:
-    """
-    Cria a definição de uma mini prova com quantidades de questões divididas por dificuldade.
-    """
-    try:
-        payload = {
-            "email_professor": dados.get("email_professor"),
-            "titulo": str(dados.get("titulo")).strip(),
-            "disciplina": str(dados.get("disciplina")).strip(),
-            "assunto": str(dados.get("assunto")).strip(),
-            "qtde_questoes": int(dados.get("quantidade_total", 5)),
-            "qtd_faceis": int(dados.get("quantidade_faceis", 0)),
-            "qtd_medias": int(dados.get("quantidade_medias", 0)),
-            "qtd_dificeis": int(dados.get("quantidade_dificeis", 0)),
-            "duracao_minutos": int(dados.get("tempo_minutos", 5)),
-            "pontos_maximos": float(dados.get("pontos", 1.0)),
-            "status": "ativo"
-        }
-        supabase.table("mini_provas").insert(payload).execute()
-        return {"sucesso": True, "mensagem": "Mini prova configurada com sucesso!"}
-    except Exception as e:
-        return {"sucesso": False, "mensagem": f"Erro ao criar mini prova: {e}"}
+        return {"sucesso": False, "mensagem": f"Erro ao cadastrar questão relacional: {str(e)}"}
 
 def listar_mini_provas():
     """
-    Lista todas as mini provas configuradas no sistema.
+    Lista todas as mini provas configuradas no sistema de acordo com o DDL real.
     """
     try:
-        res_real = supabase.table("mini_provas").select("*").order("created_at", descending=True).execute()
+        res_real = supabase.table("mini_provas").select("*").order("data_criacao", desc=True).execute()
         return res_real.data or []
-    except Exception:
+    except Exception as e:
+        print(f"❌ Erro [listar_mini_provas]: {e}")
         return []
 
 def buscar_mini_prova(id_prova):
+    """
+    Busca os metadados de uma única prova.
+    """
     try:
         res = supabase.table("mini_provas").select("*").eq("id", id_prova).execute()
         return res.data[0] if res.data else None
@@ -96,80 +66,75 @@ def buscar_mini_prova(id_prova):
         return None
 
 # ============================================================================
-# 🎯 3. MOTOR DE EXECUÇÃO AUTOMATIZADA DA PROVA (SORTEIO SEGURO)
+# 🎯 2. MOTOR DE MAPEAMENTO E CORREÇÃO ADAPTADO AO SCHEMA REAL
 # ============================================================================
 
 def gerar_caderno_questoes_dinamico(prova_id):
     """
-    Monta uma mini prova personalizada para o aluno sorteando as questões
-    do banco de dados com base nas quantidades de dificuldade exigidas.
+    Busca as questões vinculadas à mini prova e injeta suas alternativas correspondentes.
     """
     try:
-        res_prova = supabase.table("mini_provas").select("*").eq("id", prova_id).execute()
-        if not res_prova.data:
+        # Busca todas as questões da prova
+        res_q = supabase.table("questoes").select("*").eq("mini_prova_id", prova_id).execute()
+        questoes = res_q.data or []
+        
+        if not questoes:
             return []
             
-        p = res_prova.data[0]
-
-        # Busca todas as perguntas da disciplina/assunto correspondente
-        query = supabase.table("perguntas_mini_provas").select("*")\
-            .eq("disciplina", p["disciplina"]).eq("assunto", p["assunto"]).execute()
+        caderno_completo = []
         
-        todas_questoes = query.data or []
+        # Para cada questão, busca o seu respectivo bloco de alternativas no banco
+        for q in questoes:
+            res_alt = supabase.table("alternativas").select("*").eq("questao_id", q["id"]).order("ordem").execute()
+            lista_alt = res_alt.data or []
+            
+            # Monta um dicionário amigável para a renderização na tela 'responder.py'
+            item_caderno = {
+                "id": q["id"],
+                "enunciado": q["enunciado"],
+                "alternativas": [alt["texto"] for alt in lista_alt],
+                "gabarito_texto": next((alt["texto"] for alt in lista_alt if alt["correta"]), None)
+            }
+            caderno_completo.append(item_caderno)
+            
+        # Sorteia a ordem das questões para evitar cola (Mantendo a quantidade definida)
+        random.shuffle(caderno_completo)
+        return caderno_completo
         
-        faceis = [q for q in todas_questoes if str(q["nivel"]).lower() == "facil"]
-        medias = [q for q in todas_questoes if str(q["nivel"]).lower() in ("medias", "intermediario", "medio", "intermediária")]
-        dificeis = [q for q in todas_questoes if str(q["nivel"]).lower() == "dificil"]
-
-        # Sorteia aleatoriamente respeitando a configuração da prova (Evita cola)
-        sorteadas = []
-        sorteadas.extend(random.sample(faceis, min(len(faceis), p.get("qtd_faceis", 0))))
-        sorteadas.extend(random.sample(medias, min(len(medias), p.get("qtd_medias", 0))))
-        sorteadas.extend(random.sample(dificeis, min(len(dificeis), p.get("qtd_dificeis", 0))))
-
-        # Se o banco não tiver questões suficientes daquela dificuldade, completa com o que houver
-        if len(sorteadas) < p["qtde_questoes"]:
-            restantes = [q for q in todas_questoes if q not in sorteadas]
-            falta = p["qtde_questoes"] - len(sorteadas)
-            sorteadas.extend(random.sample(restantes, min(len(restantes), falta)))
-
-        return sorteadas[:p["qtde_questoes"]]
     except Exception as e:
-        print(f"❌ Erro ao sortear caderno de questões: {e}")
+        print(f"❌ Erro ao gerar caderno relacional: {e}")
         return []
 
 def computar_resultado_avaliacao(aluno_id, prova_id, respostas_aluno: dict, caderno_questoes: list) -> dict:
     """
-    Processa o gabarito oficial em tempo real, calcula a nota proporcional e salva o log.
+    Valida as respostas do caderno relacional, computa a nota e salva na tabela 'historico_provas'.
     """
     try:
-        res_prova = buscar_mini_prova(prova_id)
-        if not res_prova: 
-            return {"sucesso": False, "mensagem": "Prova inválida."}
-
         total_questoes = len(caderno_questoes)
         acertos = 0
 
-        # Validação do gabarito das alternativas submetidas
-        for idx, questao in enumerate(caderno_questoes):
-            resp_aluno = respostas_aluno.get(idx)
-            if resp_aluno and str(resp_aluno).strip().upper() == str(questao["resposta_correta"]).strip().upper():
+        # Confere a alternativa marcada com o texto marcado como correto no lote do caderno
+        for idx, q_caderno in enumerate(caderno_questoes):
+            resp_marcada = respostas_aluno.get(idx)
+            if resp_marcada and str(resp_marcada).strip() == str(q_caderno["gabarito_texto"]).strip():
                 acertos += 1
 
-        # Cálculo da Nota de 0 a 10 e Pontuação proporcional (XP)
+        # Cálculo de notas baseado no padrão acadêmico
         nota = (acertos / total_questoes) * 10 if total_questoes > 0 else 0
-        pontos_ganhos = (acertos / total_questoes) * res_prova["pontos_maximos"] if total_questoes > 0 else 0
+        
+        # Define 1.0 ponto de XP máximo por prova, fracionado pelo aproveitamento
+        pontos_ganhos = (acertos / total_questoes) * 1.0 if total_questoes > 0 else 0
 
+        # Payload casado perfeitamente com as colunas da tabela 'public.historico_provas'
         payload_historico = {
             "usuario_id": aluno_id,
             "mini_prova_id": prova_id,
-            "nota": round(nota, 1),
-            "pontos_obtidos": round(pontos_ganhos, 2),
-            "total_questoes": total_questoes,
-            "total_acertos": acertos
+            "nota": round(float(nota), 2),
+            "pontuacao": round(float(pontos_ganhos), 2),
+            "acertos": f"{acertos}/{total_questoes}"
         }
 
-        # Salva o log definitivo de desempenho do estudante
+        # Insere o log definitivo de execução
         supabase.table("historico_provas").insert(payload_historico).execute()
 
         return {
