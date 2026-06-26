@@ -37,6 +37,7 @@ except ImportError:
 try:
     from telas.mini_provas import tela_mini_provas
 except ImportError as e:
+    mensagem_erro_prova = str(e)
     def tela_mini_provas(err=e):
         st.warning(f"Módulo de mini provas indisponível. Erro: {err}")
 # Fallbacks de páginas síncronas/assíncronas do ecossistema de testes
