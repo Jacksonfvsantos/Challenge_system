@@ -7,6 +7,7 @@ from utils.session import iniciar_session
 from components.navbar import mostrar_menu
 
 # Imports de Telas Base Universais
+from telas.cadastro_perguntas_quiz import tela_cadastro_perguntas_quiz
 from telas.login import tela_login
 from telas.cadastro import tela_cadastro
 from telas.home import tela_home
@@ -210,6 +211,9 @@ elif pagina == "regras_plataforma":
 
 elif pagina == "quiz_ao_vivo":
     tela_quiz_ao_vivo()
+
+elif pagina == "cadastro_perguntas_quiz":
+    tela_cadastro_perguntas_quiz()
 
 elif pagina == "recompensas":
     tela_recompensas()

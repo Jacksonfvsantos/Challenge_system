@@ -90,10 +90,11 @@ def tela_quiz_ao_vivo():
                             resultado = criar_quiz(titulo, user_id, disciplina, tema)
                             if resultado and resultado.get("sucesso") == True:
                                 st.success(f"✅ {resultado.get('mensagem')}")
-                                time.sleep(0.5)
-                                st.rerun()
-                            else:
-                                st.error(resultado.get("mensagem", "Erro operacional ao tentar abrir sala."))
+                                
+                                # 📝 Botão direto para ir cadastrar as perguntas deste quiz
+                                if st.button("✍️ Ir para o Caderno de Questões", type="primary", use_container_width=True):
+                                    st.session_state.pagina = "cadastro_perguntas_quiz"
+                                    st.rerun()
 
     with aba_lista:
         st.subheader("Salas de Quiz Registradas")
