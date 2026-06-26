@@ -79,7 +79,7 @@ def tela_quiz_ao_vivo():
                             else:
                                 st.error(resultado.get("mensagem", "Erro ao tentar abrir sala."))
 
-        # --- ABA 2: CADERNO DE QUESTÕES (INTEGRADO) ---
+        # --- ABA 2: CADERNO DE QUESTÕES ---
         with aba_caderno:
             st.subheader("Alimentar Banco de Perguntas")
             
@@ -94,7 +94,6 @@ def tela_quiz_ao_vivo():
                 perguntas_atuais = puxar_perguntas_cadastradas(quiz_id_caderno)
                 st.caption(f"📊 Este quiz possui atualmente **{len(perguntas_atuais)}** pergunta(s) salva(s).")
 
-                # Atalhos Rápidos de Ação Solicitados 🎯
                 col_btn1, col_btn2 = st.columns(2)
                 with col_btn1:
                     if st.button("▶️ Iniciar Jogatina Deste Quiz Agora", type="primary", key="start_from_caderno", use_container_width=True):
@@ -144,7 +143,7 @@ def tela_quiz_ao_vivo():
     with aba_lista:
         st.subheader("Salas de Quiz Registradas")
         
-        if st.button("🔄 Sincronizar Listagem", key="sync_geral"):
+        if st.button("🔄 Sincronizar Listagem de Salas", key="btn_sync_manual_salas", use_container_width=True):
             st.rerun()
                 
         quizzes = listar_quizzes_do_banco()
@@ -185,32 +184,32 @@ def tela_quiz_ao_vivo():
                     
                     with col1:
                         if status == "criado":
-                            if st.button("▶️ Iniciar Quiz", key=f"start_{q_id}", type="primary", use_container_width=True):
+                            if st.button("▶️ Iniciar Quiz", key=f"btn_start_quiz_{q_id}", type="primary", use_container_width=True):
                                 if alterar_status_quiz(q_id, "ativo"):
                                     st.session_state.quiz_ativo_id = q_id
                                     st.session_state.pagina = "quiz_rodada"
                                     st.rerun()
                         elif status in ("em_andamento", "andamento", "ativo"):
-                            if st.button("🎯 Ir p/ Painel da Rodada", key=f"go_curr_{q_id}", type="primary", use_container_width=True):
+                            if st.button("🎯 Ir p/ Painel da Rodada", key=f"btn_go_curr_{q_id}", type="primary", use_container_width=True):
                                 st.session_state.quiz_ativo_id = q_id
                                 st.session_state.pagina = "quiz_rodada"
                                 st.rerun()
                         else:
-                            st.button("🔒 Finalizado", key=f"ended_{q_id}", disabled=True, use_container_width=True)
+                            st.button("🔒 Finalizado", key=f"btn_ended_static_{q_id}", disabled=True, use_container_width=True)
                             
                     with col2:
-                        if st.button("📊 Ver Telão de Líderes", key=f"rank_{q_id}", use_container_width=True, disabled=(status == "criado")):
+                        if st.button("📊 Ver Telão de Líderes", key=f"btn_rank_view_{q_id}", use_container_width=True, disabled=(status == "criado")):
                             st.session_state.quiz_ranking_id = q_id
                             st.session_state.pagina = "quiz_ranking_global"
                             st.rerun()
 
                     with col3:
-                        with st.popover("🗑️ Deletar", use_container_width=True):
+                        with st.popover("🗑️ Deletar", use_container_width=True, key=f"popover_del_{q_id}"):
                             st.warning("Excluir permanentemente?")
-                            if st.button("Sim, apagar", key=f"del_quiz_{q_id}", type="primary", use_container_width=True):
+                            if st.button("Sim, apagar", key=f"btn_confirm_del_action_{q_id}", type="primary", use_container_width=True):
                                 if deletar_quiz(q_id):
-                                    st.toast("Quiz removido!")
-                                    time.sleep(0.3)
+                                    st.toast("Quiz removido com sucesso!")
+                                    time.sleep(0.4)
                                     st.rerun()
                     
                     if status != "finalizado":
@@ -220,11 +219,11 @@ def tela_quiz_ao_vivo():
                 else:
                     st.markdown("<br>", unsafe_allow_html=True)
                     if status in ("em_andamento", "andamento", "ativo"):
-                        if st.button("🎯 Ingressar na Sala e Responder", key=f"play_{q_id}", type="primary", use_container_width=True):
+                        if st.button("🎯 Ingressar na Sala e Responder", key=f"btn_student_join_play_{q_id}", type="primary", use_container_width=True):
                             st.session_state.quiz_ativo_id = q_id
                             st.session_state.pagina = "quiz_rodada"
                             st.rerun()
                     elif status == "finalizado":
-                        st.button("🔒 Quiz Encerrado", key=f"play_{q_id}", use_container_width=True, disabled=True)
+                        st.button("🔒 Quiz Encerrado", key=f"btn_disabled_ended_{q_id}", use_container_width=True, disabled=True)
                     else:
-                        st.button("⏳ Aguardando Professor Iniciar...", key=f"play_{q_id}", use_container_width=True, disabled=True)
+                        st.button("⏳ Aguardando Professor Iniciar...", key=f"btn_disabled_wait_{q_id}", use_container_width=True, disabled=True)

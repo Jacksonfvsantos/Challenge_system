@@ -27,7 +27,6 @@ def salvar_resposta_aluno(quiz_id, pergunta_id, usuario_id, alternativa_id, corr
     try:
         pontos = 1000.0 if correta else 0.0
         
-        # 1. Vínculo dinâmico com a tabela intermediária 'participantes_quiz'
         id_participante_real = None
         try:
             res_part = supabase.table("participantes_quiz").select("id").eq("quiz_id", quiz_id).eq("usuario_id", usuario_id).execute()
@@ -61,8 +60,17 @@ def salvar_resposta_aluno(quiz_id, pergunta_id, usuario_id, alternativa_id, corr
         return bool(res.data)
         
     except Exception as e:
-        st.error(f"Erro estrutural no banco: {str(e)}")
         return False
+
+# 🔄 COMPONENTE DE SINCRONIZAÇÃO NATIVA POR FRAGMENTO
+@st.fragment
+def executar_sincronia_aluno(quiz_id, etapa_atual, pergunta_atual_id):
+    """Verifica alterações no banco a cada 2 segundos em background sem travar cliques."""
+    time.sleep(2.0)
+    quiz_recente = buscar_dados_quiz(quiz_id)
+    if quiz_recente:
+        if (quiz_recente.get("etapa_rodada") != etapa_atual) or (quiz_recente.get("pergunta_atual_id") != pergunta_atual_id):
+            st.rerun()
 
 def tela_quiz_rodada():
     usuario = st.session_state.get("usuario_logado", {})
@@ -72,7 +80,7 @@ def tela_quiz_rodada():
 
     if not quiz_id:
         st.warning("Nenhum quiz ativo selecionado.")
-        if st.button("⬅️ Voltar ao Painel"):
+        if st.button("⬅️ Voltar ao Painel", key="btn_back_err_state"):
             st.session_state.pagina = "quiz_ao_vivo"
             st.rerun()
         return
@@ -82,42 +90,12 @@ def tela_quiz_rodada():
         st.error("Erro ao carregar dados da sala.")
         return
 
- # Sincronização inteligente e segura no perfil do aluno (Sem Loop Infinito)
-    if tipo == "aluno":
-        refresh_sinal = st.iframe(
-            src="data:text/html;charset=utf-8," + """
-            <script>
-                if (!window.refreshIntervalSet) {
-                    window.refreshIntervalSet = true;
-                    setInterval(function() { 
-                        window.parent.postMessage({
-                            type: 'streamlit:setComponentValue', 
-                            value: new Date().getTime()
-                        }, '*'); 
-                    }, 2500); // Verifica a cada 2.5 segundos
-                }
-            </script>
-            """,
-            height=1
-        )
-        
-        # ✅ SOLUÇÃO: Só dispara o rerun se o timestamp enviado pelo JS for diferente do último guardado
-        if refresh_sinal:
-            ultimo_refresh = st.session_state.get("ultimo_refresh_quiz", 0)
-            if refresh_sinal != ultimo_refresh:
-                st.session_state["ultimo_refresh_quiz"] = refresh_sinal
-                st.rerun()
-        
-        # 🚀 FORÇAR RERUN: Se o sinal mudou lá no JavaScript, o Python intercepta e força a tela a redesenhar
-        if refresh_sinal:
-            st.rerun()
-
     st.title(f"🎮 {quiz.get('titulo')}")
     perguntas = buscar_perguntas_do_quiz(quiz_id)
     
     if not perguntas:
         st.info("Este quiz ainda não possui perguntas cadastradas.")
-        if st.button("⬅️ Voltar"):
+        if st.button("⬅️ Voltar", key="btn_back_no_questions"):
             st.session_state.pagina = "quiz_ao_vivo"
             st.rerun()
         return
@@ -130,13 +108,14 @@ def tela_quiz_rodada():
         if tipo in ("professor", "admin"):
             st.subheader("👨‍🏫 Painel de Moderação")
             st.info("A sala está cheia de alunos aguardando! Dispare a primeira questão para iniciar o show.")
-            if st.button("🚀 Liberar Pergunta 1", type="primary", use_container_width=True):
+            if st.button("🚀 Liberar Pergunta 1", type="primary", use_container_width=True, key="btn_trigger_first_q"):
                 first_p = perguntas[0]["id"]
                 supabase.table("quizzes").update({"pergunta_atual_id": first_p, "etapa_rodada": "pergunta"}).eq("id", quiz_id).execute()
                 st.rerun()
         else:
             st.subheader("⏳ Aguardando o Professor...")
             st.info("Prepare sua mente! O professor iniciará a primeira rodada a qualquer momento.")
+            executar_sincronia_aluno(quiz_id, etapa, p_atual_id)
         return
 
     pergunta_ativa = next((p for p in perguntas if p["id"] == p_atual_id), perguntas[0])
@@ -147,30 +126,29 @@ def tela_quiz_rodada():
     
     # ------------------ VISÃO DO PROFESSOR ------------------
     if tipo in ("professor", "admin"):
-        # Mostra o indicador de tempo decorrendo para controle do mediador
         st.write(f"⏱️ **Tempo sugerido para esta questão:** `{tempo_limite} segundos`")
         
         col1, col2 = st.columns(2)
         with col1:
             if etapa == "pergunta":
-                if st.button("👁️ Mostrar Gabarito e Bloquear Respostas", type="primary", use_container_width=True):
+                if st.button("👁️ Mostrar Gabarito e Bloquear Respostas", type="primary", use_container_width=True, key="btn_lock_and_reveal"):
                     supabase.table("quizzes").update({"etapa_rodada": "gabarito"}).eq("id", quiz_id).execute()
                     st.rerun()
             else:
                 idx_atual = next((i for i, p in enumerate(perguntas) if p["id"] == p_atual_id), 0)
                 if idx_atual + 1 < len(perguntas):
-                    if st.button("➡️ Avançar para Próxima Questão", type="primary", use_container_width=True):
+                    if st.button("➡️ Avançar para Próxima Questão", type="primary", use_container_width=True, key="btn_next_question_act"):
                         prox_p = perguntas[idx_atual + 1]["id"]
                         supabase.table("quizzes").update({"pergunta_atual_id": prox_p, "etapa_rodada": "pergunta"}).eq("id", quiz_id).execute()
                         st.rerun()
                 else:
-                    if st.button("🛑 Encerrar Quiz e Mostrar Campeões", type="primary", use_container_width=True):
+                    if st.button("🛑 Encerrar Quiz e Mostrar Campeões", type="primary", use_container_width=True, key="btn_finish_quiz_global"):
                         supabase.table("quizzes").update({"status": "finalizado"}).eq("id", quiz_id).execute()
                         st.session_state.quiz_ranking_id = quiz_id
                         st.session_state.pagina = "quiz_ranking_global"
                         st.rerun()
         with col2:
-            if st.button("📊 Ver Telão de Líderes", use_container_width=True):
+            if st.button("📊 Ver Telão de Líderes", use_container_width=True, key="btn_view_leaders_mid"):
                 st.session_state.quiz_ranking_id = quiz_id
                 st.session_state.pagina = "quiz_ranking_global"
                 st.rerun()
@@ -184,10 +162,8 @@ def tela_quiz_rodada():
     # ------------------ VISÃO DO ALUNO ------------------
     else:
         if etapa == "pergunta":
-            # ⏱️ TIMER DINÂMICO PROGRESSIVO DE ATENÇÃO
             st.progress(1.0, text="⏳ A rodada está aberta! Responda rápido!")
 
-            # Checa se o aluno já respondeu esta questão
             ja_respondeu = False
             try:
                 res_verificacao = supabase.table("respostas_quiz").select("id").eq("pergunta_id", pergunta_ativa["id"]).eq("usuario_id", user_id).execute()
@@ -198,35 +174,33 @@ def tela_quiz_rodada():
             if ja_respondeu:
                 st.markdown("### 📥 Resposta Registrada com Sucesso!")
                 st.info("Sua escolha foi guardada. Aguarde o professor encerrar o tempo para visualizar o gabarito oficial.")
+                executar_sincronia_aluno(quiz_id, etapa, p_atual_id)
             else:
                 st.caption(f"⏱️ Tempo sugerido: {tempo_limite}s. Selecione a opção correta:")
                 
                 for alt in alternativas:
-                    if st.button(f"🔘 {alt['texto']}", key=f"btn_alt_{alt['id']}", use_container_width=True):
+                    if st.button(f"🔘 {alt['texto']}", key=f"btn_submit_alt_{alt['id']}", use_container_width=True):
                         sucesso = salvar_resposta_aluno(quiz_id, pergunta_ativa["id"], user_id, alt["id"], alt["correta"], alt["ordem"])
                         if sucesso:
                             st.toast("Resposta registrada com sucesso!", icon="✅")
                             time.sleep(0.3)
                             st.rerun()
 
-        # ✨ ETAPA GABARITO: REVELAÇÃO EM TEMPO REAL PARA O ALUNO ✨
+        # ETAPA GABARITO: REVELAÇÃO EM TEMPO REAL PARA O ALUNO
         else:
             st.markdown("### 🔒 Rodada Encerrada pelo Professor!")
             st.markdown("---")
             
-            # Encontra qual era a alternativa correta no lote atual
             alt_correta = next((a for a in alternativas if a["correta"]), None)
             texto_correto = alt_correta["texto"] if alt_correta else "Não definida"
 
             try:
-                # Busca a resposta que esse usuário enviou
                 resp = supabase.table("respostas_quiz").select("alternativa_id, correta").eq("pergunta_id", pergunta_ativa["id"]).eq("usuario_id", user_id).execute()
                 
                 if resp.data:
                     aluno_acertou = resp.data[0]["correta"]
                     id_marcado = resp.data[0]["alternativa_id"]
                     
-                    # Encontra o texto da alternativa que o aluno marcou
                     alt_marcada = next((a for a in alternativas if a["id"] == id_marcado), None)
                     texto_marcado = alt_marcada["texto"] if alt_marcada else "Desconhecida"
 
@@ -239,3 +213,6 @@ def tela_quiz_rodada():
             
             except Exception:
                 st.info(f"O tempo expirou! **Gabarito oficial:** {texto_correto}")
+                
+            # Mantém verificando se o professor avança a questão
+            executar_sincronia_aluno(quiz_id, etapa, p_atual_id)
