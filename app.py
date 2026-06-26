@@ -43,19 +43,22 @@ if "sala" in query_params and "id" in query_params:
         st.query_params.clear()
 
 # ============================================================================
-# 🗂️ CONSTRUÇÃO DA BARRA LATERAL ORGANIZADA POR DIVISÕES (MENU DOCENTE/ALUNO)
+# 🗂️ BARRA LATERAL COM SEPARAÇÃO ESTRITA DE PRIVILÉGIOS (PROFESSOR VS ALUNO)
 # ============================================================================
 usuario_atual = st.session_state.get("usuario_logado")
 pagina_atual = st.session_state.pagina
 
 if usuario_atual:
+    # Padroniza a string do tipo de usuário para evitar erros de caixa (Maiúscula/Minúscula)
+    tipo_usuario = str(usuario_atual.get("tipo_usuario", "aluno")).lower().strip()
+
     with st.sidebar:
-        # Cabeçalho do Perfil
+        # Cabeçalho de Identificação do Perfil
         st.markdown(f"### 👤 {usuario_atual.get('nome', 'Usuário')}")
-        st.caption(f"Perfil: {str(usuario_atual.get('tipo_usuario', 'Aluno')).capitalize()}")
+        st.caption(f"Painel do {tipo_usuario.capitalize()}")
         st.divider()
         
-        # ─── DIVISÃO 1: AMBIENTE GERAL ──────────────────────────────────────
+        # 🏢 SEÇÃO 1: ESPAÇO COMUM (Visível para Todos)
         st.markdown("### 🏢 Navegação Principal")
         if st.button("🏠 Início / Novidades", use_container_width=True):
             st.session_state.pagina = "dashboard"
@@ -63,8 +66,26 @@ if usuario_atual:
             
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # ─── DIVISÃO 2: DINÂMICAS EM TEMPO REAL (SÍNCRONAS) ─────────────────
-        st.markdown("### ⚡ Atividades síncronas")
+        # ⚙️ SEÇÃO 2: GOVERNANÇA E GESTÃO (Exclusivo para Professor / Admin)
+        if tipo_usuario in ("professor", "admin"):
+            st.markdown("### 🛠️ Gestão Acadêmica")
+            
+            if st.button("⚙️ Gerenciar Batalhas", use_container_width=True):
+                st.session_state.pagina = "batalha_gerenciar"
+                st.rerun()
+                
+            if st.button("👥 Gerenciar Equipes", use_container_width=True):
+                st.session_state.pagina = "batalha_times"
+                st.rerun()
+                
+            if st.button("👨‍🎓 Alunos & Integrantes", use_container_width=True):
+                st.session_state.pagina = "batalha_integrantes"
+                st.rerun()
+                
+            st.markdown("<br>", unsafe_allow_html=True)
+
+        # ⚡ SEÇÃO 3: ARENA DE ATIVIDADES (Visível para Todos)
+        st.markdown("### ⚔️ Arena Challenge")
         if st.button("⚔️ Batalha de Equipes", use_container_width=True):
             st.session_state.pagina = "batalha_de_equipes"
             st.rerun()
@@ -73,18 +94,14 @@ if usuario_atual:
             st.session_state.pagina = "quiz_ao_vivo"
             st.rerun()
             
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        # ─── DIVISÃO 3: TRILHAS E AVALIAÇÕES (ASSÍNCRONAS) ─────────────────
-        st.markdown("### 📚 Avaliações e Práticas")
         if st.button("📝 Mini Provas Práticas", use_container_width=True):
             st.session_state.pagina = "mini_provas"
             st.rerun()
             
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # ─── DIVISÃO 4: INDICADORES E DIRETRIZES ────────────────────────────
-        st.markdown("### 🏆 Conquistas e Regras")
+        # 🏆 SEÇÃO 4: CRITÉRIOS E SCORE (Visível para Todos)
+        st.markdown("### 📈 Desempenho e Regras")
         if st.button("🏅 Central de Pontuações", use_container_width=True):
             st.session_state.pagina = "ranking"
             st.rerun()
@@ -93,13 +110,12 @@ if usuario_atual:
             st.session_state.pagina = "regras"
             st.rerun()
             
-        # Rodapé de Desconexão
+        # Sistema de Logout Seguro
         st.divider()
         if st.button("🚪 Encerrar Sessão (Sair)", type="primary", use_container_width=True):
             st.session_state.usuario_logado = None
             st.session_state.pagina = "login"
             st.rerun()
-
 # ============================================================================
 # 🗺️ ÁRVORE DE NAVEGAÇÃO / RENDERIZAÇÃO DE TELAS (ESTADOS)
 # ============================================================================
