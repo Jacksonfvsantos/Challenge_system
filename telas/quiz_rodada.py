@@ -24,7 +24,6 @@ def buscar_alternativas(pergunta_id):
         return []
 
 def contar_respostas_e_participantes(quiz_id, pergunta_id):
-    """Retorna o total de alunos que responderam e o total de participantes na sala de forma segura."""
     try:
         res_parts = supabase.table("participantes_quiz").select("id").eq("quiz_id", quiz_id).execute()
         res_resps = supabase.table("respostas_quiz").select("id").eq("pergunta_id", pergunta_id).execute()
@@ -74,28 +73,34 @@ def salvar_resposta_aluno(quiz_id, pergunta_id, usuario_id, alternativa_id, corr
     except Exception:
         return False
 
-# 🔄 SENTINELA DE AUTOMAÇÃO DE FLUXO (RODA EM SEGUNDO PLANO DE FORMA CONTROLADA)
+# 🔄 SENTINELA DE FLUXO CONTROLADO (BLINDADO CONTRA LOOP DE NULOS)
 @st.fragment
 def executar_sincronia_automatica(quiz_id, etapa_atual, pergunta_atual_id):
-    """Monitora o banco a cada 2.5s. Redesenha o app se houver mudanças estruturais."""
-    time.sleep(2.5)
+    """Monitora o progresso da rodada tratando nulos como strings para evitar loops."""
+    time.sleep(3.0) # Janela de 3s para garantir o processamento dos cliques
     quiz_recente = buscar_dados_quiz(quiz_id)
     if not quiz_recente:
         return
 
-    # Se o professor alterou o estado na outra ponta, força a atualização global da UI
-    if (quiz_recente.get("etapa_rodada") != etapa_atual) or (quiz_recente.get("pergunta_atual_id") != pergunta_atual_id):
+    # Mapeia os estados forçando conversão limpa para String (Garante que None == "" não quebre)
+    db_etapa = str(quiz_recente.get("etapa_rodada", "pergunta")).strip().lower()
+    local_etapa = str(etapa_atual).strip().lower()
+    
+    db_pergunta = str(quiz_recente.get("pergunta_atual_id") or "").strip()
+    local_pergunta = str(pergunta_atual_id or "").strip()
+
+    # Se o professor realmente alterou o estado no Supabase, força o rerun do app completo
+    if (db_etapa != local_etapa) or (db_pergunta != local_pergunta):
         st.rerun(scope="app")
 
-    # Regra de fechamento automático Kahoot (Apenas se a rodada já tiver uma pergunta ativa)
-    if etapa_atual == "pergunta" and pergunta_atual_id:
+    # Regra Kahoot de Fechamento Automático (Apenas se a partida já tiver iniciado)
+    if local_etapa == "pergunta" and local_pergunta != "":
         respostas, participantes = contar_respostas_e_participantes(quiz_id, pergunta_atual_id)
         if respostas >= participantes and participantes > 0:
             supabase.table("quizzes").update({"etapa_rodada": "gabarito"}).eq("id", quiz_id).execute()
             st.rerun(scope="app")
         else:
-            # Atualiza apenas o fragmento para renovar o visual das barras de progresso
-            st.rerun()
+            st.rerun() # Atualiza apenas o fragmento para renovar as métricas de progresso
 
 def tela_quiz_rodada():
     usuario = st.session_state.get("usuario_logado", {})
@@ -128,7 +133,7 @@ def tela_quiz_rodada():
             st.rerun()
         return
 
-    # 🚪 SALA DE ESPERA (BLINDADA CONTRA LOOPS INFINITOS)
+    # 🚪 SALA DE ESPERA
     if not p_atual_id:
         if tipo in ("professor", "admin"):
             st.subheader("👨‍🏫 Painel de Moderação")
@@ -140,14 +145,13 @@ def tela_quiz_rodada():
         else:
             st.subheader("⏳ Sala de Espera")
             st.info("Conectado com sucesso! Aguarde o professor dar início à partida.")
-            # ✅ SOLUÇÃO: O aluno usa o fragmento seguro aqui também em vez de um st.rerun() solto
             executar_sincronia_automatica(quiz_id, etapa, p_atual_id)
         return
 
     pergunta_ativa = next((p for p in perguntas if p["id"] == p_atual_id), perguntas[0])
     alternativas = buscar_alternativas(pergunta_ativa["id"])
 
-    # Sentinela ativo durante a exibição das questões
+    # Ativa o monitoramento síncrono da rodada
     executar_sincronia_automatica(quiz_id, etapa, p_atual_id)
 
     st.subheader(f"Questão {pergunta_ativa['ordem']}: {pergunta_ativa.get('enunciado') or pergunta_ativa.get('texto')}")
