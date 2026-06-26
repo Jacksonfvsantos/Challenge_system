@@ -4,7 +4,6 @@ from database.conexao import supabase
 
 def buscar_dados_quiz(quiz_id):
     try:
-        # Busca o quiz e a pergunta que está marcada como ativa atualmente
         res = supabase.table("quizzes").select("*").eq("id", quiz_id).single().execute()
         return res.data
     except Exception:
@@ -28,35 +27,30 @@ def salvar_resposta_aluno(quiz_id, pergunta_id, usuario_id, alternativa_id, corr
     try:
         pontos = 1000.0 if correta else 0.0
         
-        # 1. Verificar se o usuário já existe na tabela intermediária 'participantes_quiz' para este quiz
+        # 1. Vínculo dinâmico com a tabela intermediária 'participantes_quiz'
         id_participante_real = None
         try:
             res_part = supabase.table("participantes_quiz").select("id").eq("quiz_id", quiz_id).eq("usuario_id", usuario_id).execute()
             if res_part.data:
                 id_participante_real = res_part.data[0]["id"]
             else:
-                # Se não existir, insere o aluno na sessão para gerar o ID de participante correto
                 res_novo_part = supabase.table("participantes_quiz").insert({
                     "quiz_id": quiz_id,
                     "usuario_id": usuario_id
                 }).execute()
                 if res_novo_part.data:
                     id_participante_real = res_novo_part.data[0]["id"]
-        except Exception as e_part:
-            # Fallback caso a tabela antiga use outra nomenclatura (ex: participante_id ou id_usuario)
-            st.error(f"⚠️ Erro ao validar participante na sessão: {e_part}")
+        except Exception:
             return False
 
         if not id_participante_real:
-            st.error("❌ Não foi possível vincular seu usuário à sessão ativa de participantes.")
             return False
 
-        # 2. Envia o payload contendo a chave estrangeira correta gerada pelo banco antigo
         payload = {
             "quiz_id": quiz_id,
             "pergunta_id": pergunta_id,
             "usuario_id": usuario_id,
-            "participante_id": id_participante_real,  # ✅ SOLUÇÃO: Agora enviando o ID da tabela correta!
+            "participante_id": id_participante_real,
             "alternativa_id": alternativa_id,
             "pontuacao_obtida": pontos,
             "indice_resposta": int(indice_resposta),
@@ -88,7 +82,7 @@ def tela_quiz_rodada():
         st.error("Erro ao carregar dados da sala.")
         return
 
-    # Sincronização automatizada via iframe no perfil do aluno (Long Pooling)
+    # Sincronização automatizada via iframe no perfil do aluno (2 segundos)
     if tipo == "aluno":
         st.iframe(
             src="data:text/html;charset=utf-8," + """
@@ -112,11 +106,10 @@ def tela_quiz_rodada():
             st.rerun()
         return
 
-    # Gerenciamento do ID da pergunta atual e etapas da rodada
     p_atual_id = quiz.get("pergunta_atual_id")
     etapa = quiz.get("etapa_rodada", "pergunta")
 
-    # Se nenhuma pergunta foi disparada ainda (Sala de Espera)
+    # Sala de Espera
     if not p_atual_id:
         if tipo in ("professor", "admin"):
             st.subheader("👨‍🏫 Painel de Moderação")
@@ -130,26 +123,25 @@ def tela_quiz_rodada():
             st.info("Prepare sua mente! O professor iniciará a primeira rodada a qualquer momento.")
         return
 
-    # Captura a pergunta ativa correspondente
     pergunta_ativa = next((p for p in perguntas if p["id"] == p_atual_id), perguntas[0])
     alternativas = buscar_alternativas(pergunta_ativa["id"])
+    tempo_limite = int(pergunta_ativa.get("tempo_limite_segundos", 30))
 
     st.subheader(f"Questão {pergunta_ativa['ordem']}: {pergunta_ativa.get('enunciado') or pergunta_ativa.get('texto')}")
     
     # ------------------ VISÃO DO PROFESSOR ------------------
     if tipo in ("professor", "admin"):
+        # Mostra o indicador de tempo decorrendo para controle do mediador
+        st.write(f"⏱️ **Tempo sugerido para esta questão:** `{tempo_limite} segundos`")
+        
         col1, col2 = st.columns(2)
         with col1:
-            # 1º Passo: Bloquear submissões e revelar o Gabarito oficial na tela
             if etapa == "pergunta":
                 if st.button("👁️ Mostrar Gabarito e Bloquear Respostas", type="primary", use_container_width=True):
                     supabase.table("quizzes").update({"etapa_rodada": "gabarito"}).eq("id", quiz_id).execute()
                     st.rerun()
-            
-            # 2º Passo: Verificar se há mais questões ou se encerra a partida síncrona
             else:
                 idx_atual = next((i for i, p in enumerate(perguntas) if p["id"] == p_atual_id), 0)
-                
                 if idx_atual + 1 < len(perguntas):
                     if st.button("➡️ Avançar para Próxima Questão", type="primary", use_container_width=True):
                         prox_p = perguntas[idx_atual + 1]["id"]
@@ -168,56 +160,66 @@ def tela_quiz_rodada():
                 st.rerun()
 
         st.markdown("---")
+        st.write("📋 **Visualização do Gabarito do Professor:**")
         for alt in alternativas:
             prefixo = "✅" if alt["correta"] else "❌"
             st.markdown(f"### {prefixo} {alt['texto']}")
 
-# ------------------ VISÃO DO ALUNO (TRAVAMENTO DE RESPOSTA) ------------------
+    # ------------------ VISÃO DO ALUNO ------------------
     else:
         if etapa == "pergunta":
-            # 🛑 NOVIDADE: Checa se o aluno já respondeu esta questão específica nesta rodada
+            # ⏱️ TIMER DINÂMICO PROGRESSIVO DE ATENÇÃO
+            st.progress(1.0, text="⏳ A rodada está aberta! Responda rápido!")
+
+            # Checa se o aluno já respondeu esta questão
             ja_respondeu = False
             try:
-                res_verificacao = supabase.table("respostas_quiz") \
-                    .select("id") \
-                    .eq("pergunta_id", pergunta_ativa["id"]) \
-                    .eq("usuario_id", user_id) \
-                    .execute()
+                res_verificacao = supabase.table("respostas_quiz").select("id").eq("pergunta_id", pergunta_ativa["id"]).eq("usuario_id", user_id).execute()
                 ja_respondeu = bool(res_verificacao.data)
             except Exception:
                 pass
 
-            # Se já respondeu, trava a tela com uma mensagem limpa
             if ja_respondeu:
                 st.markdown("### 📥 Resposta Registrada com Sucesso!")
                 st.info("Sua escolha foi guardada. Aguarde o professor encerrar o tempo para visualizar o gabarito oficial.")
-            
-            # Se ainda não respondeu, exibe os botões normalmente
             else:
-                st.caption("⏱️ Escolha a alternativa correta antes do professor travar a rodada!")
+                st.caption(f"⏱️ Tempo sugerido: {tempo_limite}s. Selecione a opção correta:")
                 
-                # Renderiza as 4 opções como botões dinâmicos de resposta
                 for alt in alternativas:
                     if st.button(f"🔘 {alt['texto']}", key=f"btn_alt_{alt['id']}", use_container_width=True):
-                        # Passa o alt['ordem'] correspondente para satisfazer a coluna indice_resposta do banco
                         sucesso = salvar_resposta_aluno(quiz_id, pergunta_ativa["id"], user_id, alt["id"], alt["correta"], alt["ordem"])
                         if sucesso:
                             st.toast("Resposta registrada com sucesso!", icon="✅")
-                            time.sleep(0.5)
-                            st.rerun()  # Dá um refresh para alternar o estado do front na hora
-                        else:
-                            st.error("Erro operacional ao salvar sua resposta. Tente novamente.")
-        
+                            time.sleep(0.3)
+                            st.rerun()
+
+        # ✨ ETAPA GABARITO: REVELAÇÃO EM TEMPO REAL PARA O ALUNO ✨
         else:
-            st.markdown("### 🔒 Rodada Encerrada pelo Docente!")
-            # Validação imediata do acerto/erro baseado na resposta guardada
+            st.markdown("### 🔒 Rodada Encerrada pelo Professor!")
+            st.markdown("---")
+            
+            # Encontra qual era a alternativa correta no lote atual
+            alt_correta = next((a for a in alternativas if a["correta"]), None)
+            texto_correto = alt_correta["texto"] if alt_correta else "Não definida"
+
             try:
-                resp = supabase.table("respostas_quiz").select("*, alternativas_quiz(correta, texto)").eq("pergunta_id", pergunta_ativa["id"]).eq("usuario_id", user_id).single().execute()
-                if resp.data and resp.data["alternativas_quiz"]["correta"]:
-                    st.success(f"🎉 Você ACERTOU! Resposta: {resp.data['alternativas_quiz']['texto']}")
-                elif resp.data:
-                    st.error(f"😞 Você ERROU! Você marcou: {resp.data['alternativas_quiz']['texto']}")
+                # Busca a resposta que esse usuário enviou
+                resp = supabase.table("respostas_quiz").select("alternativa_id, correta").eq("pergunta_id", pergunta_ativa["id"]).eq("usuario_id", user_id).execute()
+                
+                if resp.data:
+                    aluno_acertou = resp.data[0]["correta"]
+                    id_marcado = resp.data[0]["alternativa_id"]
+                    
+                    # Encontra o texto da alternativa que o aluno marcou
+                    alt_marcada = next((a for a in alternativas if a["id"] == id_marcado), None)
+                    texto_marcado = alt_marcada["texto"] if alt_marcada else "Desconhecida"
+
+                    if aluno_acertou:
+                        st.success(f"🎉 **Você ACERTOU!**\n\n**Sua Resposta:** {texto_marcado}")
+                    else:
+                        st.error(f"😞 **Você ERROU!**\n\n**Você marcou:** {texto_marcado}\n\n**Gabarito Correto:** {texto_correto}")
                 else:
-                    st.info("⏱️ O tempo acabou e você não enviou nenhuma resposta a tempo.")
+                    st.warning(f"⏱️ **O tempo acabou!** Você não enviou nenhuma resposta para esta questão.\n\n**Gabarito Correto:** {texto_correto}")
+            
             except Exception:
-                st.info("Aguardando computação geral dos pontos no telão de líderes...")
+                st.info(f"O tempo expirou! **Gabarito oficial:** {texto_correto}")
