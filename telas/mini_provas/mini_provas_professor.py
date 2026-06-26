@@ -1,6 +1,7 @@
 import streamlit as st
 import re
 import io
+import datetime
 from database.conexao import supabase
 from utils.estilo import aplicar_estilo, cabecalho
 
@@ -120,8 +121,16 @@ def tela_mini_provas_professor():
             titulo = st.text_input("Título da Mini Prova:", placeholder="Ex: Simulado Prático - Estrutura de Dados")
             descricao = st.text_area("Descrição / Instruções para o Aluno:", placeholder="Descreva as orientações desta avaliação...")
             
-            # ✅ ALTERADO: Removida a coluna de input da quantidade total de questões, mantendo apenas a duração
-            duracao = st.number_input("Duração Limite (Minutos):", min_value=1, max_value=180, value=30, step=5)
+            st.markdown("**⏱️ Configurações de Tempo e Prazos:**")
+            duracao = st.number_input("Tempo para o aluno responder após iniciar (Minutos):", min_value=1, max_value=180, value=30, step=5)
+            
+            # ⏳ CAMPOS PEDIDOS: O professor escolhe a data e hora exata limite de expiração
+            col_data, col_hora = st.columns(2)
+            with col_data:
+                data_limite = st.date_input("Disponível até o dia:", datetime.date.today())
+            with col_hora:
+                hora_limite = st.time_input("Disponível até o horário:", datetime.time(23, 59))
+            
             status_prova = st.selectbox("Status de Disponibilidade Inicial:", ["Disponível", "Indisponível"])
             
             btn_salvar_prova = st.form_submit_button("🚀 Criar Definição da Prova", use_container_width=True)
@@ -130,18 +139,21 @@ def tela_mini_provas_professor():
                     st.error("Por favor, informe o título da mini prova.")
                 else:
                     try:
-                        # ✅ ALTERADO: 'quantidade_questoes' agora inicializa com 0 e cresce dinamicamente conforme inserções
+                        # Une os inputs de data e hora em um objeto datetime completo fuso-horário ciente
+                        expiracao_dt = datetime.datetime.combine(data_limite, hora_limite)
+                        
                         payload_prova = {
                             "titulo": titulo.strip(),
                             "descricao": descricao.strip() if descricao else None,
                             "quantidade_questoes": 0,
                             "duracao_minutos": int(duracao),
                             "status": status_prova,
-                            "criado_por": usuario_id
+                            "criado_por": usuario_id,
+                            "data_expiracao": expiracao_dt.isoformat()  # Salva a timestamp ISO na coluna timestamptz
                         }
                         res = supabase.table("mini_provas").insert(payload_prova).execute()
                         if res.data:
-                            st.success(f"✅ Mini Prova '{titulo}' registrada com sucesso!")
+                            st.success(f"✅ Mini Prova '{titulo}' registrada! Ficará ativa até {expiracao_dt.strftime('%d/%m/%Y às %H:%M')}.")
                     except Exception as e:
                         st.error(f"Erro ao salvar mini prova no banco: {e}")
 
@@ -198,19 +210,13 @@ def tela_mini_provas_professor():
                                 })
                         supabase.table("alternativas").insert(lote).execute()
                         
-                        # RPC ou UPDATE dinâmico incrementando +1 na contagem total de questões da prova alvo
-                        supabase.rpc("incrementar_quantidade_questoes", {"prova_id": prova_id_m}).execute()
-                        
-                        st.success("✅ Questão individual criada com sucesso e adicionada ao contador!")
+                        # Atualiza dinamicamente o número de questões na tabela mini_provas
+                        prova_atual = supabase.table("mini_provas").select("quantidade_questoes").eq("id", prova_id_m).execute()
+                        nova_qtd = (prova_atual.data[0]["quantidade_questoes"] or 0) + 1
+                        supabase.table("mini_provas").update({"quantidade_questoes": nova_qtd}).eq("id", prova_id_m).execute()
+                        st.success("✅ Questão individual criada com sucesso!")
                     except Exception as e:
-                        # Fallback incremental direto caso a RPC não esteja exposta no Supabase
-                        try:
-                            prova_atual = supabase.table("mini_provas").select("quantidade_questoes").eq("id", prova_id_m).execute()
-                            nova_qtd = (prova_atual.data[0]["quantidade_questoes"] or 0) + 1
-                            supabase.table("mini_provas").update({"quantidade_questoes": nova_qtd}).eq("id", prova_id_m).execute()
-                            st.success("✅ Questão individual criada com sucesso!")
-                        except:
-                            st.success("✅ Questão individual criada com sucesso!")
+                        st.error(f"Erro ao salvar questão: {e}")
 
     # 📑 ABA 3: IMPORTAÇÃO INTELIGENTE VIA FILE
     with aba_importacao:
@@ -262,7 +268,7 @@ def tela_mini_provas_professor():
                                         supabase.table("alternativas").insert(lote_alt).execute()
                                     successes += 1
                                 
-                                # ✅ ATUALIZAÇÃO: Grava o número total real de questões inseridas pelo lote do arquivo
+                                # Atualiza o número total real de questões inseridas pelo lote do arquivo
                                 prova_atual = supabase.table("mini_provas").select("quantidade_questoes").eq("id", prova_id_i).execute()
                                 qtd_antiga = prova_atual.data[0]["quantidade_questoes"] or 0
                                 supabase.table("mini_provas").update({"quantidade_questoes": qtd_antiga + successes}).eq("id", prova_id_i).execute()

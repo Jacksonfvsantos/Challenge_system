@@ -1,5 +1,6 @@
 import streamlit as st
 import time
+import datetime
 from services.mini_prova_service import listar_mini_provas
 from utils.compartilhamento import exibir_painel_compartilhamento
 from utils.estilo import aplicar_estilo, cabecalho
@@ -43,14 +44,12 @@ def tela_mini_provas():
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        # ✅ ALTERADO: Se for professor, o botão vira "Ranking de Pontuação" e aponta para a página geral de scores
         texto_botao_pontos = "🏅 Ranking de Pontuação" if tipo_usuario == "professor" else "🏅 Minha Pontuação"
         if st.button(texto_botao_pontos, use_container_width=True):
             st.session_state.pagina = "pontuacoes" if tipo_usuario == "professor" else "pontuacao_mini_provas"
             st.rerun()
 
     with col2:
-        # ✅ ALTERADO: Se for professor, muda de "Meu Desempenho" para "Desempenho dos Alunos"
         texto_botao_desempenho = "📊 Desempenho dos Alunos" if tipo_usuario == "professor" else "📊 Meu Desempenho"
         if st.button(texto_botao_desempenho, use_container_width=True):
             st.session_state.pagina = "desempenho_mini_provas"
@@ -70,7 +69,26 @@ def tela_mini_provas():
 
     # Consome a lista limpa diretamente do service relacional
     mini_provas = listar_mini_provas()
-    provas_ativas = [p for p in mini_provas if p.get("status") == "Disponível"]
+    
+    # 🕒 CHECAGEM TEMPORAL DE EXPIRAÇÃO AUTOMÁTICA (PRAZO Y)
+    agora_atual = datetime.datetime.now()
+    
+    provas_filtradas_por_tempo = []
+    for p in mini_provas:
+        data_exp_str = p.get("data_expiracao")
+        if data_exp_str:
+            try:
+                # Faz o parse removendo offsets se houver, para comparar localmente de forma segura
+                data_exp = datetime.datetime.fromisoformat(data_exp_str.split("+")[0])
+                if agora_atual > data_exp and p.get("status") == "Disponível":
+                    # O tempo de vida Y esgotou! Inativa silenciosamente no banco de dados
+                    supabase.table("mini_provas").update({"status": "Indisponível"}).eq("id", p["id"]).execute()
+                    p["status"] = "Indisponível"
+            except Exception:
+                pass
+                
+        if p.get("status") == "Disponível":
+            provas_filtradas_por_tempo.append(p)
 
     # ============================================================================
     # 🔍 SEÇÃO CONDICIONAL DE FILTROS E HISTÓRICO (ALUNO vs PROFESSOR)
@@ -78,7 +96,7 @@ def tela_mini_provas():
     if tipo_usuario == "aluno":
         pesquisa = st.text_input("🔍 Pesquisar mini prova por título:")
         if pesquisa:
-            provas_ativas = [p for p in provas_ativas if pesquisa.lower() in str(p.get("titulo", "")).lower()]
+            provas_filtradas_por_tempo = [p for p in provas_filtradas_por_tempo if pesquisa.lower() in str(p.get("titulo", "")).lower()]
 
         col_esq, col_dir = st.columns(2)
         with col_esq:
@@ -88,31 +106,40 @@ def tela_mini_provas():
                 st.session_state.pagina = "resultados_mini_provas"
                 st.rerun()
     else:
-        # PROFESSOR: Cabeçalho limpo e redirecionamento para o gerenciamento de acervo
         col_esq, col_dir = st.columns(2)
         with col_esq:
             st.markdown("### 📋 Provas Ativas")
         with col_dir:
-            # ✅ ALTERADO: Agora aponta para a nova página de controle/exclusão
             if st.button("📜 Ver Histórico Geral de Provas Encerradas", use_container_width=True):
                 st.session_state.pagina = "historico_provas_professor"
                 st.rerun()
 
     # ============================================================================
 
-    if not provas_ativas:
-        st.info("💡 Nenhuma mini prova em andamento ou publicada no momento.")
+    if not provas_filtradas_por_tempo:
+        st.info("💡 Nenhuma mini prova em andamento ou dentro do prazo de disponibilidade no momento.")
         return
 
-    # 🎯 Renderização dos Cards Reativos das Provas Ativas
-    for prova in provas_ativas:
+    # 🎯 Renderização dos Cards Reativos das Provas Ativas e Dentro do Prazo
+    for prova in provas_filtradas_por_tempo:
         with st.container(border=True):
+            
+            # Formata a data de exibição para dar visibilidade do prazo aos usuários
+            data_exp_raw = prova.get("data_expiracao")
+            prazo_exibicao = ""
+            if data_exp_raw:
+                try:
+                    dt_p = datetime.datetime.fromisoformat(data_exp_raw.split("+")[0])
+                    prazo_exibicao = f"&nbsp;|&nbsp; ⏳ Disponível até: {dt_p.strftime('%d/%m às %H:%M')}"
+                except:
+                    pass
+
             st.markdown(f"""
             <div style="background:#f0f9ff; border-left:4px solid #00b4d8; border-radius:8px; padding:14px 18px; margin-bottom:10px;">
                 <strong style="color:#0d1b2a; font-size:16px;">{prova.get('titulo', 'Sem Título')}</strong><br>
                 <span style="color:#555; font-size:13px;">{prova.get('descricao', 'Sem descrição definida para este exame.')}</span><br>
                 <span style="color:#00b4d8; font-size:12px; font-weight:600;">
-                    📝 {prova.get('quantidade_questoes', '-')} Questões &nbsp;|&nbsp; ⏱️ Tempo de Resolução: {prova.get('duracao_minutos', '-')} min
+                    📝 {prova.get('quantidade_questoes', '-')} Questões &nbsp;|&nbsp; ⏱️ Tempo de Resolução: {prova.get('duracao_minutos', '-')} min {prazo_exibicao}
                 </span>
             </div>
             """, unsafe_allow_html=True)
