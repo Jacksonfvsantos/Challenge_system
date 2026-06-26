@@ -3,25 +3,19 @@ import pandas as pd
 from database.conexao import supabase
 from services.batalha_service import (
     listar_times, listar_membros_time, listar_alunos,
-    adicionar_aluno, remover_aluno, mover_aluno
+    adicionar_aluno, remover_aluno, blackjack_mover_aluno  # ✅ CORRIGIDO: Import correto da função ativa
 )
 from utils.estilo import aplicar_estilo, cabecalho
-
-
-def _safe_dict(v): return v if isinstance(v, dict) else {}
-def _safe_list(v): return v if isinstance(v, list) else []
-
 
 def tela_batalha_integrantes():
     aplicar_estilo()
 
     usuario = st.session_state.usuario_logado
     tipo    = usuario.get("tipo_usuario", "aluno")
-    user_id = str(usuario.get("id", "")).strip()
 
     cabecalho("Integrantes dos Times", "Veja e gerencie os membros de cada equipe")
 
-    if st.button("⬅️ Voltar ao Painel"):
+    if st.button("⬅️ Voltar ao Painel", key="btn_back_integrantes_arena"):
         st.session_state.pagina = "batalha_de_equipes"
         st.rerun()
 
@@ -70,7 +64,7 @@ def tela_batalha_integrantes():
         
         if mapa_add:
             sel_add = st.selectbox("Selecione o Aluno para Inclusão:", list(mapa_add.keys()), key="modal_add_aluno")
-            if st.button("Confirmar Vínculo na Equipe", use_container_width=True):
+            if st.button("Confirmar Vínculo na Equipe", use_container_width=True, key="btn_confirm_add_member_gov"):
                 if adicionar_aluno(time_id_ativo, mapa_add[sel_add]):
                     st.success("✅ Aluno matriculado e vinculado à equipe com sucesso!")
                     st.rerun()
@@ -80,7 +74,7 @@ def tela_batalha_integrantes():
             st.info("Nenhum estudante disponível para alocação.")
 
     if membros:
-        mapa_membros_ativos = {m.get("nome"): str(m.get("id")).strip() for m in membros if isinstance(m, dict) and m.get("nome") and m.get("id")}
+        mapa_membros_ativos = {m.get("nome"): str(m.get("id")).strip() for m in membros if isinstance(m, dict) and m.get("id")}
         
         col_rem, col_trans = st.columns(2)
         
@@ -88,7 +82,7 @@ def tela_batalha_integrantes():
             with st.container(border=True):
                 st.markdown("❌ **Remover Integrante**")
                 sel_rm = st.selectbox("Escolha quem deseja remover:", list(mapa_membros_ativos.keys()), key="sb_remover_membro")
-                if st.button("Confirmar Desvinculação", type="primary", use_container_width=True):
+                if st.button("Confirmar Desvinculação", type="primary", use_container_width=True, key="btn_rm_member_gov"):
                     remover_aluno(time_id_ativo, mapa_membros_ativos[sel_rm])
                     st.success("Membro removido da equipe com sucesso.")
                     st.rerun()
@@ -99,7 +93,8 @@ def tela_batalha_integrantes():
                 sel_mv = st.selectbox("Escolha quem deseja mover:", list(mapa_membros_ativos.keys()), key="sb_mover_membro")
                 destino_nome = st.selectbox("Selecione a equipe de destino:", [name for name in mapa_times.keys() if name != time_selecionado_nome], key="sb_destino_membro")
                 
-                if st.button("Executar Transferência", use_container_width=True):
-                    mover_aluno(mapa_membros_ativos[sel_mv], mapa_times[destino_nome])
+                if st.button("Executar Transferência", use_container_width=True, key="btn_mv_member_gov"):
+                    # ✅ CORRIGIDO: Redirecionado para a função oficial de transferência do service único
+                    blackjack_mover_aluno(mapa_membros_ativos[sel_mv], mapa_times[destino_nome])
                     st.success(f"✅ Sucesso! Integrante transferido para o time '{destino_nome}'.")
                     st.rerun()

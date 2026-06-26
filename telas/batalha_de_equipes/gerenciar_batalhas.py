@@ -19,15 +19,9 @@ def tela_batalha_gerenciar():
         "Gerencie confrontos ativos, provisione novas batalhas ou consulte o histórico de rodadas passadas"
     )
 
-    # Abas organizadoras de fluxo docente
     aba_ativas, aba_finalizadas = st.tabs(["⚔️ Batalhas Ativas / Agendadas", "📜 Histórico de Confrontos Encerrados"])
 
-    # ------------------------------------------------------------------------
-    # ABA 1: CONFRONTOS ATIVOS & AGENDADOS
-    # ------------------------------------------------------------------------
     with aba_ativas:
-        
-        # Gaveta expansível para cadastro rápido de questões se necessário
         with st.expander("➕ Não tem questões prontas? Cadastrar Nova Questão no Banco agora mesmo", expanded=False):
             st.markdown("#### 📝 Nova Questão de Engenharia")
             enunciado_rapido = st.text_area("Enunciado da Questão / Código-fonte do Desafio:", placeholder="Ex: Dado o ponteiro int *p, qual sintaxe extrai o endereço da memória?")
@@ -66,7 +60,6 @@ def tela_batalha_gerenciar():
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown("### 🔥 Painel de Monitoramento Síncrono")
 
-        # Puxa batalhas que NÃO estão finalizadas
         try:
             res_ativas = (
                 supabase.table("batalhas")
@@ -113,11 +106,10 @@ def tela_batalha_gerenciar():
                             if deletar_batalha(bat['id']):
                                 st.toast("Registro de teste apagado permanentemente!", icon="🗑️")
                                 time.sleep(0.5)
-                                rerun()
+                                st.rerun()  # ✅ CORRIGIDO: Adicionado st. antes do rerun
                             else:
                                 st.error("Erro ao deletar registro.")
 
-        # Puxa o banco de dados de questões e equipes para alimentar o form abaixo
         try:
             questoes_res = supabase.table("questoes").select("id, enunciado").execute()
             banco_questoes = questoes_res.data or []
@@ -172,7 +164,6 @@ def tela_batalha_gerenciar():
                     if not banco_questoes:
                         st.warning("⚠️ Cadastre questões no banco de dados primeiro.")
                     else:
-                        # ✅ MAPEAMENTO SEGURO: Armazena o objeto dicionário completo, mas exibe de forma amigável
                         questoes_selecionadas = st.multiselect(
                             "Selecione as questões participantes:",
                             options=banco_questoes,
@@ -191,18 +182,13 @@ def tela_batalha_gerenciar():
                     elif modalidade == "sincrona" and not questoes_selecionadas:
                         st.error("Selecione pelo menos 1 questão para compor a rodada.")
                     else:
-                        # ✅ MOTOR DE RESOLUÇÃO SEGURO CONTRA KEYERROR:
                         lista_ids = []
                         for q in questoes_selecionadas:
-                            # Se for um dicionário padrão, extrai o id diretamente
                             if isinstance(q, dict) and "id" in q:
                                 lista_ids.append(q["id"])
-                            # Caso o Streamlit tenha devolvido apenas a string bruta do enunciado
                             elif isinstance(q, str):
-                                # Faz uma varredura reversa procurando a questão correspondente no banco original
                                 id_encontrado = None
                                 for bq in banco_questoes:
-                                    # Monta a mesma string que foi exibida no format_func para casar perfeitamente
                                     string_formatada = f"📝 {bq.get('enunciado', '')[:80]}..." if len(bq.get('enunciado', '')) > 80 else f"📝 {bq.get('enunciado', '')}"
                                     if string_formatada == q or bq.get('enunciado') == q:
                                         id_encontrado = bq["id"]
@@ -222,9 +208,6 @@ def tela_batalha_gerenciar():
                         else:
                             st.error(resultado["mensagem"])
 
-    # ------------------------------------------------------------------------
-    # ABA 2: HISTÓRICO DE CONFRONTOS ENCERRADOS
-    # ------------------------------------------------------------------------
     with aba_finalizadas:
         st.markdown("### 📜 Arquivo de Confrontos Encerrados")
         batalhas_passadas = obter_batalhas_finalizadas()
@@ -252,6 +235,6 @@ def tela_batalha_gerenciar():
                                 time.sleep(0.5)
                                 st.rerun()
 
-    if st.button("⬅️ Sair e Voltar para a Arena", use_container_width=True):
+    if st.button("⬅️ Sair e Voltar para a Arena", use_container_width=True, key="btn_exit_gov_hybrid"):
         st.session_state.pagina = "batalha_de_equipes"
         st.rerun()

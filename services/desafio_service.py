@@ -1,33 +1,5 @@
 import streamlit as st
-
-# Importacao tolerante a falhas do cliente Supabase
-try:
-    from utils.supabase import supabase
-except Exception:
-    try:
-        from utils.Supabase import supabase
-    except Exception:
-        try:
-            from supabase_config import supabase
-        except Exception:
-            try:
-                from supabase import create_client
-                supabase_url = st.secrets.get("SUPABASE_URL") or st.secrets.get("supabase_url")
-                supabase_key = st.secrets.get("SUPABASE_KEY") or st.secrets.get("supabase_key")
-                if supabase_url and supabase_key:
-                    supabase = create_client(supabase_url, supabase_key)
-                else:
-                    raise ValueError("Credenciais nao encontradas.")
-            except Exception:
-                class DummySupabase:
-                    def table(self, name): return self
-                    def select(self, *args, **kwargs): return self
-                    def order(self, *args, **kwargs): return self
-                    def execute(self, *args, **kwargs):
-                        class Empty: data = []
-                        return Empty()
-                supabase = DummySupabase()
-
+from database.conexao import supabase # ✅ CORRIGIDO: Removidos imports redundantes para evitar falha de RLS
 
 def listar_desafios():
     """
@@ -40,12 +12,12 @@ def listar_desafios():
             .order("criado_em", descending=True) \
             .execute()
         return resultado.data
-    except Exception as e:
+    except Exception:
         try:
             resultado = supabase.table("desafios").select("*").execute()
             return resultado.data
         except Exception as erro_critico:
-            print(f"Erro critico ao listar desafios: {erro_critico}")
+            print(f"Erro crítico ao listar desafios: {erro_critico}")
             return []
 
 
