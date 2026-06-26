@@ -67,7 +67,7 @@ def parsing_questoes_regex(texto):
             if not linha_str:
                 continue
 
-            match_gab = re.search(r'(?:Resposta\s+correta|Gabarito|Resposta):\s*([A-Ea-e])', static_cast<str>(linha_str), re.IGNORECASE)
+            match_gab = re.search(r'(?:Resposta\s+correta|Gabarito|Resposta):\s*([A-Ea-e])', str(linha_str), re.IGNORECASE)
             if match_gab:
                 gabarito_detectado = match_gab.group(1).upper()
                 continue
