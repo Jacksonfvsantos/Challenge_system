@@ -3,6 +3,7 @@ import datetime
 import time
 from database.conexao import supabase
 from utils.estilo import aplicar_estilo, cabecalho
+from utils.importador import extrair_texto_pdf, extrair_texto_docx, parsear_questoes_com_ia
 from services.batalha_service import (
     cadastrar_nova_batalha, 
     cadastrar_questao_rapida,
@@ -16,24 +17,27 @@ def tela_batalha_gerenciar():
     
     cabecalho(
         "🛠️ Painel de Governança Híbrida",
-        "Gerencie confrontos ativos, provisione novas batalhas ou consulte o histórico de rodadas passadas"
+        "Gerencie confrontos ativos, provisione novas batalhas ou importe avaliações em lote"
     )
 
-    aba_ativas, aba_finalizadas = st.tabs(["⚔️ Batalhas Ativas / Agendadas", "📜 Histórico de Confrontos Encerrados"])
+    aba_ativas, aba_finalizadas, aba_ia = st.tabs([
+        "⚔️ Batalhas Ativas / Agendadas", 
+        "📜 Histórico de Confrontos", 
+        "🤖 Importação por IA"
+    ])
 
     with aba_ativas:
-        with st.expander("➕ Não tem questões prontas? Cadastrar Nova Questão no Banco agora mesmo", expanded=False):
+        with st.expander("➕ Não tem questões prontas? Cadastrar Nova Questão Individual", expanded=False):
             st.markdown("#### 📝 Nova Questão de Engenharia")
-            enunciado_rapido = st.text_area("Enunciado da Questão / Código-fonte do Desafio:", placeholder="Ex: Dado o ponteiro int *p, qual sintaxe extrai o endereço da memória?")
+            enunciado_rapido = st.text_area("Enunciado da Questão / Código-fonte:")
             
-            st.markdown("**Opções de Alternativas (Preencha as 4 opções):**")
             col_a1, col_a2 = st.columns(2)
             with col_a1:
-                alt_a = st.text_input("Alternativa A:", placeholder="Texto da primeira opção", key="qa")
-                alt_b = st.text_input("Alternativa B:", placeholder="Texto da segunda opção", key="qb")
+                alt_a = st.text_input("Alternativa A:", key="qa")
+                alt_b = st.text_input("Alternativa B:", key="qb")
             with col_a2:
-                alt_c = st.text_input("Alternativa C:", placeholder="Texto da terceira opção", key="qc")
-                alt_d = st.text_input("Alternativa D:", placeholder="Texto da quarta opção", key="qd")
+                alt_c = st.text_input("Alternativa C:", key="qc")
+                alt_d = st.text_input("Alternativa D:", key="qd")
                 
             opcao_correta = st.selectbox(
                 "Qual destas alternativas é a VERDADEIRA?",
@@ -41,9 +45,9 @@ def tela_batalha_gerenciar():
                 format_func=lambda x: ["Alternativa A", "Alternativa B", "Alternativa C", "Alternativa D"][x]
             )
             
-            if st.button("💾 Gravar Questão no Banco", use_container_width=True):
+            if st.button("💾 Gravar Questão Individual", use_container_width=True):
                 if not enunciado_rapido.strip() or not alt_a.strip() or not alt_b.strip() or not alt_c.strip() or not alt_d.strip():
-                    st.error("Por favor, preencha o enunciado e todas as 4 alternativas antes de salvar.")
+                    st.error("Por favor, preencha todos os campos antes de salvar.")
                 else:
                     res_q = cadastrar_questao_rapida(
                         enunciado=enunciado_rapido,
@@ -63,7 +67,7 @@ def tela_batalha_gerenciar():
         try:
             res_ativas = (
                 supabase.table("batalhas")
-                .select("*, time_a:time_a_id(nome), time_b:time_b_id(nome)")
+                .select("*")
                 .eq("finalizada", False)
                 .order("created_at", descending=True)
                 .execute()
@@ -76,16 +80,11 @@ def tela_batalha_gerenciar():
             st.info("Não há nenhuma batalha ativa ou agendada listada no momento.")
         else:
             for bat in lista_ativas:
-                t_a = bat.get("time_a", {}).get("nome", "Equipe Desafiante") if bat.get("time_a") else "N/A"
-                t_b = bat.get("time_b", {}).get("nome", "Equipe Desafiada") if bat.get("time_b") else "N/A"
-                status_str = str(bat.get("status")).upper()
-
                 with st.container(border=True):
                     col_info, col_botoes = st.columns([3, 2])
                     with col_info:
                         st.markdown(f"#### 🏆 {bat['titulo']}")
-                        st.markdown(f"**Confronto:** `{t_a}` ⚔️ `{t_b}`")
-                        st.markdown(f"**Estado:** `{status_str}` | **Round:** № {bat.get('pergunta_atual_ordem', 1)}")
+                        st.markdown(f"**Estado:** `{str(bat.get('status')).upper()}` | **Round:** № {bat.get('pergunta_atual_ordem', 1)}")
                     
                     with col_botoes:
                         st.markdown("<br>", unsafe_allow_html=True)
@@ -99,16 +98,12 @@ def tela_batalha_gerenciar():
                                 st.toast("Partida movida para o histórico!", icon="🛑")
                                 time.sleep(0.5)
                                 st.rerun()
-                            else:
-                                st.error("Falha ao encerrar a batalha no banco de dados.")
                                 
                         if st.button("🗑️ Deletar (Apagar Teste)", key=f"del_{bat['id']}", type="primary", use_container_width=True):
                             if deletar_batalha(bat['id']):
-                                st.toast("Registro de teste apagado permanentemente!", icon="🗑️")
+                                st.toast("Registro apagado permanente!", icon="🗑️")
                                 time.sleep(0.5)
                                 st.rerun()
-                            else:
-                                st.error("Erro ao deletar registro.")
 
         try:
             questoes_res = supabase.table("questoes").select("id, enunciado").execute()
@@ -122,83 +117,39 @@ def tela_batalha_gerenciar():
         
         with st.container():
             st.markdown("### 📋 Formular Nova Competição Híbrida")
-            
             with st.form("form_abrir_batalha", clear_on_submit=True):
-                titulo = st.text_input("Título do Desafio / Batalha:", placeholder="Ex: Batalha de Ponteiros e Alocação Dinâmica")
-                descricao = st.text_area("Instruções e Diretrizes Técnicas:", placeholder="Descreva os critérios de avaliação...")
+                titulo = st.text_input("Título do Desafio / Batalha:")
+                descricao = st.text_area("Instruções Técnicas:")
                 
-                col_m1, col_m2 = st.columns(2)
-                with col_m1:
-                    modalidade = st.selectbox(
-                        "Modalidade da Competição:",
-                        options=["sincrona", "assincrona"],
-                        format_func=lambda x: "⚡ Síncrona (Ao Vivo / Bate-Rebate)" if x == "sincrona" else "⏳ Assíncrona (Com Prazo Estendido)"
-                    )
-                with col_m2:
-                    if modalidade == "assincrona":
-                        data_entrega = st.date_input("Data Limite de Entrega:", datetime.date.today() + datetime.timedelta(days=7))
-                        hora_entrega = st.time_input("Horário Limite:", datetime.time(23, 59))
-                        prazo_final = datetime.datetime.combine(data_entrega, hora_entrega)
-                    else:
-                        st.info("💡 Modo Bate-Rebate. O controle de tempo é ditado na sala ao vivo.")
-                        prazo_final = None
+                modalidade = st.selectbox("Modalidade:", options=["sincrona", "assincrona"])
+                prazo_final = None
 
                 time_a_id, time_b_id = None, None
                 if modalidade == "sincrona":
-                    st.markdown("#### 👥 Seleção de Equipes Competidoras")
-                    if len(banco_times) < 2:
-                        st.warning("⚠️ São necessárias pelo menos 2 equipes cadastradas para realizar uma disputa.")
-                    else:
-                        col_t1, col_t2 = st.columns(2)
-                        with col_t1:
-                            time_a_sel = st.selectbox("Equipe A (Desafiante):", options=banco_times, format_func=lambda x: x["nome"], key="sb_time_a")
-                            time_a_id = time_a_sel["id"] if time_a_sel else None
-                        with col_t2:
-                            # ✅ ALTERAÇÃO: Removido o filtro. Agora a Equipe B lista todas as equipas cadastradas nativamente
-                            time_b_sel = st.selectbox("Equipe B (Desafiada):", options=banco_times, format_func=lambda x: x["nome"], key="sb_time_b")
-                            time_b_id = time_b_sel["id"] if time_b_sel else None
+                    col_t1, col_t2 = st.columns(2)
+                    with col_t1:
+                        time_a_sel = st.selectbox("Equipe A:", options=banco_times, format_func=lambda x: x["nome"], key="sb_time_a")
+                        time_a_id = time_a_sel["id"] if time_a_sel else None
+                    with col_t2:
+                        time_b_sel = st.selectbox("Equipe B:", options=banco_times, format_func=lambda x: x["nome"], key="sb_time_b")
+                        time_b_id = time_b_sel["id"] if time_b_sel else None
 
-                questoes_selecionadas = []
-                if modalidade == "sincrona":
-                    st.markdown("#### 🗂️ Seleção de Questões para a Rodada")
-                    if not banco_questoes:
-                        st.warning("⚠️ Cadastre questões no banco de dados primeiro.")
-                    else:
-                        questoes_selecionadas = st.multiselect(
-                            "Selecione as questões participantes:",
-                            options=banco_questoes,
-                            format_func=lambda x: f"📝 {x.get('enunciado', '')[:80]}..." if len(x.get('enunciado', '')) > 80 else f"📝 {x.get('enunciado', '')}",
-                            key="selector_questions_batalha"
-                        )
+                questoes_selecionadas = st.multiselect(
+                    "Selecione as questões participantes:",
+                    options=banco_questoes,
+                    format_func=lambda x: f"📝 {x.get('enunciado', '')[:80]}..."
+                )
 
-                st.markdown("<br>", unsafe_allow_html=True)
                 btn_publicar = st.form_submit_button("🚀 Gravar e Publicar Competição", type="primary", use_container_width=True)
-
                 if btn_publicar:
                     if not titulo.strip():
-                        st.error("O título da batalha é obrigatório.")
-                    elif modalidade == "sincrona" and (not time_a_id or not time_b_id):
-                        st.error("Selecione duas equipes para compor a disputa.")
-                    elif modalidade == "sincrona" and (time_a_id == time_b_id):
-                        # 🔒 PROTEÇÃO: Impede que a mesma equipe dispute contra si mesma já que listamos todas
-                        st.error("🛑 Erro: Uma equipe não pode duelar contra si mesma na Arena. Selecione equipes distintas!")
-                    elif modalidade == "sincrona" and not questoes_selecionadas:
-                        st.error("Selecione pelo menos 1 questão para compor a rodada.")
+                        st.error("Título obrigatório.")
+                    elif modalidade == "sincrona" and time_a_id == time_b_id:
+                        st.error("Selecione equipes diferentes.")
+                    elif not questoes_selecionadas:
+                        st.error("Selecione pelo menos 1 questão.")
                     else:
-                        lista_ids = []
-                        for q in questoes_selecionadas:
-                            if isinstance(q, dict) and "id" in q:
-                                lista_ids.append(q["id"])
-                            elif isinstance(q, str):
-                                id_encontrado = None
-                                for bq in banco_questoes:
-                                    string_formatada = f"📝 {bq.get('enunciado', '')[:80]}..." if len(bq.get('enunciado', '')) > 80 else f"📝 {bq.get('enunciado', '')}"
-                                    if string_formatada == q or bq.get('enunciado') == q:
-                                        id_encontrado = bq["id"]
-                                        break
-                                if id_encontrado:
-                                    lista_ids.append(id_encontrado)
-
+                        lista_ids = [q["id"] for q in questoes_selecionadas]
                         resultado = cadastrar_nova_batalha(
                             titulo=titulo, descricao=descricao, modalidade=modalidade,
                             data_limite=prazo_final, lista_questoes_ids=lista_ids,
@@ -208,35 +159,65 @@ def tela_batalha_gerenciar():
                             st.success(resultado["mensagem"])
                             time.sleep(0.5)
                             st.rerun()
-                        else:
-                            st.error(resultado["mensagem"])
 
     with aba_finalizadas:
         st.markdown("### 📜 Arquivo de Confrontos Encerrados")
         batalhas_passadas = obter_batalhas_finalizadas()
-        
         if not batalhas_passadas:
-            st.info("O histórico está limpo. Nenhuma batalha foi arquivada até o momento.")
+            st.info("Nenhuma batalha arquivada.")
         else:
             for bat in batalhas_passadas:
-                t_a = bat.get("time_a", {}).get("nome", "Equipe Desafiante") if bat.get("time_a") else "N/A"
-                t_b = bat.get("time_b", {}).get("nome", "Equipe Desafiada") if bat.get("time_b") else "N/A"
-                
                 with st.container(border=True):
                     col_hist_info, col_hist_del = st.columns([4, 1])
                     with col_hist_info:
                         st.markdown(f"#### 🏁 {bat['titulo']} (Encerrada)")
-                        st.markdown(f"**Disputado entre:** `{t_a}` ⚔️ `{t_b}`")
-                        if bat.get("created_at"):
-                            st.caption(f"Partida realizada em: {bat['created_at'][:10]}")
-                    
                     with col_hist_del:
-                        st.markdown("<br>", unsafe_allow_html=True)
                         if st.button("🗑️ Limpar", key=f"del_hist_{bat['id']}", use_container_width=True):
                             if deletar_batalha(bat['id']):
-                                st.toast("Histórico limpo com sucesso!", icon="🗑️")
+                                st.success("Histórico limpo!")
                                 time.sleep(0.5)
                                 st.rerun()
+
+    # 🤖 NOVA ABA: PROCESSAMENTO AUTOMÁTICO DE PROVAS COM IA
+    with aba_ia:
+        st.markdown("### 🤖 Provisionamento Automatizado por Inteligência Artificial")
+        st.caption("Faça upload de um arquivo contendo enunciados, opções e gabaritos. A IA irá mapear e salvar a estrutura diretamente no banco.")
+        
+        arquivo_upload = st.file_uploader("Carregar Avaliação (PDF ou DOCX):", type=["pdf", "docx"], key="ia_file_uploader")
+        
+        if arquivo_upload:
+            if st.button("🔥 Iniciar Mapeamento e Inserção Relacional", type="primary", use_container_width=True):
+                with st.spinner("Extraindo textos brutos e consultando o modelo Gemini..."):
+                    if arquivo_upload.name.endswith(".pdf"):
+                        texto_bruto = extrair_texto_pdf(arquivo_upload)
+                    else:
+                        texto_bruto = extrair_texto_docx(arquivo_upload)
+                        
+                    if not texto_bruto.strip():
+                        st.error("Não foi possível extrair texto legível deste documento.")
+                    else:
+                        questoes_geradas = parsear_questoes_com_ia(texto_bruto)
+                        
+                        if questoes_geradas:
+                            sucessos = 0
+                            for q in questoes_geradas:
+                                res_q = supabase.table("questoes").insert({"enunciado": q["enunciado"].strip()}).execute()
+                                if res_q.data:
+                                    q_id = res_q.data[0]["id"]
+                                    linhas_alt = []
+                                    for i, alt in enumerate(q["alternativas"]):
+                                        linhas_alt.append({
+                                            "questao_id": q_id,
+                                            "texto": alt["texto"].strip(),
+                                            "ordem": i + 1,
+                                            "correta": bool(alt["correta"])
+                                        })
+                                    supabase.table("alternativas").insert(linhas_alt).execute()
+                                    sucessos += 1
+                                    
+                            st.success(f"🎯 Extração concluída! {sucessos} questões estruturadas salvas com sucesso!")
+                            time.sleep(1.0)
+                            st.rerun()
 
     if st.button("⬅️ Sair e Voltar para a Arena", use_container_width=True, key="btn_exit_gov_hybrid"):
         st.session_state.pagina = "batalha_de_equipes"

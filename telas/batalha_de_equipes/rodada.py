@@ -155,7 +155,7 @@ def tela_batalha_rodada():
     batalha_id = st.session_state.batalha_ativa_id
     batalha = obter_estado_batalha(batalha_id)
     
-    # ✅ CORRIGIDO (Item 2): Removido o walrus que causava o SyntaxError/Pylance Expected ":"
+    # ✅ CORRIGIDO: Removida a atribuição direta com walrus que gerava erro no Pylance
     if not batalha:
         st.warning("Batalha não localizada.")
         return
@@ -248,7 +248,7 @@ def tela_batalha_rodada():
     tentativa_atual = 2 if status_sincrono == "rebate_ativo" else 1
     eh_a_vez_deste_time = (str(time_id).strip() == time_da_vez_id)
 
-    # ✅ ALTERADO (Item 1): Removido o número ordinário e exibido "Pergunta: {enunciado}"
+    # ✅ ALTERADO: Exibição limpa do cabeçalho unificado com o enunciado
     st.markdown(f"### 📍 Pergunta: {dados_pergunta['enunciado']}")
     
     if tipo_usuario == "aluno" and not eh_espectador:
@@ -262,7 +262,6 @@ def tela_batalha_rodada():
                 <h4 style="color: #ffedd5; margin: 0;">⏱️ AGUARDANDO ADVERSÁRIO...</h4>
             </div>""", unsafe_allow_html=True)
 
-    # Exibição do corpo limpo
     st.markdown("<br>", unsafe_allow_html=True)
     
     if not dados_pergunta["alternativas"]:
