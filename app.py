@@ -7,6 +7,8 @@ from utils.session import iniciar_session
 from components.navbar import mostrar_menu
 
 # Imports de Telas Base Universais
+from telas.quiz_rodada import tela_quiz_rodada
+from telas.quiz_ranking_global import tela_quiz_ranking_global
 from telas.cadastro_perguntas_quiz import tela_cadastro_perguntas_quiz
 from telas.login import tela_login
 from telas.cadastro import tela_cadastro
@@ -208,6 +210,12 @@ elif pagina == "pontuacoes":
 
 elif pagina == "regras_plataforma":
     tela_central_regras()
+
+elif pagina == "quiz_rodada":
+    tela_quiz_rodada()
+
+elif pagina == "quiz_ranking_global":
+    tela_quiz_ranking_global()
 
 elif pagina == "quiz_ao_vivo":
     tela_quiz_ao_vivo()
