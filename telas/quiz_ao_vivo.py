@@ -55,31 +55,28 @@ def tela_quiz_ao_vivo():
     else:
         aba_lista, = st.tabs(["🎮 Quizzes Disponíveis"])
 
-    # --- ABA 1: CRIAÇÃO DE SALA ---
+    # --- ABA 1: CRIAÇÃO DE SALA (SEM FORM PROTOCOL) ---
     if tipo in ("professor", "admin"):
         with aba_gestao:
             st.subheader("Configurar Nova Sessão de Quiz")
-            with st.form("form_novo_quiz_sincrono", clear_on_submit=True):
-                titulo = st.text_input("Título do Quiz", placeholder="Ex: Simulado Prévio de Circuitos Lógicos")
-                disciplina = st.text_input("Componente Curricular / Disciplina", placeholder="Ex: Engenharia de Software")
-                tema = st.text_input("Assunto Específico / Tema", placeholder="Ex: Arquitetura Monolítica")
-                
-                btn_criar = st.form_submit_button("Registrar e Ativar Sala", use_container_width=True)
-                
-                if btn_criar:
-                    if not titulo.strip():
-                        st.error("O título do quiz é obrigatório para abrir a sala.")
-                    else:
-                        with st.spinner("Ativando sala..."):
-                            resultado = criar_quiz(titulo, user_id, disciplina, tema)
-                            if resultado and resultado.get("sucesso"):
-                                st.success(f"✅ {resultado.get('mensagem')} Acesse a aba 'Caderno de Questões' para alimentá-lo.")
-                                time.sleep(0.5)
-                                st.rerun()
-                            else:
-                                st.error(resultado.get("mensagem", "Erro ao tentar abrir sala."))
+            titulo = st.text_input("Título do Quiz", placeholder="Ex: Simulado Prévio de Circuitos Lógicos", key="input_create_title")
+            disciplina = st.text_input("Componente Curricular / Disciplina", placeholder="Ex: Engenharia de Software", key="input_create_disc")
+            tema = st.text_input("Assunto Específico / Tema", placeholder="Ex: Arquitetura Monolítica", key="input_create_theme")
+            
+            if st.button("Registrar e Ativar Sala", use_container_width=True, type="primary", key="btn_execute_create_quiz"):
+                if not titulo.strip():
+                    st.error("O título do quiz é obrigatório para abrir a sala.")
+                else:
+                    with st.spinner("Ativando sala..."):
+                        resultado = criar_quiz(titulo, user_id, disciplina, tema)
+                        if resultado and resultado.get("sucesso"):
+                            st.success("Sala de Quiz ativada com sucesso! Acesse o Caderno de Questões.")
+                            time.sleep(0.5)
+                            st.rerun()
+                        else:
+                            st.error("Erro ao tentar abrir sala.")
 
-        # --- ABA 2: CADERNO DE QUESTÕES ---
+        # --- ABA 2: CADERNO DE QUESTÕES (SEM FORM PROTOCOL) ---
         with aba_caderno:
             st.subheader("Alimentar Banco de Perguntas")
             
@@ -88,7 +85,7 @@ def tela_quiz_ao_vivo():
                 st.info("💡 Você precisa criar uma Sala de Quiz primeiro na aba ao lado.")
             else:
                 opcoes_quiz = {q["titulo"]: q["id"] for q in quizzes_disponiveis}
-                quiz_selecionado_titulo = st.selectbox("Escolha o Quiz que deseja alimentar:", list(opcoes_quiz.keys()))
+                quiz_selecionado_titulo = st.selectbox("Escolha o Quiz que deseja alimentar:", list(opcoes_quiz.keys()), key="select_quiz_caderno")
                 quiz_id_caderno = opcoes_quiz[quiz_selecionado_titulo]
 
                 perguntas_atuais = puxar_perguntas_cadastradas(quiz_id_caderno)
@@ -107,32 +104,29 @@ def tela_quiz_ao_vivo():
 
                 st.markdown("---")
 
-                with st.form("form_nova_pergunta_integrado", clear_on_submit=True):
-                    enunciado = st.text_area("Enunciado da Pergunta")
-                    tempo_limite = st.slider("Tempo Limite (Segundos)", min_value=10, max_value=120, value=30, step=5)
-                    
-                    alt_a = st.text_input("Alternativa A")
-                    alt_b = st.text_input("Alternativa B")
-                    alt_c = st.text_input("Alternativa C")
-                    alt_d = st.text_input("Alternativa D")
-                    
-                    mapeamento_letras = {"Alternativa A": 0, "Alternativa B": 1, "Alternativa C": 2, "Alternativa D": 3}
-                    correta_letra = st.radio("Selecione a correta:", list(mapeamento_letras.keys()), horizontal=True)
-                    
-                    btn_salvar = st.form_submit_button("💾 Salvar Pergunta", use_container_width=True)
-                    
-                    if btn_salvar:
-                        if not enunciado.strip() or not all([alt_a.strip(), alt_b.strip(), alt_c.strip(), alt_d.strip()]):
-                            st.error("Preencha todos os campos antes de realizar o envio.")
-                        else:
-                            with st.spinner("Salvando questão..."):
-                                res = cadastrar_pergunta_completa(quiz_id_caderno, enunciado, tempo_limite, [alt_a, alt_b, alt_c, alt_d], mapeamento_letras[correta_letra])
-                                if res["sucesso"]:
-                                    st.success(res["mensagem"])
-                                    time.sleep(0.3)
-                                    st.rerun()
-                                else:
-                                    st.error(res["mensagem"])
+                enunciado = st.text_area("Enunciado da Pergunta", key="input_q_enunciado")
+                tempo_limite = st.slider("Tempo Limite (Segundos)", min_value=10, max_value=120, value=30, step=5, key="input_q_timer")
+                
+                alt_a = st.text_input("Alternativa A", key="input_q_alta")
+                alt_b = st.text_input("Alternativa B", key="input_q_altb")
+                alt_c = st.text_input("Alternativa C", key="input_q_altc")
+                alt_d = st.text_input("Alternativa D", key="input_q_altd")
+                
+                mapeamento_letras = {"Alternativa A": 0, "Alternativa B": 1, "Alternativa C": 2, "Alternativa D": 3}
+                correta_letra = st.radio("Selecione a correta:", list(mapeamento_letras.keys()), horizontal=True, key="input_q_correct")
+                
+                if st.button("💾 Salvar Pergunta", use_container_width=True, type="secondary", key="btn_save_q_manual"):
+                    if not enunciado.strip() or not all([alt_a.strip(), alt_b.strip(), alt_c.strip(), alt_d.strip()]):
+                        st.error("Preencha todos os campos antes de realizar o envio.")
+                    else:
+                        with st.spinner("Salvando questão..."):
+                            res = cadastrar_pergunta_completa(quiz_id_caderno, enunciado, tempo_limite, [alt_a, alt_b, alt_c, alt_d], mapeamento_letras[correta_letra])
+                            if res["sucesso"]:
+                                st.success("Questão salva com sucesso!")
+                                time.sleep(0.3)
+                                st.rerun()
+                            else:
+                                st.error("Erro ao salvar questão.")
 
                 if perguntas_atuais:
                     with st.expander("👁️ Ver Questões Salvas", expanded=False):
