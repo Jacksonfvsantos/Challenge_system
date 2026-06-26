@@ -75,26 +75,37 @@ def tela_quiz_ao_vivo():
             st.subheader("Configurar Nova Sessão de Quiz")
             st.caption("Crie um quiz síncrono mapeado por componentes curriculares para revisão de conteúdo.")
             
-            with st.form("form_novo_quiz_sincrono", clear_on_submit=False):
-                titulo = st.text_input("Título do Quiz", placeholder="Ex: Simulado Prévio de Circuitos Lógicos")
-                disciplina = st.text_input("Componente Curricular / Disciplina", placeholder="Ex: Engenharia de Software")
-                tema = st.text_input("Assunto Específico / Tema", placeholder="Ex: Arquitetura Monolítica")
-                
-                btn_criar = st.form_submit_button("Registrar e Ativar Sala", use_container_width=True)
-                
-                if btn_criar:
-                    if not titulo.strip():
-                        st.error("O título do quiz é obrigatório para abrir a sala.")
-                    else:
-                        with st.spinner("Ativando sala..."):
-                            resultado = criar_quiz(titulo, user_id, disciplina, tema)
-                            if resultado and resultado.get("sucesso") == True:
-                                st.success(f"✅ {resultado.get('mensagem')}")
-                                
-                                # 📝 Botão direto para ir cadastrar as perguntas deste quiz
-                                if st.button("✍️ Ir para o Caderno de Questões", type="primary", use_container_width=True):
-                                    st.session_state.pagina = "cadastro_perguntas_quiz"
+            # Controle de exibição do atalho pós-criação
+            if st.session_state.get("quiz_criado_sucesso"):
+                st.success("✅ Sala de Quiz ativada com sucesso!")
+                if st.button("✍️ Ir para o Caderno de Questões", type="primary", use_container_width=True):
+                    # Limpa a flag e redireciona
+                    st.session_state.quiz_criado_sucesso = False
+                    st.session_state.pagina = "cadastro_perguntas_quiz"
+                    st.rerun()
+                if st.button("🔄 Criar Outro Quiz", use_container_width=True):
+                    st.session_state.quiz_criado_sucesso = False
+                    st.rerun()
+            else:
+                with st.form("form_novo_quiz_sincrono", clear_on_submit=False):
+                    titulo = st.text_input("Título do Quiz", placeholder="Ex: Simulado Prévio de Circuitos Lógicos")
+                    disciplina = st.text_input("Componente Curricular / Disciplina", placeholder="Ex: Engenharia de Software")
+                    tema = st.text_input("Assunto Específico / Tema", placeholder="Ex: Arquitetura Monolítica")
+                    
+                    btn_criar = st.form_submit_button("Registrar e Ativar Sala", use_container_width=True)
+                    
+                    if btn_criar:
+                        if not titulo.strip():
+                            st.error("O título do quiz é obrigatório para abrir a sala.")
+                        else:
+                            with st.spinner("Ativando sala..."):
+                                resultado = criar_quiz(titulo, user_id, disciplina, tema)
+                                if resultado and resultado.get("sucesso") == True:
+                                    # ✅ CORRIGIDO: Ativa a flag e força o rerun para renderizar FORA do form
+                                    st.session_state.quiz_criado_sucesso = True
                                     st.rerun()
+                                else:
+                                    st.error(resultado.get("mensagem", "Erro operacional ao tentar abrir sala."))
 
     with aba_lista:
         st.subheader("Salas de Quiz Registradas")
