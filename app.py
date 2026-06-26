@@ -40,6 +40,10 @@ except ImportError as e:
     mensagem_erro_prova = str(e)
     def tela_mini_provas(err=mensagem_erro_prova): 
         st.warning(f"Módulo de mini provas indisponível. Erro: {err}")
+try:
+    from telas.mini_provas.pontuacao_mini_provas import tela_pontuacao_mini_provas
+except ImportError:
+    def tela_pontuacao_mini_provas(): st.warning("Tela de pontuação específica de mini provas em desenvolvimento.")
 
 # Imports dinâmicos das sub-telas das mini provas para evitar reset no State Router
 try:
@@ -199,6 +203,9 @@ elif pagina == "recompensas":
 # 🎯 Rotas do Módulo de Mini-Provas (Mapeamento Unificado e Seguro)
 elif pagina == "mini_provas":
     tela_mini_provas()
+    
+elif pagina == "pontuacao_mini_provas":
+    tela_pontuacao_mini_provas()
 
 elif pagina == "realizar_mini_prova":
     tela_realizar_mini_prova()
