@@ -3,7 +3,7 @@ import pandas as pd
 import time
 import datetime
 from utils.estilo import aplicar_estilo, cabecalho
-from services.quiz_ao_vivo_service import criar_quiz
+from services.quiz_ao_vivo_service import criar_quiz, deletar_quiz
 from utils.compartilhamento import exibir_painel_compartilhamento
 from database.conexao import supabase
 
@@ -38,7 +38,7 @@ def tela_quiz_ao_vivo():
         "Participe de sessões síncronas de perguntas e respostas em sala de aula"
     )
 
-    # ⏱️ AUTO-REFRESH SÍNCRONO: Injeta um script leve em HTML que atualiza a tela do aluno a cada 3 segundos em background
+    # ⏱️ AUTO-REFRESH SÍNCRONO: Injeta um script leve em HTML que atualiza a tela do aluno a cada 3 segundos
     if tipo == "aluno":
         st.components.v1.html(
             """
@@ -87,7 +87,6 @@ def tela_quiz_ao_vivo():
     with aba_lista:
         st.subheader("Salas de Quiz Registradas")
         
-        # Botão manual de sincronia mantido para redundância de rede
         col_atualizar, _ = st.columns([1, 3])
         with col_atualizar:
             if st.button("🔄 Sincronizar Salas", use_container_width=True):
@@ -133,29 +132,41 @@ def tela_quiz_ao_vivo():
                 
                 if tipo in ("professor", "admin"):
                     st.markdown("<br>", unsafe_allow_html=True)
-                    col1, col2 = st.columns(2)
+                    col1, col2, col3 = st.columns([2, 2, 1]) # ✅ Mudado para 3 colunas para acomodar o excluir
                     
                     with col1:
                         if status == "criado":
-                            if st.button("▶️ Iniciar Quiz / Liberar Pergunta", key=f"start_{q_id}", type="primary", use_container_width=True):
+                            if st.button("▶️ Iniciar Quiz", key=f"start_{q_id}", type="primary", use_container_width=True):
                                 alterar_status_quiz(q_id, "em_andamento")
                                 st.toast("🚀 A sala do Quiz foi aberta para os alunos!")
                                 time.sleep(0.3)
                                 st.rerun()
                         elif status == "em_andamento":
-                            if st.button("🛑 Encerrar Sessão", key=f"stop_{q_id}", use_container_width=True):
+                            if st.button("🛑 Finalizar / Encerrar", key=f"stop_{q_id}", use_container_width=True):
                                 alterar_status_quiz(q_id, "finalizado")
                                 st.toast("Sala de quiz encerrada oficialmente.")
                                 time.sleep(0.3)
                                 st.rerun()
                         else:
-                            st.button("🔒 Quiz Já Finalizado", key=f"ended_{q_id}", disabled=True, use_container_width=True)
+                            st.button("🔒 Finalizado", key=f"ended_{q_id}", disabled=True, use_container_width=True)
                             
                     with col2:
                         if st.button("📊 Ver Telão de Líderes", key=f"rank_{q_id}", use_container_width=True, disabled=(status == "criado")):
                             st.session_state.quiz_ranking_id = q_id
                             st.session_state.pagina = "quiz_ranking_global"
                             st.rerun()
+
+                    # ✅ NOVO: Botão de exclusão com popover de confirmação de segurança
+                    with col3:
+                        with st.popover("🗑️ Deletar", use_container_width=True):
+                            st.warning("Excluir este quiz permanentemente?")
+                            if st.button("Sim, apagar", key=f"del_quiz_{q_id}", type="primary", use_container_width=True):
+                                if deletar_quiz(q_id):
+                                    st.toast("Quiz removido com sucesso!")
+                                    time.sleep(0.3)
+                                    st.rerun()
+                                else:
+                                    st.error("Erro ao deletar.")
                     
                     if status != "finalizado":
                         with st.expander("📢 Mapeamento de Links & QR Code para Alunos", expanded=False):
