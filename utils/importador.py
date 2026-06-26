@@ -27,9 +27,6 @@ def extrair_texto_docx(arquivo_bytes):
         return ""
 
 def parsear_questoes_com_ia(texto_bruto):
-    """
-    Envia o texto extraído para a nova API do Gemini 2.5 estruturar estritamente como JSON válido.
-    """
     api_key = st.secrets.get("GEMINI_API_KEY")
     if not api_key:
         st.error("🛑 API Key 'GEMINI_API_KEY' não configurada nos Secrets do Streamlit Cloud.")
@@ -38,7 +35,7 @@ def parsear_questoes_com_ia(texto_bruto):
     try:
         genai.configure(api_key=api_key)
         
-        # 🚀 ATUALIZAÇÃO TECNOLÓGICA: Substituído o modelo descontinuado pelo novo Gemini 2.5 Flash
+        # 🚀 ATUALIZADO: Usando o motor ativo estável Gemini 2.5 Flash
         model = genai.GenerativeModel('gemini-2.5-flash')
         
         prompt = f"""

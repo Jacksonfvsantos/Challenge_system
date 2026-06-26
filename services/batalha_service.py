@@ -1,9 +1,7 @@
 import datetime
 from database.conexao import supabase
 
-# ============================================================================
-# 1. GERENCIAMENTO DE TIMES & EQUIPES
-# ============================================================================
+# --- TIMES & INTEGRANTES ---
 
 def criar_time(nome: str) -> bool:
     if not nome or not nome.strip():
@@ -24,56 +22,23 @@ def listar_times():
         print(f"❌ Erro [listar_times]: {erro}")
         return []
 
-def editar_time(time_id: str, novo_nome: str) -> bool:
-    if not str(time_id).strip() or not novo_nome or not novo_nome.strip():
-        return False
-    try:
-        resposta = supabase.table("times").update({"nome": novo_nome.strip()}).eq("id", str(time_id).strip()).execute()
-        return len(resposta.data) > 0
-    except Exception as erro:
-        print(f"❌ Erro [editar_time]: {erro}")
-        return False
-
-def deletar_time(time_id: str) -> bool:
-    if not str(time_id).strip():
-        return False
-    try:
-        resposta = supabase.table("times").delete().eq("id", str(time_id).strip()).execute()
-        return len(resposta.data) > 0
-    except Exception as erro:
-        print(f"❌ Erro [deletar_time]: {erro}")
-        return False
-
-# ============================================================================
-# 2. VÍNCULOS E GESTÃO DE INTEGRANTES (ALUNOS)
-# ============================================================================
-
 def aluno_tem_time(usuario_id: str) -> bool:
-    if not str(usuario_id).strip():
-        return False
     try:
         resposta = supabase.table("time_membros").select("id").eq("usuario_id", str(usuario_id).strip()).execute()
         return len(resposta.data) > 0
-    except Exception as erro:
-        print(f"❌ Erro [aluno_tem_time]: {erro}")
+    except Exception:
         return False
 
 def entrar_no_time(time_id: str, usuario_id: str) -> bool:
-    if not str(time_id).strip() or not str(usuario_id).strip():
-        return False
     if aluno_tem_time(usuario_id):
         return False
     try:
-        payload = {"time_id": str(time_id).strip(), "usuario_id": str(usuario_id).strip()}
-        resposta = supabase.table("time_membros").insert(payload).execute()
-        return len(resposta.data) > 0
-    except Exception as erro:
-        print(f"❌ Erro [entrar_no_time]: {erro}")
+        supabase.table("time_membros").insert({"time_id": str(time_id).strip(), "usuario_id": str(usuario_id).strip()}).execute()
+        return True
+    except Exception:
         return False
 
 def listar_membros_time(time_id: str):
-    if not str(time_id).strip():
-        return []
     try:
         resposta = supabase.table("time_membros").select("usuario_id, usuarios(id, nome, email)").eq("time_id", str(time_id).strip()).execute()
         membros = []
@@ -83,74 +48,51 @@ def listar_membros_time(time_id: str):
                 if isinstance(user_data, dict):
                     membros.append({"id": user_data.get("id"), "nome": user_data.get("nome"), "email": user_data.get("email")})
         return membros
-    except Exception as erro:
-        print(f"❌ Erro [listar_membros_time]: {erro}")
+    except Exception:
         return []
 
 def listar_alunos():
     try:
         resposta = supabase.table("usuarios").select("id, nome, email").eq("tipo_usuario", "aluno").order("nome").execute()
         return resposta.data or []
-    except Exception as erro:
-        print(f"❌ Erro [listar_alunos]: {erro}")
+    except Exception:
         return []
 
 def adicionar_aluno(time_id: str, usuario_id: str) -> bool:
     return entrar_no_time(time_id, usuario_id)
 
 def remover_aluno(time_id: str, usuario_id: str) -> bool:
-    if not str(time_id).strip() or not str(usuario_id).strip():
-        return False
     try:
-        resposta = supabase.table("time_membros").delete().eq("time_id", str(time_id).strip()).eq("usuario_id", str(usuario_id).strip()).execute()
-        return len(resposta.data) > 0
-    except Exception as erro:
-        print(f"❌ Erro [remover_aluno]: {erro}")
+        supabase.table("time_membros").delete().eq("time_id", str(time_id).strip()).eq("usuario_id", str(usuario_id).strip()).execute()
+        return True
+    except Exception:
         return False
 
 def blackjack_mover_aluno(usuario_id: str, destino_time_id: str) -> bool:
-    if not str(usuario_id).strip() or not str(destino_time_id).strip():
-        return False
     try:
         supabase.table("time_membros").delete().eq("usuario_id", str(usuario_id).strip()).execute()
-        payload = {"time_id": str(destino_time_id).strip(), "usuario_id": str(usuario_id).strip()}
-        resposta = supabase.table("time_membros").insert(payload).execute()
-        return len(resposta.data) > 0
-    except Exception as erro:
-        print(f"❌ Erro [mover_aluno]: {erro}")
+        supabase.table("time_membros").insert({"time_id": str(destino_time_id).strip(), "usuario_id": str(usuario_id).strip()}).execute()
+        return True
+    except Exception:
         return False
 
 mover_aluno = blackjack_mover_aluno
 
-# ============================================================================
-# 3. MOTOR ATIVO DE PARTIDAS & CONTROLE DE TURNOS (BATE-REBATE)
-# ============================================================================
-
-def listar_batalhas():
-    try:
-        resposta = supabase.table("batalhas").select("*").order("created_at", descending=True).execute()
-        return resposta.data or []
-    except Exception as erro:
-        print(f"❌ Erro [listar_batalhas]: {erro}")
-        return []
+# --- CORE MOTOR DE BATALHAS & HISTÓRICO PERMANENTE ---
 
 def obter_estado_batalha(batalha_id):
     try:
         res = supabase.table("batalhas").select("*").eq("id", batalha_id).execute()
         return res.data[0] if res.data else None
-    except Exception as e:
-        print(f"❌ Erro [obter_estado_batalha]: {e}")
+    except Exception:
         return None
 
 def obter_batalhas_finalizadas():
-    """
-    Busca os dados consolidados e imutáveis direto da tabela de histórico.
-    """
     try:
+        # Busca direta e imutável da tabela de logs estáveis
         res = supabase.table("historico_batalhas").select("*").order("encerrado_em", descending=True).execute()
         return res.data or []
-    except Exception as e:
-        print(f"❌ Erro [obter_batalhas_finalizadas]: {e}")
+    except Exception:
         return []
 
 def cadastrar_nova_batalha(titulo, descricao, modalidade, data_limite=None, lista_questoes_ids=None, time_a_id=None, time_b_id=None):
@@ -162,177 +104,100 @@ def cadastrar_nova_batalha(titulo, descricao, modalidade, data_limite=None, list
             "finalizada": False,
             "pergunta_atual_ordem": 1,
             "status": "em_andamento" if modalidade == "assincrona" else "agendada",
-            "status_sincrono": "aguardando_resposta" if modalidade == "sincrona" else None
+            "status_sincrono": "aguardando_resposta" if modalidade == "sincrona" else None,
+            "time_a_id": time_a_id,
+            "time_b_id": time_b_id
         }
-
-        if modalidade == "assincrona" and data_limite:
-            payload["data_limite"] = data_limite.isoformat() if hasattr(data_limite, "isoformat") else str(data_limite)
-        
-        if modalidade == "sincrona":
-            payload["time_a_id"] = time_a_id
-            payload["time_b_id"] = time_b_id
-
         res_batalha = supabase.table("batalhas").insert(payload).execute()
         if not res_batalha.data:
-            return {"sucesso": False, "mensagem": "❌ Falha ao criar o registro da batalha."}
+            return {"sucesso": False, "mensagem": "Falha ao instanciar batalha."}
             
-        nova_batalha_id = res_batalha.data[0]["id"]
-
-        if modalidade == "sincrona" and lista_questoes_ids:
-            linhas_vinculo = []
-            for i, q_id in enumerate(lista_questoes_ids):
-                linhas_vinculo.append({
-                    "batalha_id": nova_batalha_id,
-                    "questao_id": q_id,
-                    "ordem": i + 1
-                })
-            if linhas_vinculo:
-                supabase.table("batalha_perguntas").insert(linhas_vinculo).execute()
-
-        return {"sucesso": True, "mensagem": "🚀 Competição publicada e questões vinculadas com sucesso!"}
+        b_id = res_batalha.data[0]["id"]
+        if lista_questoes_ids:
+            linhas = [{"batalha_id": b_id, "questao_id": q_id, "ordem": i+1} for i, q_id in enumerate(lista_questoes_ids)]
+            supabase.table("batalha_perguntas").insert(linhas).execute()
+            
+        return {"sucesso": True, "mensagem": "🚀 Competição publicada e QR Code gerado com sucesso!"}
     except Exception as e:
-        print(f"❌ Erro em [cadastrar_nova_batalha]: {e}")
-        return {"sucesso": False, "mensagem": f"Erro interno: {str(e)}"}
+        return {"sucesso": False, "mensagem": str(e)}
 
-# 🚀 CORREÇÃO CIRÚRGICA: Removido 'tipo' e 'pontos' que quebravam o schema cache do PostgREST
 def cadastrar_questao_rapida(enunciado, alternativas_texto, indice_correta):
     try:
-        res_q = supabase.table("questoes").insert({
-            "enunciado": enunciado.strip()
-        }).execute()
-        
-        if not res_q.data:
-            return {"sucesso": False, "mensagem": "Erro ao criar enunciado."}
-            
+        res_q = supabase.table("questoes").insert({"enunciado": enunciado.strip()}).execute()
         q_id = res_q.data[0]["id"]
-        linhas_alt = []
-        for i, texto in enumerate(alternativas_texto):
-            linhas_alt.append({
-                "questao_id": q_id,
-                "texto": texto.strip(),
-                "ordem": i + 1,
-                "correta": (i == indice_correta)
-            })
-        supabase.table("alternativas").insert(linhas_alt).execute()
-        return {"sucesso": True, "mensagem": "Questão e alternativas salvas com sucesso!"}
+        linhas = [{"questao_id": q_id, "texto": txt.strip(), "ordem": i+1, "correta": (i == indice_correta)} for i, txt in enumerate(alternativas_texto)]
+        supabase.table("alternativas").insert(linhas).execute()
+        return {"sucesso": True, "mensagem": "Questão salva!"}
     except Exception as e:
         return {"sucesso": False, "mensagem": str(e)}
 
 def iniciar_partida_sincrona(batalha_id, time_inicial_id):
     try:
-        supabase.table("batalhas").update({
-            "status": "em_andamento",
-            "time_da_vez_id": time_inicial_id,
-            "status_sincrono": "aguardando_resposta",
-            "pergunta_atual_ordem": 1
-        }).eq("id", batalha_id).execute()
+        supabase.table("batalhas").update({"status": "em_andamento", "time_da_vez_id": time_inicial_id, "status_sincrono": "aguardando_resposta", "pergunta_atual_ordem": 1}).eq("id", batalha_id).execute()
         return True
-    except Exception as e:
-        print(f"❌ Erro ao iniciar partida: {e}")
+    except Exception:
         return False
 
 def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id, alternativa_correta, time_adversario_id, tentativa_atual):
     try:
-        supabase.table("batalha_respostas").insert({
-            "batalha_id": batalha_id,
-            "questao_id": questao_id,
-            "time_id": time_id,
-            "alternativa_id": alternativa_id,
-            "resposta_correta": bool(alternativa_correta),
-            "tentativa_numero": int(tentativa_atual)
-        }).execute()
-
+        supabase.table("batalha_respostas").insert({"batalha_id": batalha_id, "questao_id": questao_id, "time_id": time_id, "alternativa_id": alternativa_id, "resposta_correta": bool(alternativa_correta), "tentativa_numero": int(tentativa_atual)}).execute()
         batalha = obter_estado_batalha(batalha_id)
-        proxima_ordem = int(batalha["pergunta_atual_ordem"]) + 1
+        prox = int(batalha["pergunta_atual_ordem"]) + 1
 
         if alternativa_correta:
-            supabase.table("batalhas").update({
-                "pergunta_atual_ordem": proxima_ordem,
-                "status_sincrono": "aguardando_resposta",
-                "time_da_vez_id": time_adversario_id
-            }).eq("id", batalha_id).execute()
+            supabase.table("batalhas").update({"pergunta_atual_ordem": prox, "status_sincrono": "aguardando_resposta", "time_da_vez_id": time_adversario_id}).eq("id", batalha_id).execute()
             return "acertou"
         else:
             if int(tentativa_atual) == 1:
-                supabase.table("batalhas").update({
-                    "status_sincrono": "rebate_ativo",
-                    "time_da_vez_id": time_adversario_id
-                }).eq("id", batalha_id).execute()
+                supabase.table("batalhas").update({"status_sincrono": "rebate_ativo", "time_da_vez_id": time_adversario_id}).eq("id", batalha_id).execute()
                 return "rebate"
             else:
-                supabase.table("batalhas").update({
-                    "pergunta_atual_ordem": proxima_ordem,
-                    "status_sincrono": "aguardando_resposta",
-                    "time_da_vez_id": time_id  
-                }).eq("id", batalha_id).execute()
+                supabase.table("batalhas").update({"pergunta_atual_ordem": prox, "status_sincrono": "aguardando_resposta", "time_da_vez_id": time_id}).eq("id", batalha_id).execute()
                 return "ambos_erraram"
-                
-    except Exception as e:
-        print(f"❌ Erro [processar_resposta_sincrona]: {e}")
+    except Exception:
         return "erro"
 
 def encerrar_partida_sincrona(batalha_id):
     """
-    Consolida o placar atual, gera o resultado oficial imutável, 
-    salva na tabela de histórico e encerra o estado da partida ativa.
+    Consolida e arquiva na tabela definitiva de histórico de forma permanente antes de desativar.
     """
     try:
-        # 1. Puxa o estado atual da batalha para descobrir os IDs dos times e o título
-        res_batalha = supabase.table("batalhas").select("*").eq("id", batalha_id).execute()
-        if not res_batalha.data:
-            return False
-        batalha = res_batalha.data[0]
+        res_b = supabase.table("batalhas").select("*").eq("id", (b_id := batalha_id)).execute()
+        if not res_b.data: return False
+        b = res_b.data[0]
         
-        time_a_id = batalha.get("time_a_id")
-        time_b_id = batalha.get("time_b_id")
-        titulo = batalha.get("titulo", "Batalha Arena")
-        
-        # 2. Busca os nomes das equipes de forma segura
+        t_a, t_b = b.get("time_a_id"), b.get("time_b_id")
         nome_a, nome_b = "Time A", "Time B"
-        if time_a_id and time_b_id:
-            res_times = supabase.table("times").select("id, nome").in_("id", [time_a_id, time_b_id]).execute()
-            if res_times.data:
-                mapeamento = {str(t["id"]).strip(): t["nome"] for t in res_times.data}
-                nome_a = mapeamento.get(str(time_a_id).strip(), "Time A")
-                nome_b = mapeamento.get(str(time_b_id).strip(), "Time B")
+        if t_a and t_b:
+            rt = supabase.table("times").select("id, nome").in_("id", [t_a, t_b]).execute()
+            if rt.data:
+                mapa = {str(x["id"]).strip(): x["nome"] for x in rt.data}
+                nome_a, nome_b = mapa.get(str(t_a).strip(), "Time A"), mapa.get(str(t_b).strip(), "Time B")
 
-        # 3. Calcula o placar final computando as respostas corretas no banco
-        res_respostas = supabase.table("batalha_respostas").select("time_id, resposta_correta").eq("batalha_id", batalha_id).execute()
-        pontos_a, pontos_b = 0, 0
-        if res_respostas.data:
-            for resp in res_respostas.data:
-                if resp.get("resposta_correta") is True:
-                    if str(resp.get("time_id")).strip() == str(time_a_id).strip():
-                        pontos_a += 1
-                    elif str(resp.get("time_id")).strip() == str(time_b_id).strip():
-                        pontos_b += 1
+        resp = supabase.table("batalha_respostas").select("time_id, resposta_correta").eq("batalha_id", b_id).execute()
+        p_a, p_b = 0, 0
+        if resp.data:
+            for r in resp.data:
+                if r.get("resposta_correta") is True:
+                    if str(r.get("time_id")).strip() == str(t_a).strip(): p_a += 1
+                    elif str(r.get("time_id")).strip() == str(t_b).strip(): p_b += 1
 
-        # 4. Determina a string descritiva do resultado de encerramento
-        if pontos_a > pontos_b:
-            resultado_extenso = f"🥇 Vencedor: {nome_a} ({pontos_a} XP) | 🥈 Perdedor: {nome_b} ({pontos_b} XP)"
-        elif pontos_b > pontos_a:
-            resultado_extenso = f"🥇 Vencedor: {nome_b} ({pontos_b} XP) | 🥈 Perdedor: {nome_a} ({pontos_a} XP)"
-        else:
-            resultado_extenso = f"🤝 Resultado: Empate entre as equipes ({pontos_a} XP cada)"
+        if p_a > p_b: desfecho = f"🥇 Vencedor: {nome_a} ({p_a} XP) | 🥈 Perdedor: {nome_b} ({p_b} XP)"
+        elif p_b > p_a: desfecho = f"🥇 Vencedor: {nome_b} ({p_b} XP) | 🥈 Perdedor: {nome_a} ({p_a} XP)"
+        else: desfecho = f"🤝 Resultado: Empate entre as equipes ({p_a} XP cada)"
 
-        # 5. Salva de forma permanente e persistente na tabela historico_batalhas
-        payload_historico = {
-            "batalha_id": batalha_id,
-            "titulo": titulo,
-            "time_a_nome": nome_a,
-            "time_b_nome": nome_b,
-            "pontos_time_a": pontos_a,
-            "points_time_b": pontos_b, # Compatibilidade relacional interna
-            "pontos_time_b": pontos_b,
-            "resultado_extenso": resultado_extenso
-        }
-        supabase.table("historico_batalhas").insert(payload_historico).execute()
+        # Insere registro permanente de histórico
+        supabase.table("historico_batalhas").insert({
+            "batalha_id": b_id, "titulo": b.get("titulo", "Arena"),
+            "time_a_nome": nome_a, "time_b_nome": nome_b,
+            "pontos_time_a": p_a, "pontos_time_b": p_b,
+            "resultado_extenso": desfecho
+        }).execute()
 
-        # 6. Atualiza o status da tabela ativa para finalizada
-        supabase.table("batalhas").update({"finalizada": True, "status": "finalizada"}).eq("id", batalha_id).execute()
+        supabase.table("batalhas").update({"finalizada": True, "status": "finalizada"}).eq("id", b_id).execute()
         return True
     except Exception as e:
-        print(f"❌ Erro crítico ao gravar histórico: {e}")
+        print(f"Erro ao salvar histórico: {e}")
         return False
 
 def deletar_batalha(batalha_id):
@@ -341,6 +206,5 @@ def deletar_batalha(batalha_id):
         supabase.table("batalha_respostas").delete().eq("batalha_id", batalha_id).execute()
         supabase.table("batalhas").delete().eq("id", batalha_id).execute()
         return True
-    except Exception as e:
-        print(f"❌ Erro ao deletar batalha: {e}")
+    except Exception:
         return False

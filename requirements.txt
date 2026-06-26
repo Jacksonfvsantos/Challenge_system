@@ -5,3 +5,4 @@ extra-streamlit-components
 pypdf
 python-docx
 google-generativeai
+qrcode
