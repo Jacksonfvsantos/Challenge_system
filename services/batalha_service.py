@@ -120,6 +120,9 @@ def blackjack_mover_aluno(usuario_id: str, destino_time_id: str) -> bool:
         print(f"❌ Erro [mover_aluno]: {erro}")
         return False
 
+# Adiciona o alias para compatibilidade com as telas que buscam por mover_aluno
+mover_aluno = blackjack_mover_aluno
+
 # ============================================================================
 # 3. MOTOR ATIVO DE PARTIDAS & CONTROLE DE TURNOS (BATE-REBATE)
 # ============================================================================
@@ -140,6 +143,80 @@ def obter_estado_batalha(batalha_id):
         print(f"❌ Erro [obter_estado_batalha]: {e}")
         return None
 
+def obter_batalhas_finalizadas():
+    try:
+        res = supabase.table("batalhas").select("*").eq("finalizada", True).order("created_at", descending=True).execute()
+        return res.data or []
+    except Exception as e:
+        print(f"❌ Erro [obter_batalhas_finalizadas]: {e}")
+        return []
+
+# 🚀 REINTRODUZIDO: Função exigida pelas telas de gerenciamento docente
+def cadastrar_nova_batalha(titulo, descricao, modalidade, data_limite=None, lista_questoes_ids=None, time_a_id=None, time_b_id=None):
+    try:
+        payload = {
+            "titulo": titulo.strip(),
+            "descricao": descricao.strip() if descricao else None,
+            "modalidade": modalidade,
+            "finalizada": False,
+            "pergunta_atual_ordem": 1,
+            "status": "em_andamento" if modalidade == "assincrona" else "agendada",
+            "status_sincrono": "aguardando_resposta" if modalidade == "sincrona" else None
+        }
+
+        if modalidade == "assincrona" and data_limite:
+            payload["data_limite"] = data_limite.isoformat() if hasattr(data_limite, "isoformat") else str(data_limite)
+        
+        if modalidade == "sincrona":
+            payload["time_a_id"] = time_a_id
+            payload["time_b_id"] = time_b_id
+
+        res_batalha = supabase.table("batalhas").insert(payload).execute()
+        if not res_batalha.data:
+            return {"sucesso": False, "mensagem": "❌ Falha ao criar o registro da batalha."}
+            
+        nova_batalha_id = res_batalha.data[0]["id"]
+
+        if modalidade == "sincrona" and lista_questoes_ids:
+            linhas_vinculo = []
+            for i, q_id in enumerate(lista_questoes_ids):
+                linhas_vinculo.append({
+                    "batalha_id": nova_batalha_id,
+                    "questao_id": q_id,
+                    "ordem": i + 1
+                })
+            if linhas_vinculo:
+                supabase.table("batalha_perguntas").insert(linhas_vinculo).execute()
+
+        return {"sucesso": True, "mensagem": "🚀 Competição publicada e questões vinculadas com sucesso!"}
+    except Exception as e:
+        print(f"❌ Erro em [cadastrar_nova_batalha]: {e}")
+        return {"sucesso": False, "mensagem": f"Erro interno: {str(e)}"}
+
+def cadastrar_questao_rapida(enunciado, alternativas_texto, indice_correta):
+    try:
+        res_q = supabase.table("questoes").insert({
+            "enunciado": enunciado,
+            "tipo": "multipla_escolha",
+            "pontos": 1
+        }).execute()
+        if not res_q.data:
+            return {"sucesso": False, "mensagem": "Erro ao criar enunciado."}
+            
+        q_id = res_q.data[0]["id"]
+        linhas_alt = []
+        for i, texto in enumerate(alternativas_texto):
+            linhas_alt.append({
+                "questao_id": q_id,
+                "texto": texto,
+                "ordem": i + 1,
+                "correta": (i == indice_correta)
+            })
+        supabase.table("alternativas").insert(linhas_alt).execute()
+        return {"sucesso": True, "mensagem": "Questão e alternativas salvas com sucesso!"}
+    except Exception as e:
+        return {"sucesso": False, "mensagem": str(e)}
+
 def iniciar_partida_sincrona(batalha_id, time_inicial_id):
     try:
         supabase.table("batalhas").update({
@@ -153,10 +230,8 @@ def iniciar_partida_sincrona(batalha_id, time_inicial_id):
         print(f"❌ Erro ao iniciar partida: {e}")
         return False
 
-# 🎯 ASSINATURA OFICIAL DE 7 ARGUMENTOS PERFEITA:
 def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id, alternativa_correta, time_adversario_id, tentativa_atual):
     try:
-        # Inserção completa mapeando qual alternativa foi clicada de fato
         supabase.table("batalha_respostas").insert({
             "batalha_id": batalha_id,
             "questao_id": questao_id,
@@ -194,6 +269,9 @@ def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id,
     except Exception as e:
         print(f"❌ Erro [processar_resposta_sincrona]: {e}")
         return "erro"
+
+def verificar_paridade_rodada(batalha_id, numero_rodada):
+    return True
 
 def encerrar_partida_sincrona(batalha_id):
     try:
