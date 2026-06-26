@@ -74,27 +74,27 @@ def salvar_resposta_aluno(quiz_id, pergunta_id, usuario_id, alternativa_id, corr
     except Exception:
         return False
 
-# 🔄 SENTINELA DE AUTOMAÇÃO DE FLUXO (RODA APENAS SE A PARTIDA ESTIVER ATIVA)
+# 🔄 SENTINELA DE AUTOMAÇÃO DE FLUXO (RODA EM SEGUNDO PLANO DE FORMA CONTROLADA)
 @st.fragment
 def executar_sincronia_automatica(quiz_id, etapa_atual, pergunta_atual_id):
-    """Monitora o banco a cada 2.5s. Se todos responderam ou se o professor mudou de tela, atualiza o app."""
+    """Monitora o banco a cada 2.5s. Redesenha o app se houver mudanças estruturais."""
     time.sleep(2.5)
     quiz_recente = buscar_dados_quiz(quiz_id)
     if not quiz_recente:
         return
 
-    # Se houve mudança de estado global, atualiza a tela de todos imediatamente
+    # Se o professor alterou o estado na outra ponta, força a atualização global da UI
     if (quiz_recente.get("etapa_rodada") != etapa_atual) or (quiz_recente.get("pergunta_atual_id") != pergunta_atual_id):
         st.rerun(scope="app")
 
-    # Regra Kahoot: Fecha a rodada se a pergunta estiver aberta e todos já tiverem votado
+    # Regra de fechamento automático Kahoot (Apenas se a rodada já tiver uma pergunta ativa)
     if etapa_atual == "pergunta" and pergunta_atual_id:
         respostas, participantes = contar_respostas_e_participantes(quiz_id, pergunta_atual_id)
         if respostas >= participantes and participantes > 0:
             supabase.table("quizzes").update({"etapa_rodada": "gabarito"}).eq("id", quiz_id).execute()
             st.rerun(scope="app")
         else:
-            # Atualiza o fragmento de forma suave para atualizar as barras de progresso
+            # Atualiza apenas o fragmento para renovar o visual das barras de progresso
             st.rerun()
 
 def tela_quiz_rodada():
@@ -128,7 +128,7 @@ def tela_quiz_rodada():
             st.rerun()
         return
 
-    # 🚪 SALA DE ESPERA (LIVRE DE LOOPS - ATUALIZAÇÃO RESTRITA)
+    # 🚪 SALA DE ESPERA (BLINDADA CONTRA LOOPS INFINITOS)
     if not p_atual_id:
         if tipo in ("professor", "admin"):
             st.subheader("👨‍🏫 Painel de Moderação")
@@ -140,16 +140,14 @@ def tela_quiz_rodada():
         else:
             st.subheader("⏳ Sala de Espera")
             st.info("Conectado com sucesso! Aguarde o professor dar início à partida.")
-            
-            # Para a sala de espera inicial do aluno, usamos um sleep simples para não interceptar cliques
-            time.sleep(2.0)
-            st.rerun()
+            # ✅ SOLUÇÃO: O aluno usa o fragmento seguro aqui também em vez de um st.rerun() solto
+            executar_sincronia_automatica(quiz_id, etapa, p_atual_id)
         return
 
     pergunta_ativa = next((p for p in perguntas if p["id"] == p_atual_id), perguntas[0])
     alternativas = buscar_alternativas(pergunta_ativa["id"])
 
-    # Ativa o sentinela inteligente apenas após o quiz ser iniciado
+    # Sentinela ativo durante a exibição das questões
     executar_sincronia_automatica(quiz_id, etapa, p_atual_id)
 
     st.subheader(f"Questão {pergunta_ativa['ordem']}: {pergunta_ativa.get('enunciado') or pergunta_ativa.get('texto')}")
