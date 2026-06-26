@@ -91,12 +91,12 @@ def tela_mini_provas_professor():
         
         # Carrega as provas do professor para vinculação da chave estrangeira
         try:
-            res_provas = supabase.table("mini_provas").select("id, titulo").eq("criado_by", usuario_id).execute()
+            # ✅ CORRIGIDO: Alterado de criado_by para criado_por casado com seu DDL original
+            res_provas = supabase.table("mini_provas").select("id, titulo").eq("criado_por", usuario_id).execute()
             lista_provas = res_provas.data or []
-        except Exception:
-            # Fallback geral caso a tabela use criado_por do seu DDL oficial
-            res_provas = supabase.table("mini_provas").select("id, titulo").eq("criado_by", usuario_id).execute()
-            lista_provas = res_provas.data or []
+        except Exception as e:
+            st.error(f"Erro ao carregar mini-provas: {e}")
+            lista_provas = []
             
         if not lista_provas:
             st.info("⚠️ Você precisa criar a definição de pelo menos uma Mini Prova na aba ao lado antes de subir arquivos.")
