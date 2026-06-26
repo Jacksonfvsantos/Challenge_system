@@ -27,7 +27,6 @@ def salvar_resposta_aluno(quiz_id, pergunta_id, usuario_id, alternativa_id, corr
     try:
         pontos = 1000.0 if correta else 0.0
         
-        # Vínculo dinâmico com a tabela intermediária 'participantes_quiz'
         id_participante_real = None
         try:
             res_part = supabase.table("participantes_quiz").select("id").eq("quiz_id", quiz_id).eq("usuario_id", usuario_id).execute()
@@ -63,15 +62,18 @@ def salvar_resposta_aluno(quiz_id, pergunta_id, usuario_id, alternativa_id, corr
     except Exception as e:
         return False
 
-# 🔄 COMPONENTE DE SINCRONIZAÇÃO NATIVA POR FRAGMENTO (CORRIGIDO)
+# 🔄 SENTINELA DE ATUALIZAÇÃO SÍNCRONA (ESCOPO GLOBAL DE APLICATIVO)
 @st.fragment
 def executar_sincronia_aluno(quiz_id, etapa_atual, pergunta_atual_id):
-    """Verifica alterações no banco a cada 2 segundos e força o recarregamento total da UI."""
+    """
+    Monitora o banco de dados em background a cada 2 segundos.
+    Se o professor mudar de questão ou liberar o gabarito, reconstrói o app inteiro.
+    """
     time.sleep(2.0)
     quiz_recente = buscar_dados_quiz(quiz_id)
     if quiz_recente:
         if (quiz_recente.get("etapa_rodada") != etapa_atual) or (quiz_recente.get("pergunta_atual_id") != pergunta_atual_id):
-            # scope="app" garante que a página inteira mude acompanhando as ações do professor
+            # scope="app" força o Streamlit a redesenhar a tela de ponta a ponta
             st.rerun(scope="app")
 
 def tela_quiz_rodada():
@@ -92,6 +94,15 @@ def tela_quiz_rodada():
         st.error("Erro ao carregar dados da sala.")
         return
 
+    # 🚀 CONFIGURAÇÃO E EXTRAÇÃO DE ESTADOS DA RODADA
+    p_atual_id = quiz.get("pergunta_atual_id")
+    etapa = quiz.get("etapa_rodada", "pergunta")
+
+    # 🔥 CENTRAL DE SINCRONIZAÇÃO: Executa no topo da UI se o usuário for um aluno
+    # Captura mudanças mesmo se estiver na sala de espera ou trocando de pergunta
+    if tipo == "aluno":
+        executar_sincronia_aluno(quiz_id, etapa, p_atual_id)
+
     st.title(f"🎮 {quiz.get('titulo')}")
     perguntas = buscar_perguntas_do_quiz(quiz_id)
     
@@ -102,10 +113,7 @@ def tela_quiz_rodada():
             st.rerun()
         return
 
-    p_atual_id = quiz.get("pergunta_atual_id")
-    etapa = quiz.get("etapa_rodada", "pergunta")
-
-    # Sala de Espera
+    # 🚪 SALA DE ESPERA (Antes de disparar a primeira pergunta)
     if not p_atual_id:
         if tipo in ("professor", "admin"):
             st.subheader("👨‍🏫 Painel de Moderação")
@@ -117,9 +125,9 @@ def tela_quiz_rodada():
         else:
             st.subheader("⏳ Aguardando o Professor...")
             st.info("Prepare sua mente! O professor iniciará a primeira rodada a qualquer momento.")
-            executar_sincronia_aluno(quiz_id, etapa, p_atual_id)
         return
 
+    # Mapeamento dinâmico da questão ativa baseada no painel de moderação
     pergunta_ativa = next((p for p in perguntas if p["id"] == p_atual_id), perguntas[0])
     alternativas = buscar_alternativas(pergunta_ativa["id"])
     tempo_limite = int(pergunta_ativa.get("tempo_limite_segundos", 30))
@@ -176,7 +184,6 @@ def tela_quiz_rodada():
             if ja_respondeu:
                 st.markdown("### 📥 Resposta Registrada com Sucesso!")
                 st.info("Sua escolha foi guardada. Aguarde o professor encerrar o tempo para visualizar o gabarito oficial.")
-                executar_sincronia_aluno(quiz_id, etapa, p_atual_id)
             else:
                 st.caption(f"⏱️ Tempo sugerido: {tempo_limite}s. Selecione a opção correta:")
                 
@@ -194,7 +201,7 @@ def tela_quiz_rodada():
             st.markdown("---")
             
             alt_correta = next((a for a in alternativas if a["correta"]), None)
-            texto_correto = alt_correta["texto"] if alt_correta else "Não definida"
+            text_correto = alt_correta["texto"] if alt_correta else "Não definida"
 
             try:
                 resp = supabase.table("respostas_quiz").select("alternativa_id, correta").eq("pergunta_id", pergunta_ativa["id"]).eq("usuario_id", user_id).execute()
@@ -204,17 +211,14 @@ def tela_quiz_rodada():
                     id_marcado = resp.data[0]["alternativa_id"]
                     
                     alt_marcada = next((a for a in alternativas if a["id"] == id_marcado), None)
-                    texto_marcado = alt_marcada["texto"] if alt_marcada else "Desconhecida"
+                    text_marcado = alt_marcada["texto"] if alt_marcada else "Desconhecida"
 
                     if aluno_acertou:
-                        st.success(f"🎉 **Você ACERTOU!**\n\n**Sua Resposta:** {texto_marcado}")
+                        st.success(f"🎉 **Você ACERTOU!**\n\n**Sua Resposta:** {text_marcado}")
                     else:
-                        st.error(f"😞 **Você ERROU!**\n\n**Você marcou:** {texto_marcado}\n\n**Gabarito Correto:** {texto_correto}")
+                        st.error(f"😞 **Você ERROU!**\n\n**Você marcou:** {text_marcado}\n\n**Gabarito Correto:** {text_correto}")
                 else:
-                    st.warning(f"⏱️ **O tempo acabou!** Você não enviou nenhuma resposta para esta questão.\n\n**Gabarito Correto:** {texto_correto}")
+                    st.warning(f"⏱️ **O tempo acabou!** Você não enviou nenhuma resposta para esta questão.\n\n**Gabarito Correto:** {text_correto}")
             
             except Exception:
-                st.info(f"O tempo expirou! **Gabarito oficial:** {texto_correto}")
-                
-            # Mantém verificando se o professor avança a questão
-            executar_sincronia_aluno(quiz_id, etapa, p_atual_id)
+                st.info(f"O tempo expirou! **Gabarito oficial:** {text_correto}")
