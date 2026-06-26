@@ -45,7 +45,6 @@ def parsing_questoes_regex(texto):
     Identifica padrões flexíveis de numeração e busca o gabarito no próprio texto.
     """
     # Expressão regular flexível: detecta números de 1 a 99 seguidos de ponto, traço ou parêntese
-    # Remove a obrigatoriedade da quebra de linha física (\n) na captura inicial
     padrao_questao = r'(?:Questão\s+)?(\d+)[\s\.\-\)]+'
     
     # Encontra todas as posições onde começam as questões no documento
@@ -54,7 +53,6 @@ def parsing_questoes_regex(texto):
 
     for i, match in enumerate(matches):
         inicio_bloco = match.start()
-        # O fim do bloco da questão atual é o início da próxima questão (ou o fim do texto completo)
         fim_bloco = matches[i + 1].start() if i + 1 < len(matches) else len(texto)
         
         bloco_completo = texto[inicio_bloco:fim_bloco].strip()
@@ -67,13 +65,13 @@ def parsing_questoes_regex(texto):
         alternativas = {}
         gabarito_detectado = "A"  # Fallback padrão seguro
 
-        for linha in lines:
+        # ✅ CORRIGIDO: alterado de 'lines' para 'linhas' para casar com a variável acima
+        for linha in linhas:
             linha_str = linha.strip()
             if not linha_str:
                 continue
 
             # Identifica alternativas como: A) texto, B - texto, *C) correto, D. texto
-            # Captura opcionalmente marcadores de gabarito comuns como asteriscos ou colchetes [X]
             match_alt = re.search(r'(?:\*|\[X\]|\(X\))?\s*([A-Ea-e])[\s\.\-\)]+(.*)', linha_str)
             
             if match_alt:
@@ -90,14 +88,13 @@ def parsing_questoes_regex(texto):
                 if match_gab_final:
                     gabarito_detectado = match_gab_final.group(1).upper()
                 elif not alternativas:
-                    # Se ainda não começaram as alternativas, a linha faz parte do enunciado
                     enunciado_linhas.append(linha_str)
 
         enunciado_completo = " ".join(enunciado_linhas).strip()
         # Limpa o numeral da questão do início do enunciado
         enunciado_completo = re.sub(r'^(?:Questão\s+)?\d+[\s\.\-\)]*', '', enunciado_completo).strip()
 
-        # Só adiciona se possuir conteúdo consistente (Evita capturar cabeçalhos ou notas de rodapé)
+        # Só adiciona se possuir conteúdo consistente
         if enunciado_completo and len(alternativas) >= 2:
             questoes_mapeadas.append({
                 "enunciado": enunciado_completo,
