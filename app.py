@@ -1,171 +1,204 @@
 import streamlit as st
-from utils.session import iniciar_session
-from extra_streamlit_components import CookieManager
+import time
+import datetime
+import extra_streamlit_components as stx
 
-# 1. Inicializa o estado global da sessão do ecossistema
+from utils.session import iniciar_session
+from components.navbar import mostrar_menu
+
+# Imports de Telas Base Universais
+from telas.login import tela_login
+from telas.cadastro import tela_cadastro
+from telas.home import tela_home
+from telas.votacao import tela_votacao
+from telas.regras import tela_central_regras
+from telas.pontuacoes import tela_pontuacoes
+
+# ----------------------------------------------------------------------------
+# COMPONENTES ISOLADOS: IMPORTAÇÕES COM BLINDAGEM DE FALLBACK (TRY/EXCEPT)
+# ----------------------------------------------------------------------------
+
+try:
+    from telas.desafios import tela_desafios
+except ImportError:
+    def tela_desafios(): st.warning("Tela de desafios em desenvolvimento.")
+
+try:
+    from telas.quiz_ao_vivo import tela_quiz_ao_vivo
+except ImportError:
+    def tela_quiz_ao_vivo(): st.warning("Tela de quiz ao vivo em desenvolvimento.")
+
+try:
+    from telas.recompensas import tela_recompensas
+except ImportError:
+    def tela_recompensas(): st.warning("Módulo de recompensas indisponível.")
+
+# Sub-módulos: Mini Provas (Mapeado estritamente para o arquivo mini_provas.py real)
+try:
+    from telas.mini_provas import tela_mini_provas
+except ImportError:
+    def tela_mini_provas(): st.warning("Módulo de mini provas indisponível.")
+
+# Fallbacks de páginas síncronas/assíncronas do ecossistema de testes
+def tela_mini_provas_professor(): pass
+def tela_cadastro_perguntas(): pass
+def tela_lista_perguntas(): pass
+
+# Sub-módulos: Arena de Batalha de Equipes (Bate-Rebate Síncrono)
+try:
+    from telas.batalha_de_equipes.batalha_de_equipes import tela_batalha_de_equipes
+    from telas.batalha_de_equipes.times              import tela_batalha_times
+    from telas.batalha_de_equipes.integrantes         import tela_batalha_integrantes
+    from telas.batalha_de_equipes.gerenciar_batalhas import tela_batalha_gerenciar
+    from telas.batalha_de_equipes.rodada              import tela_batalha_rodada
+except ImportError as e:
+    mensagem_fixa = str(e)
+    def tela_batalha_de_equipes(err=mensagem_fixa): 
+        st.error(f"❌ Erro interno de importação: {err}")
+        st.info("💡 Dica: Verifique se algum arquivo dentro de 'telas/batalha_de_equipes/' ainda está importando o antigo 'batalha_de_equipes_service'.")
+        
+    def tela_batalha_times(): pass
+    def tela_batalha_integrantes(): pass
+    def tela_batalha_gerenciar(): pass
+    def tela_batalha_rodada(): pass
+
+# ----------------------------------------------------------------------------
+# CONFIGURAÇÃO DE AMBIENTE E INICIALIZAÇÃO
+# ----------------------------------------------------------------------------
+
+st.set_page_config(
+    page_title="Challenge System",
+    layout="centered"
+)
+
+# Inicializa as variáveis padrões do st.session_state
 iniciar_session()
 
-# 2. INSTANCIA O GERENCIADOR DE COOKIES DE FORMA DIRETA (SEM CACHE)
-# Corrigido o CachedWidgetWarning: O CookieManager precisa rodar livremente a cada rerun
-cookie_manager = CookieManager()
-minutos_validade = 1440  # Tempo de retenção da sessão (24 horas)
+# ----------------------------------------------------------------------------
+# MECANISMO DE PERSISTÊNCIA DE SESSÃO (PROTEÇÃO CONTRA F5)
+# ----------------------------------------------------------------------------
 
-# ============================================================================
-# 🚀 ROTEADOR CENTRAL VIA QUERY STRING (QR CODE / LINKS COMPARTILHÁVEIS)
-# ============================================================================
+def obter_gerenciador_cookies():
+    """Instancia o gerenciador de cookies diretamente sem travar o cache do Streamlit."""
+    return stx.CookieManager()
+
+cookie_manager = obter_gerenciador_cookies()
+
+# Mantém o delay necessário para sincronia com o navegador do cliente
+time.sleep(0.1)
+
+# Definição do tempo limite de expiração da sessão ativa
+MINUTOS_SESSAO_ATIVA = 30
+
+# Se o session_state esvaziou pelo F5, tenta resgatar o usuário via cookie ativo
+if not st.session_state.get("usuario_logado"):
+    cookie_usuario = cookie_manager.get(cookie="user_session_token")
+    if cookie_usuario and isinstance(cookie_usuario, dict):
+        st.session_state.usuario_logado = cookie_usuario
+        if "pagina" not in st.session_state:
+            st.session_state.pagina = "home"
+        st.rerun()
+
+# ----------------------------------------------------------------------------
+# 🚀 NOVO: ROTEADOR INTELIGENTE VIA QUERY STRING (QR CODE / LINKS DIRETOS)
+# ----------------------------------------------------------------------------
 query_params = st.query_params
 
 if "sala" in query_params and "id" in query_params:
     tipo_sala = str(query_params["sala"]).strip().lower()
     sala_id = str(query_params["id"]).strip()
     
-    # 🔒 Se o utilizador NÃO estiver autenticado, retém o destino para o pós-login
+    # Se o usuário não está logado, guarda a rota em cache de sessão para o pós-login
     if st.session_state.get("usuario_logado") is None:
-        st.session_state["redirecionamento_pendente"] = {
-            "sala": tipo_sala,
-            "id": sala_id
-        }
+        st.session_state["redirecionamento_pendente"] = {"sala": tipo_sala, "id": sala_id}
     else:
-        # 🟢 Se já estiver logado, faz o desvio imediato para a atividade correta
+        # Usuário logado: Redireciona na hora para a tela correta da atividade
         if tipo_sala == "batalha":
             st.session_state.batalha_ativa_id = sala_id
             st.session_state.pagina = "batalha_rodada"
-            
         elif tipo_sala == "quiz":
             st.session_state.quiz_ativo_id = sala_id
-            st.session_state.pagina = "quiz_rodada"
-            
+            st.session_state.pagina = "quiz_ao_vivo" # Direciona para a lista reativa de Ingressar
         elif tipo_sala == "prova":
             st.session_state.prova_ativa_id = sala_id
-            st.session_state.pagina = "prova_responder"
+            st.session_state.pagina = "mini_provas" # Alinhado com o arquivo real telas/mini_provas.py
             
-        # Limpa os parâmetros da URL para permitir navegação livre ao usuário
+        # Limpa os parâmetros da barra de endereços para liberar navegação livre
         st.query_params.clear()
 
-# ============================================================================
-# 🗂️ BARRA LATERAL COM SEPARAÇÃO ESTRITA DE PRIVILÉGIOS (PROFESSOR VS ALUNO)
-# ============================================================================
-usuario_atual = st.session_state.get("usuario_logado")
-pagina_atual = st.session_state.pagina
+# ----------------------------------------------------------------------------
+# CONTROLE DE FLUXO DE AUTENTICAÇÃO
+# ----------------------------------------------------------------------------
 
-if usuario_atual:
-    # Padroniza a string do tipo de usuário para evitar erros de caixa (Maiúscula/Minúscula)
-    tipo_usuario = str(usuario_atual.get("tipo_usuario", "aluno")).lower().strip()
+if not st.session_state.get("usuario_logado"):
+    pagina_auth = st.session_state.get("pagina", "login")
+    if pagina_auth == "cadastro":
+        tela_cadastro()
+    else:
+        tela_login(cookie_manager, MINUTOS_SESSAO_ATIVA)
+    st.stop()
 
-    with st.sidebar:
-        # Cabeçalho de Identificação do Perfil
-        st.markdown(f"### 👤 {usuario_atual.get('nome', 'Usuário')}")
-        st.caption(f"Painel do {tipo_usuario.capitalize()}")
-        st.divider()
-        
-        # 🏢 SEÇÃO 1: ESPAÇO COMUM (Visível para Todos)
-        st.markdown("### 🏢 Navegação Principal")
-        if st.button("🏠 Início / Novidades", use_container_width=True):
-            st.session_state.pagina = "dashboard"
-            st.rerun()
-            
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        # ⚙️ SEÇÃO 2: GOVERNANÇA E GESTÃO (Exclusivo para Professor / Admin)
-        if tipo_usuario in ("professor", "admin"):
-            st.markdown("### 🛠️ Gestão Acadêmica")
-            
-            if st.button("⚙️ Gerenciar Batalhas", use_container_width=True):
-                st.session_state.pagina = "batalha_gerenciar"
-                st.rerun()
-                
-            if st.button("👥 Gerenciar Equipes", use_container_width=True):
-                st.session_state.pagina = "batalha_times"
-                st.rerun()
-                
-            if st.button("👨‍🎓 Alunos & Integrantes", use_container_width=True):
-                st.session_state.pagina = "batalha_integrantes"
-                st.rerun()
-                
-            st.markdown("<br>", unsafe_allow_html=True)
+# ----------------------------------------------------------------------------
+# BARRA DE NAVEGAÇÃO LATERAL (Mantendo a Navbar funcional original externa)
+# ----------------------------------------------------------------------------
 
-        # ⚡ SEÇÃO 3: ARENA DE ATIVIDADES (Visível para Todos)
-        st.markdown("### ⚔️ Arena Challenge")
-        if st.button("⚔️ Batalha de Equipes", use_container_width=True):
-            st.session_state.pagina = "batalha_de_equipes"
-            st.rerun()
-            
-        if st.button("🎮 Quiz ao Vivo", use_container_width=True):
-            st.session_state.pagina = "quiz_ao_vivo"
-            st.rerun()
-            
-        if st.button("📝 Mini Provas Práticas", use_container_width=True):
-            st.session_state.pagina = "mini_provas"
-            st.rerun()
-            
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        # 🏆 SEÇÃO 4: CRITÉRIOS E SCORE (Visível para Todos)
-        st.markdown("### 📈 Desempenho e Regras")
-        if st.button("🏅 Central de Pontuações", use_container_width=True):
-            st.session_state.pagina = "ranking"
-            st.rerun()
-            
-        if st.button("📖 Regras e Fair Play", use_container_width=True):
-            st.session_state.pagina = "regras"
-            st.rerun()
-            
-        # Sistema de Logout Seguro
-        st.divider()
-        if st.button("🚪 Encerrar Sessão (Sair)", type="primary", use_container_width=True):
-            st.session_state.usuario_logado = None
-            st.session_state.pagina = "login"
-            st.rerun()
-# ============================================================================
-# 🗺️ ÁRVORE DE NAVEGAÇÃO / RENDERIZAÇÃO DE TELAS (ESTADOS)
-# ============================================================================
-# Fluxo de Autenticação
-if pagina_atual == "login":
-    from telas.login import tela_login
-    tela_login(cookie_manager=cookie_manager, minutos_validade=minutos_validade)
+mostrar_menu(cookie_manager)
 
-elif pagina_atual == "cadastro":
-    from telas.cadastro import tela_cadastro
-    tela_cadastro()
+# ----------------------------------------------------------------------------
+# ROTEADOR DINÂMICO DE TELAS (STATE ROUTER)
+# ----------------------------------------------------------------------------
 
-# Dashboard Principal / Home (Corrigido o ModuleNotFoundError apontando para home.py)
-elif pagina_atual == "dashboard":
-    from telas.home import tela_home
+pagina       = st.session_state.get("pagina", "home")
+usuario      = st.session_state.get("usuario_logado", {})
+tipo_usuario = str(usuario.get("tipo_usuario", "aluno")).lower()
+
+if pagina == "home":
     tela_home()
 
-# Ecossistema: Batalha de Equipes
-elif pagina_atual == "batalha_de_equipes":
-    from telas.batalha_de_equipes.batalha_de_equipes import tela_batalha_de_equipes
-    tela_batalha_de_equipes()
+elif pagina == "desafios":
+    tela_desafios()
 
-elif pagina_atual == "batalha_gerenciar":
-    from telas.batalha_de_equipes.gerenciar_batalhas import tela_batalha_gerenciar
-    tela_batalha_gerenciar()
+elif pagina == "votacao":
+    tela_votacao()
 
-elif pagina_atual == "batalha_rodada":
-    from telas.batalha_de_equipes.rodada import tela_batalha_rodada
-    tela_batalha_rodada()
-
-# Ecossistema: Quiz Ao Vivo (Síncrono)
-elif pagina_atual == "quiz_ao_vivo":
-    from telas.quiz_ao_vivo import tela_quiz_ao_vivo
-    tela_quiz_ao_vivo()
-
-# Ecossistema: Mini Provas Práticas (Assíncronas)
-elif pagina_atual == "mini_provas":
-    from telas.mini_provas import tela_mini_provas
-    tela_mini_provas()
-
-# Recursos Globais e Tabelas Auxiliares
-elif pagina_atual == "ranking":
-    from telas.pontuacoes import tela_pontuacoes
+elif pagina == "pontuacoes":
     tela_pontuacoes()
 
-elif pagina_atual == "regras":
-    from telas.regras import tela_central_regras
+elif pagina == "regras_plataforma":
     tela_central_regras()
 
-# Fallback de segurança para estados indefinidos
+elif pagina == "quiz_ao_vivo":
+    tela_quiz_ao_vivo()
+
+elif pagina == "recompensas":
+    tela_recompensas()
+
+# Rotas do Módulo de Mini-Provas (Mapeamento unificado do arquivo telas/mini_provas.py real)
+elif pagina == "mini_provas":
+    tela_mini_provas()
+
+elif pagina == "cadastro_perguntas":
+    tela_cadastro_perguntas()
+
+elif pagina == "lista_perguntas":
+    tela_lista_perguntas()
+
+# Rotas do Módulo de Batalhas de Equipe
+elif pagina == "batalha_de_equipes":
+    tela_batalha_de_equipes()
+
+elif pagina == "batalha_times":
+    tela_batalha_times()
+
+elif pagina == "batalha_integrantes":
+    tela_batalha_integrantes()
+
+elif pagina == "batalha_gerenciar":
+    tela_batalha_gerenciar()
+
+elif pagina == "batalha_rodada":
+    tela_batalha_rodada()
+
 else:
-    st.session_state.pagina = "login"
+    st.session_state.pagina = "home"
     st.rerun()
