@@ -26,8 +26,6 @@ def obter_pergunta_atual(batalha_id, ordem_pergunta):
             return None
             
         dados_questao = questao.data[0]
-        
-        # ✅ CORRIGIDO: Vinculado corretamente à variável 'alternativas' eliminando o retorno nulo fantasma
         alternativas = supabase.table("alternativas").select("*").eq("questao_id", q_id).order("ordem").execute()
         lista_alt_data = alternativas.data or []
         
@@ -156,7 +154,7 @@ def tela_batalha_rodada():
 
     batalha_id = st.session_state.batalha_ativa_id
     batalha = obter_estado_batalha(batalha_id)
-    if not batalha:
+    if not riddle := batalha:
         st.warning("Batalha não localizada.")
         return
 
@@ -170,16 +168,27 @@ def tela_batalha_rodada():
 
     painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, nome_time_b, dados_pergunta, pergunta_ordem, status_sincrono)
 
-    # ✅ CORRIGIDO: Validação blindada. Só encerra se o banco estiver marcado ou se realmente não houver mais perguntas cadastradas para a rodada
+    # 🏁 BLINDAGEM DO FIM DO JOGO: Injetando botão de retorno direto no fim do fluxo síncrono
     if batalha.get("finalizada") is True or str(batalha.get("status")).lower() == "finalizada":
         st.success("🏁 **A batalha foi encerrada oficialmente!**")
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("⬅️ Voltar para a Arena de Equipes", use_container_width=True, key="btn_batalha_fim_direto"):
+            if "batalha_ativa_id" in st.session_state:
+                del st.session_state["batalha_ativa_id"]
+            st.session_state.pagina = "batalha_de_equipes"
+            st.rerun()
         return
 
     if not dados_pergunta:
-        # Se não trouxe dados mas o banco não está finalizado, significa que as perguntas cadastradas acabaram
         if not batalha.get("finalizada"):
             encerrar_partida_sincrona(batalha_id)
         st.success("🏁 **Todas as perguntas foram respondidas! Fim do jogo.**")
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("⬅️ Voltar para a Arena de Equipes", use_container_width=True, key="btn_batalha_fim_dados"):
+            if "batalha_ativa_id" in st.session_state:
+                del st.session_state["batalha_ativa_id"]
+            st.session_state.pagina = "batalha_de_equipes"
+            st.rerun()
         return
 
     if tipo_usuario in ("professor", "admin") and str(batalha.get("status")).lower() == "agendada":
@@ -251,3 +260,11 @@ def tela_batalha_rodada():
                 )
                 time.sleep(0.4)
                 st.rerun()
+
+    # Botão de escape padrão para partidas em andamento
+    st.markdown("<br><hr style='border-color: #334155;'>", unsafe_allow_html=True)
+    if st.button("🚪 Sair da Sala / Voltar para a Arena", use_container_width=True, type="secondary", key="btn_sair_sala_emergencia"):
+        if "batalha_ativa_id" in st.session_state:
+            del st.session_state["batalha_ativa_id"]
+        st.session_state.pagina = "batalha_de_equipes"
+        st.rerun()
