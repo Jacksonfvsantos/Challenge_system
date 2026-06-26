@@ -4,7 +4,7 @@ from services.mini_prova_service import criar_mini_prova
 from utils.estilo import aplicar_estilo, cabecalho
 import io
 
-# Bibliotecas para extração de texto
+# 🛡️ Blindagem de pacotes externos (Evita o ImportError no app.py se não estiver instalado na nuvem)
 try:
     from pypdf import PdfReader
 except ImportError:
@@ -19,11 +19,17 @@ def extrair_texto_arquivo(arquivo_subido, extensao):
     """Extrai o texto bruto do PDF ou Word submetido."""
     texto_bruto = ""
     try:
-        if extensao == "pdf" and PdfReader:
+        if extensao == "pdf":
+            if PdfReader is None:
+                st.error("❌ Erro: O pacote 'pypdf' não está instalado no servidor. Adicione 'pypdf' ao seu requirements.txt.")
+                return ""
             leitor = PdfReader(io.BytesIO(arquivo_subido.read()))
             for pagina in leitor.pages:
                 texto_bruto += pagina.extract_text() + "\n"
-        elif extensao == "docx" and Document:
+        elif extensao == "docx":
+            if Document is None:
+                st.error("❌ Erro: O pacote 'python-docx' não está instalado no servidor. Adicione 'python-docx' ao seu requirements.txt.")
+                return ""
             doc = Document(io.BytesIO(arquivo_subido.read()))
             for paragrafo in doc.paragraphs:
                 texto_bruto += paragrafo.text + "\n"
