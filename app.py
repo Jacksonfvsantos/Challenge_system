@@ -45,6 +45,11 @@ try:
 except ImportError:
     def tela_pontuacao_mini_provas(): st.warning("Tela de pontuação específica de mini provas em desenvolvimento.")
 
+try:
+    from telas.mini_provas.desempenho_mini_provas import tela_desempenho_mini_provas
+except ImportError:
+    def tela_desempenho_mini_provas(): st.warning("Tela de desempenho de mini provas em desenvolvimento.")
+
 # Imports dinâmicos das sub-telas das mini provas para evitar reset no State Router
 try:
     from telas.mini_provas.realizar_mini_prova import tela_realizar_mini_prova
@@ -203,7 +208,7 @@ elif pagina == "recompensas":
 # 🎯 Rotas do Módulo de Mini-Provas (Mapeamento Unificado e Seguro)
 elif pagina == "mini_provas":
     tela_mini_provas()
-    
+
 elif pagina == "pontuacao_mini_provas":
     tela_pontuacao_mini_provas()
 
@@ -224,6 +229,9 @@ elif pagina == "cadastro_perguntas":
 
 elif pagina == "lista_perguntas":
     tela_lista_perguntas()
+
+elif pagina == "desempenho_mini_provas":
+    tela_desempenho_mini_provas()
 
 # Rotas do Módulo de Batalhas de Equipe
 elif pagina == "batalha_de_equipes":
