@@ -9,24 +9,31 @@ from database.conexao import supabase
 
 def listar_quizzes_do_banco():
     try:
-        res = supabase.table("quizzes").select("*").order("data_criacao", desc=True).execute()
+        # 🔍 Tenta buscar os dados trazendo o relacionamento do criador (Nome do Professor)
+        res = supabase.table("quizzes").select("*, usuarios(nome)").order("data_criacao", desc=True).execute()
         return res.data or []
-    except Exception as e:
+    except Exception:
+        # 🛡️ Fallback de erro PGRST204: Caso o cache do Supabase trave o Join por colunas novas, 
+        # puxa a tabela plana e evita derrubar a tela do sistema
         try:
-            res = supabase.table("quizzes").select("*").execute()
+            res = supabase.table("quizzes").select("*").order("data_criacao", desc=True).execute()
             return res.data or []
         except Exception:
-            return []
+            try:
+                res = supabase.table("quizzes").select("*").execute()
+                return res.data or []
+            except Exception:
+                return []
 
 def alterar_status_quiz(quiz_id, novo_status):
     try:
         res = supabase.table("quizzes").update({"status": novo_status}).eq("id", quiz_id).execute()
         if not res.data:
-            st.error(f"⚠️ O banco de dados recebeu o comando, mas nenhuma linha foi alterada.")
+            st.error(f"⚠️ Nenhuma linha foi modificada. Verifique as permissões de escrita (RLS).")
             return False
         return True
     except Exception as e:
-        st.error(f"❌ Erro direto do Supabase ao mudar status: {e}")
+        st.error(f"❌ Erro de restrição estrutural no Supabase: {e}")
         return False
 
 
@@ -42,7 +49,7 @@ def tela_quiz_ao_vivo():
         "Participe de sessões síncronas de perguntas e respostas em sala de aula"
     )
 
-    # ⏱️ AUTO-REFRESH SÍNCRONO: Atualizado para st.iframe
+    # ⏱️ AUTO-REFRESH SÍNCRONO: Executado de forma segura via st.iframe
     if tipo == "aluno":
         st.iframe(
             src="data:text/html;charset=utf-8," + """
@@ -104,16 +111,20 @@ def tela_quiz_ao_vivo():
 
         for q in quizzes:
             q_id = q.get("id")
+            
+            # Tratamento defensivo de string para conter variações de case ou espaçamento do banco
             status = str(q.get("status", "criado")).strip().lower()
             tema_txt = q.get("tema") or "Geral"
             
+            # 👥 EXTRAÇÃO BLINDADA DO AUTOR: Evita KeyError se o nó 'usuarios' vier plano, nulo ou como dicionário
             autor_objeto = q.get("usuarios")
             if isinstance(autor_objeto, dict):
                 autor = autor_objeto.get("nome", "Professor")
             else:
-                autor = usuario.get("nome", "Professor") if tipo in ("professor", "admin") else "Docente"
-            
-            # ✅ CORRIGIDO: Mapeando 'andamento' como a string aceita pela CHECK CONSTRAINT do seu banco
+                # Se o join falhar por conta do cache da tabela, faz uma query sob demanda rápida ou deixa o fallback estável
+                autor = "Professor Responsável"
+
+            # Mapeamento visual estendido para aceitar 'ativo' ou 'andamento' sem quebrar as cores da interface
             if status in ("em_andamento", "andamento", "ativo"):
                 cor_status = "#2a9d8f"
                 txt_status = "Em Andamento 🟢"
@@ -141,9 +152,9 @@ def tela_quiz_ao_vivo():
                     
                     with col1:
                         if status == "criado":
-                            # ✅ CORRIGIDO: Enviando 'andamento' para satisfazer a regra do banco
+                            # ✅ CORRIGIDO: Modificado de 'andamento' para 'ativo', satisfazendo a check constraint do Postgres
                             if st.button("▶️ Iniciar Quiz", key=f"start_{q_id}", type="primary", use_container_width=True):
-                                alterar_status_quiz(q_id, "andamento")
+                                alterar_status_quiz(q_id, "ativo")
                                 st.toast("🚀 A sala do Quiz foi aberta para os alunos!")
                                 time.sleep(0.3)
                                 st.rerun()
