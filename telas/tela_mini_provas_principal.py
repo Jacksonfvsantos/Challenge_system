@@ -39,16 +39,20 @@ def tela_mini_provas():
             st.rerun()
         st.divider()
 
-    # 🎛️ Botões Superiores de Navegação (Visão Geral)
+    # 🎛️ Botões Superiores de Navegação (Visão Geral - Adaptada por Perfil)
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        if st.button("🏅 Minha Pontuação", use_container_width=True):
-            st.session_state.pagina = "pontuacao_mini_provas"
+        # ✅ ALTERADO: Se for professor, o botão vira "Ranking de Pontuação" e aponta para a página geral de scores
+        texto_botao_pontos = "🏅 Ranking de Pontuação" if tipo_usuario == "professor" else "🏅 Minha Pontuação"
+        if st.button(texto_botao_pontos, use_container_width=True):
+            st.session_state.pagina = "pontuacoes" if tipo_usuario == "professor" else "pontuacao_mini_provas"
             st.rerun()
 
     with col2:
-        if st.button("📊 Meu Desempenho", use_container_width=True):
+        # ✅ ALTERADO: Se for professor, muda de "Meu Desempenho" para "Desempenho dos Alunos"
+        texto_botao_desempenho = "📊 Desempenho dos Alunos" if tipo_usuario == "professor" else "📊 Meu Desempenho"
+        if st.button(texto_botao_desempenho, use_container_width=True):
             st.session_state.pagina = "desempenho_mini_provas"
             st.rerun()
 
@@ -72,7 +76,6 @@ def tela_mini_provas():
     # 🔍 SEÇÃO CONDICIONAL DE FILTROS E HISTÓRICO (ALUNO vs PROFESSOR)
     # ============================================================================
     if tipo_usuario == "aluno":
-        # Aluno vê campo de busca individual e seu próprio histórico
         pesquisa = st.text_input("🔍 Pesquisar mini prova por título:")
         if pesquisa:
             provas_ativas = [p for p in provas_ativas if pesquisa.lower() in str(p.get("titulo", "")).lower()]
@@ -85,14 +88,12 @@ def tela_mini_provas():
                 st.session_state.pagina = "resultados_mini_provas"
                 st.rerun()
     else:
-        # ✅ PROFESSOR: Removida a barra de pesquisa individual e o botão antigo.
-        # Agora exibe o cabeçalho limpo e o botão focado no histórico geral/global.
+        # PROFESSOR: Cabeçalho limpo e redirecionamento unificado para o Dashboard de Gestão
         col_esq, col_dir = st.columns(2)
         with col_esq:
             st.markdown("### 📋 Provas Ativas")
         with col_dir:
             if st.button("📜 Ver Histórico Geral de Provas Encerradas", use_container_width=True):
-                # Direciona para a tela de desempenho onde ele audita todas as notas por prova
                 st.session_state.pagina = "desempenho_mini_provas"
                 st.rerun()
 
