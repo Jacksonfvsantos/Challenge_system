@@ -154,7 +154,9 @@ def tela_batalha_rodada():
 
     batalha_id = st.session_state.batalha_ativa_id
     batalha = obter_estado_batalha(batalha_id)
-    if not riddle := batalha:
+    
+    # ✅ CORRIGIDO (Item 2): Removido o walrus que causava o SyntaxError/Pylance Expected ":"
+    if not batalha:
         st.warning("Batalha não localizada.")
         return
 
@@ -168,9 +170,18 @@ def tela_batalha_rodada():
 
     painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, nome_time_b, dados_pergunta, pergunta_ordem, status_sincrono)
 
-    # 🏁 BLINDAGEM DO FIM DO JOGO: Injetando botão de retorno direto no fim do fluxo síncrono
     if batalha.get("finalizada") is True or str(batalha.get("status")).lower() == "finalizada":
         st.success("🏁 **A batalha foi encerrada oficialmente!**")
+        
+        pontos_a, pontos_b = calcular_placar_atual(batalha_id, time_a_id, time_b_id)
+        st.markdown("### 🏆 Resultado de Encerramento")
+        if pontos_a > pontos_b:
+            st.info(f"🥇 **Vencedor:** {nome_time_a} ({pontos_a} XP) | 🥈 **Perdedor:** {nome_time_b} ({pontos_b} XP)")
+        elif pontos_b > pontos_a:
+            st.info(f"🥇 **Vencedor:** {nome_time_b} ({pontos_b} XP) | 🥈 **Perdedor:** {nome_time_a} ({pontos_a} XP)")
+        else:
+            st.warning(f"🤝 **Resultado:** Empate entre as equipes ({pontos_a} XP cada)")
+            
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("⬅️ Voltar para a Arena de Equipes", use_container_width=True, key="btn_batalha_fim_direto"):
             if "batalha_ativa_id" in st.session_state:
@@ -183,6 +194,16 @@ def tela_batalha_rodada():
         if not batalha.get("finalizada"):
             encerrar_partida_sincrona(batalha_id)
         st.success("🏁 **Todas as perguntas foram respondidas! Fim do jogo.**")
+        
+        pontos_a, pontos_b = calcular_placar_atual(batalha_id, time_a_id, time_b_id)
+        st.markdown("### 🏆 Resultado de Encerramento")
+        if pontos_a > pontos_b:
+            st.info(f"🥇 **Vencedor:** {nome_time_a} ({pontos_a} XP) | 🥈 **Perdedor:** {nome_time_b} ({pontos_b} XP)")
+        elif pontos_b > pontos_a:
+            st.info(f"🥇 **Vencedor:** {nome_time_b} ({pontos_b} XP) | 🥈 **Perdedor:** {nome_time_a} ({pontos_a} XP)")
+        else:
+            st.warning(f"🤝 **Resultado:** Empate entre as equipes ({pontos_a} XP cada)")
+            
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("⬅️ Voltar para a Arena de Equipes", use_container_width=True, key="btn_batalha_fim_dados"):
             if "batalha_ativa_id" in st.session_state:
@@ -227,7 +248,8 @@ def tela_batalha_rodada():
     tentativa_atual = 2 if status_sincrono == "rebate_ativo" else 1
     eh_a_vez_deste_time = (str(time_id).strip() == time_da_vez_id)
 
-    st.markdown(f"### 📍 Pergunta Atual: N° {pergunta_ordem}")
+    # ✅ ALTERADO (Item 1): Removido o número ordinário e exibido "Pergunta: {enunciado}"
+    st.markdown(f"### 📍 Pergunta: {dados_pergunta['enunciado']}")
     
     if tipo_usuario == "aluno" and not eh_espectador:
         if eh_a_vez_deste_time:
@@ -240,9 +262,7 @@ def tela_batalha_rodada():
                 <h4 style="color: #ffedd5; margin: 0;">⏱️ AGUARDANDO ADVERSÁRIO...</h4>
             </div>""", unsafe_allow_html=True)
 
-    with st.container(border=True):
-        st.markdown(f"**Enunciado:**\n{dados_pergunta['enunciado']}")
-
+    # Exibição do corpo limpo
     st.markdown("<br>", unsafe_allow_html=True)
     
     if not dados_pergunta["alternativas"]:
@@ -261,7 +281,6 @@ def tela_batalha_rodada():
                 time.sleep(0.4)
                 st.rerun()
 
-    # Botão de escape padrão para partidas em andamento
     st.markdown("<br><hr style='border-color: #334155;'>", unsafe_allow_html=True)
     if st.button("🚪 Sair da Sala / Voltar para a Arena", use_container_width=True, type="secondary", key="btn_sair_sala_emergencia"):
         if "batalha_ativa_id" in st.session_state:
