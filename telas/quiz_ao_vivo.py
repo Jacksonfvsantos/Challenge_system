@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import time
 from utils.estilo import aplicar_estilo, cabecalho
 from services.quiz_ao_vivo_service import criar_quiz
 from utils.compartilhamento import exibir_painel_compartilhamento
@@ -7,7 +8,8 @@ from database.conexao import supabase
 
 def listar_quizzes_do_banco():
     try:
-        res = supabase.table("quizzes").select("*, usuarios(nome)").execute()
+        # ✅ CORRIGIDO: Adicionado .order() para fixar a posição do card após o UPDATE
+        res = supabase.table("quizzes").select("*, usuarios(nome)").order("created_at", desc=True).execute()
         return res.data or []
     except Exception:
         return []
@@ -74,7 +76,7 @@ def tela_quiz_ao_vivo():
             autor = q.get("usuarios", {}).get("nome", "Professor")
             tema_txt = q.get("tema") or "Geral"
             
-            cor_status = "#00b4d8" if status == "criado" else "#2a9d8f" if status == "em_andamento" else "#6c757d"
+            cor_status = "#00b4d8" if status == "criado" else "#2a9d8f" if status == "em_andamento" else "#e63946"
             txt_status = "Aguardando Início ⏱️" if status == "criado" else "Em Andamento 🟢" if status == "em_andamento" else "Finalizado 🛑"
 
             with st.container(border=True):
@@ -90,21 +92,31 @@ def tela_quiz_ao_vivo():
                 
                 if tipo in ("professor", "admin"):
                     st.markdown("<br>", unsafe_allow_html=True)
+                    
+                    # ✅ CORRIGIDO: Estrutura dinâmica de botões de controle de estado (Iniciar e Parar)
                     col1, col2 = st.columns(2)
                     
                     with col1:
                         if status == "criado":
-                            if st.button("▶️ Iniciar Quiz / Liberar Pergunta", key=f"start_{q_id}", use_container_width=True):
+                            if st.button("▶️ Iniciar Quiz / Liberar Pergunta", key=f"start_{q_id}", type="primary", use_container_width=True):
                                 alterar_status_quiz(q_id, "em_andamento")
                                 st.toast("🚀 A sala do Quiz foi aberta para os alunos!")
+                                time.sleep(0.3)
                                 st.rerun()
                         elif status == "em_andamento":
                             if st.button("🛑 Encerrar Sessão", key=f"stop_{q_id}", use_container_width=True):
                                 alterar_status_quiz(q_id, "finalizado")
                                 st.toast("Sala de quiz encerrada oficialmente.")
+                                time.sleep(0.3)
                                 st.rerun()
+                        else:
+                            st.button("🔒 Quiz Já Finalizado", key=f"ended_{q_id}", disabled=True, use_container_width=True)
+                            
                     with col2:
-                        st.button("📊 Ver Telão de Líderes", key=f"rank_{q_id}", use_container_width=True, disabled=(status == "criado"))
+                        if st.button("📊 Ver Telão de Líderes", key=f"rank_{q_id}", use_container_width=True, disabled=(status == "criado")):
+                            st.session_state.quiz_ranking_id = q_id
+                            st.session_state.pagina = "quiz_ranking_global"
+                            st.rerun()
                     
                     if status != "finalizado":
                         with st.expander("📢 Mapeamento de Links & QR Code para Alunos", expanded=False):
@@ -120,4 +132,4 @@ def tela_quiz_ao_vivo():
                             st.session_state.pagina = "quiz_rodada"
                             st.rerun()
                     else:
-                        st.button("🔒 Prova Encerrada", key=f"play_{q_id}", use_container_width=True, disabled=True)
+                        st.button("🔒 Quiz Encerrado", key=f"play_{q_id}", use_container_width=True, disabled=True)
