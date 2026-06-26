@@ -52,6 +52,10 @@ except ImportError:
 
 # Imports dinâmicos das sub-telas das mini provas para evitar reset no State Router
 try:
+    from telas.mini_provas.historico_provas_professor import tela_historico_provas_professor
+except ImportError:
+    def tela_historico_provas_professor(): st.error("Módulo de histórico do professor não localizado.")
+try:
     from telas.mini_provas.realizar_mini_prova import tela_realizar_mini_prova
 except ImportError:
     def tela_realizar_mini_prova(): st.error("Tela 'realizar_mini_prova' não localizada.")
@@ -216,6 +220,9 @@ elif pagina == "mini_provas":
 
 elif pagina == "mini_provas_professor":
     tela_mini_provas_professor()
+
+elif pagina == "historico_provas_professor":
+    tela_historico_provas_professor()
 
 elif pagina == "pontuacao_mini_provas":
     tela_pontuacao_mini_provas()

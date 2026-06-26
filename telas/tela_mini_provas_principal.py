@@ -88,13 +88,14 @@ def tela_mini_provas():
                 st.session_state.pagina = "resultados_mini_provas"
                 st.rerun()
     else:
-        # PROFESSOR: Cabeçalho limpo e redirecionamento unificado para o Dashboard de Gestão
+        # PROFESSOR: Cabeçalho limpo e redirecionamento para o gerenciamento de acervo
         col_esq, col_dir = st.columns(2)
         with col_esq:
             st.markdown("### 📋 Provas Ativas")
         with col_dir:
+            # ✅ ALTERADO: Agora aponta para a nova página de controle/exclusão
             if st.button("📜 Ver Histórico Geral de Provas Encerradas", use_container_width=True):
-                st.session_state.pagina = "desempenho_mini_provas"
+                st.session_state.pagina = "historico_provas_professor"
                 st.rerun()
 
     # ============================================================================
