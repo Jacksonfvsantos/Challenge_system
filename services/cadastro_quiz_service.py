@@ -11,12 +11,14 @@ def cadastrar_pergunta_completa(quiz_id, enunciado, tempo_limite, alternativas, 
         res_ordem = supabase.table("perguntas_quiz").select("ordem").eq("quiz_id", quiz_id).execute()
         proxima_ordem = len(res_ordem.data) + 1 if res_ordem.data else 1
 
-        # 2. Inserir a Pergunta
+        # 2. Inserir a Pergunta tratando os resquícios das colunas antigas NOT NULL
         res_pergunta = supabase.table("perguntas_quiz").insert({
             "quiz_id": quiz_id,
-            "enunciado": enunciado.strip(),
+            "texto": enunciado.strip(),                  # Satisfez o erro anterior
+            "enunciado": enunciado.strip(),              # Mantido para o front
             "tempo_limite_segundos": int(tempo_limite),
-            "ordem": proxima_ordem
+            "ordem": proxima_ordem,
+            "alternativas": alternativas                 # ✅ SOLUÇÃO: Envia a lista de strings para a coluna antiga NOT NULL
         }).execute()
 
         if not res_pergunta.data:
