@@ -82,26 +82,31 @@ def tela_quiz_rodada():
         st.error("Erro ao carregar dados da sala.")
         return
 
-    # Sincronização automatizada via iframe no perfil do aluno (Long Pooling Corrigido)
+ # Sincronização inteligente e segura no perfil do aluno (Sem Loop Infinito)
     if tipo == "aluno":
-        # 🔄 CAPTURA DO SINAL: Armazenamos o retorno do iframe em uma variável do Streamlit
         refresh_sinal = st.iframe(
             src="data:text/html;charset=utf-8," + """
             <script>
                 if (!window.refreshIntervalSet) {
                     window.refreshIntervalSet = true;
                     setInterval(function() { 
-                        // Envia um valor incremental (timestamp) para forçar o Streamlit a notar a mudança
                         window.parent.postMessage({
                             type: 'streamlit:setComponentValue', 
                             value: new Date().getTime()
                         }, '*'); 
-                    }, 2000); // Verifica mudanças a cada 2 segundos
+                    }, 2500); // Verifica a cada 2.5 segundos
                 }
             </script>
             """,
             height=1
         )
+        
+        # ✅ SOLUÇÃO: Só dispara o rerun se o timestamp enviado pelo JS for diferente do último guardado
+        if refresh_sinal:
+            ultimo_refresh = st.session_state.get("ultimo_refresh_quiz", 0)
+            if refresh_sinal != ultimo_refresh:
+                st.session_state["ultimo_refresh_quiz"] = refresh_sinal
+                st.rerun()
         
         # 🚀 FORÇAR RERUN: Se o sinal mudou lá no JavaScript, o Python intercepta e força a tela a redesenhar
         if refresh_sinal:

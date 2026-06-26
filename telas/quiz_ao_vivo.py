@@ -45,22 +45,6 @@ def tela_quiz_ao_vivo():
         "Participe ou gerencie sessões síncronas de perguntas e respostas em tempo real"
     )
 
-    # ⏱️ AUTO-REFRESH SÍNCRONO PARA ALUNOS
-    if tipo == "aluno":
-        st.iframe(
-            src="data:text/html;charset=utf-8," + """
-            <script>
-                if (!window.refreshIntervalSet) {
-                    window.refreshIntervalSet = true;
-                    setInterval(function() {
-                        window.parent.postMessage({type: 'streamlit:setComponentValue', value: true}, '*');
-                    }, 3000);
-                }
-            </script>
-            """,
-            height=1
-        )
-
     # Definição Dinâmica das Abas por Nível de Usuário
     if tipo in ("professor", "admin"):
         aba_gestao, aba_caderno, aba_lista = st.tabs([
