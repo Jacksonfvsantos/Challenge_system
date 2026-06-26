@@ -105,17 +105,20 @@ def tela_quiz_rodada():
 
     st.subheader(f"Questão {pergunta_ativa['ordem']}: {pergunta_ativa['enunciado']}")
     
-    # ------------------ VISÃO DO PROFESSOR ------------------
+    # ------------------ VISÃO DO PROFESSOR (CORRIGIDA) ------------------
     if tipo in ("professor", "admin"):
         col1, col2 = st.columns(2)
         with col1:
+            # 1º Passo independente da questão: Travar e mostrar o gabarito
             if etapa == "pergunta":
                 if st.button("👁️ Mostrar Gabarito e Bloquear Respostas", type="primary", use_container_width=True):
                     supabase.table("quizzes").update({"etapa_rodada": "gabarito"}).eq("id", quiz_id).execute()
                     st.rerun()
+            
+            # 2º Passo (etapa == "gabarito"): Decidir se avança ou finaliza o quiz inteiro
             else:
-                # Acha o índice da próxima pergunta
                 idx_atual = next((i for i, p in enumerate(perguntas) if p["id"] == p_atual_id), 0)
+                
                 if idx_atual + 1 < len(perguntas):
                     if st.button("➡️ Avançar para Próxima Questão", type="primary", use_container_width=True):
                         prox_p = perguntas[idx_atual + 1]["id"]
@@ -133,7 +136,6 @@ def tela_quiz_rodada():
                 st.session_state.pagina = "quiz_ranking_global"
                 st.rerun()
 
-        # Mostra as opções e indica qual é a certa no telão do professor
         st.markdown("---")
         for alt in alternativas:
             prefixo = "✅" if alt["correta"] else "❌"
