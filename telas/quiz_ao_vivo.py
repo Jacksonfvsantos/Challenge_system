@@ -1,41 +1,37 @@
 import streamlit as st
 import pandas as pd
 import time
-import datetime
 from utils.estilo import aplicar_estilo, cabecalho
-from services.quiz_ao_vivo_service import criar_quiz, deletar_quiz
-from utils.compartilhamento import exibir_painel_compartilhamento
 from database.conexao import supabase
+from services.quiz_ao_vivo_service import criar_quiz, deletar_quiz
+from services.cadastro_quiz_service import cadastrar_pergunta_completa
+from utils.compartilhamento import exibir_painel_compartilhamento
 
 def listar_quizzes_do_banco():
     try:
-        # 🔍 Tenta buscar os dados trazendo o relacionamento do criador (Nome do Professor)
         res = supabase.table("quizzes").select("*, usuarios(nome)").order("data_criacao", desc=True).execute()
         return res.data or []
     except Exception:
-        # 🛡️ Fallback de erro PGRST204: Caso o cache do Supabase trave o Join por colunas novas, 
-        # puxa a tabela plana e evita derrubar a tela do sistema
         try:
             res = supabase.table("quizzes").select("*").order("data_criacao", desc=True).execute()
             return res.data or []
         except Exception:
-            try:
-                res = supabase.table("quizzes").select("*").execute()
-                return res.data or []
-            except Exception:
-                return []
+            return []
 
 def alterar_status_quiz(quiz_id, novo_status):
     try:
         res = supabase.table("quizzes").update({"status": novo_status}).eq("id", quiz_id).execute()
-        if not res.data:
-            st.error(f"⚠️ Nenhuma linha foi modificada. Verifique as permissões de escrita (RLS).")
-            return False
-        return True
+        return bool(res.data)
     except Exception as e:
-        st.error(f"❌ Erro de restrição estrutural no Supabase: {e}")
+        st.error(f"❌ Erro estrutural no Supabase: {e}")
         return False
 
+def puxar_perguntas_cadastradas(quiz_id):
+    try:
+        res = supabase.table("perguntas_quiz").select("*").eq("quiz_id", quiz_id).order("ordem").execute()
+        return res.data or []
+    except Exception:
+        return []
 
 def tela_quiz_ao_vivo():
     aplicar_estilo()
@@ -46,10 +42,10 @@ def tela_quiz_ao_vivo():
 
     cabecalho(
         "🎮 Quiz Acadêmico ao Vivo",
-        "Participe de sessões síncronas de perguntas e respostas em sala de aula"
+        "Participe ou gerencie sessões síncronas de perguntas e respostas em tempo real"
     )
 
-    # ⏱️ AUTO-REFRESH SÍNCRONO: Executado de forma segura via st.iframe
+    # ⏱️ AUTO-REFRESH SÍNCRONO PARA ALUNOS
     if tipo == "aluno":
         st.iframe(
             src="data:text/html;charset=utf-8," + """
@@ -65,87 +61,128 @@ def tela_quiz_ao_vivo():
             height=1
         )
 
+    # Definição Dinâmica das Abas por Nível de Usuário
     if tipo in ("professor", "admin"):
-        aba_gestao, aba_lista = st.tabs(["✨ Criar Novo Quiz", "📊 Painel de Controle Síncrono"])
+        aba_gestao, aba_caderno, aba_lista = st.tabs([
+            "✨ Criar Novo Quiz", 
+            "📝 Caderno de Questões", 
+            "📊 Painel de Controle Síncrono"
+        ])
     else:
         aba_lista, = st.tabs(["🎮 Quizzes Disponíveis"])
 
+    # --- ABA 1: CRIAÇÃO DE SALA ---
     if tipo in ("professor", "admin"):
         with aba_gestao:
             st.subheader("Configurar Nova Sessão de Quiz")
-            st.caption("Crie um quiz síncrono mapeado por componentes curriculares para revisão de conteúdo.")
+            with st.form("form_novo_quiz_sincrono", clear_on_submit=True):
+                titulo = st.text_input("Título do Quiz", placeholder="Ex: Simulado Prévio de Circuitos Lógicos")
+                disciplina = st.text_input("Componente Curricular / Disciplina", placeholder="Ex: Engenharia de Software")
+                tema = st.text_input("Assunto Específico / Tema", placeholder="Ex: Arquitetura Monolítica")
+                
+                btn_criar = st.form_submit_button("Registrar e Ativar Sala", use_container_width=True)
+                
+                if btn_criar:
+                    if not titulo.strip():
+                        st.error("O título do quiz é obrigatório para abrir a sala.")
+                    else:
+                        with st.spinner("Ativando sala..."):
+                            resultado = criar_quiz(titulo, user_id, disciplina, tema)
+                            if resultado and resultado.get("sucesso"):
+                                st.success(f"✅ {resultado.get('mensagem')} Acesse a aba 'Caderno de Questões' para alimentá-lo.")
+                                time.sleep(0.5)
+                                st.rerun()
+                            else:
+                                st.error(resultado.get("mensagem", "Erro ao tentar abrir sala."))
+
+        # --- ABA 2: CADERNO DE QUESTÕES (INTEGRADO) ---
+        with aba_caderno:
+            st.subheader("Alimentar Banco de Perguntas")
             
-            # Controle de exibição do atalho pós-criação
-            if st.session_state.get("quiz_criado_sucesso"):
-                st.success("✅ Sala de Quiz ativada com sucesso!")
-                if st.button("✍️ Ir para o Caderno de Questões", type="primary", use_container_width=True):
-                    # Limpa a flag e redireciona
-                    st.session_state.quiz_criado_sucesso = False
-                    st.session_state.pagina = "cadastro_perguntas_quiz"
-                    st.rerun()
-                if st.button("🔄 Criar Outro Quiz", use_container_width=True):
-                    st.session_state.quiz_criado_sucesso = False
-                    st.rerun()
+            quizzes_disponiveis = listar_quizzes_do_banco()
+            if not quizzes_disponiveis:
+                st.info("💡 Você precisa criar uma Sala de Quiz primeiro na aba ao lado.")
             else:
-                with st.form("form_novo_quiz_sincrono", clear_on_submit=False):
-                    titulo = st.text_input("Título do Quiz", placeholder="Ex: Simulado Prévio de Circuitos Lógicos")
-                    disciplina = st.text_input("Componente Curricular / Disciplina", placeholder="Ex: Engenharia de Software")
-                    tema = st.text_input("Assunto Específico / Tema", placeholder="Ex: Arquitetura Monolítica")
+                opcoes_quiz = {q["titulo"]: q["id"] for q in quizzes_disponiveis}
+                quiz_selecionado_titulo = st.selectbox("Escolha o Quiz que deseja alimentar:", list(opcoes_quiz.keys()))
+                quiz_id_caderno = opcoes_quiz[quiz_selecionado_titulo]
+
+                perguntas_atuais = puxar_perguntas_cadastradas(quiz_id_caderno)
+                st.caption(f"📊 Este quiz possui atualmente **{len(perguntas_atuais)}** pergunta(s) salva(s).")
+
+                # Atalhos Rápidos de Ação Solicitados 🎯
+                col_btn1, col_btn2 = st.columns(2)
+                with col_btn1:
+                    if st.button("▶️ Iniciar Jogatina Deste Quiz Agora", type="primary", key="start_from_caderno", use_container_width=True):
+                        alterar_status_quiz(quiz_id_caderno, "ativo")
+                        st.session_state.quiz_ativo_id = quiz_id_caderno
+                        st.session_state.pagina = "quiz_rodada"
+                        st.rerun()
+                with col_btn2:
+                    if st.button("🔄 Sincronizar e Ir para o Painel Geral", key="go_to_panel_caderno", use_container_width=True):
+                        st.rerun()
+
+                st.markdown("---")
+
+                with st.form("form_nova_pergunta_integrado", clear_on_submit=True):
+                    enunciado = st.text_area("Enunciado da Pergunta")
+                    tempo_limite = st.slider("Tempo Limite (Segundos)", min_value=10, max_value=120, value=30, step=5)
                     
-                    btn_criar = st.form_submit_button("Registrar e Ativar Sala", use_container_width=True)
+                    alt_a = st.text_input("Alternativa A")
+                    alt_b = st.text_input("Alternativa B")
+                    alt_c = st.text_input("Alternativa C")
+                    alt_d = st.text_input("Alternativa D")
                     
-                    if btn_criar:
-                        if not titulo.strip():
-                            st.error("O título do quiz é obrigatório para abrir a sala.")
+                    mapeamento_letras = {"Alternativa A": 0, "Alternativa B": 1, "Alternativa C": 2, "Alternativa D": 3}
+                    correta_letra = st.radio("Selecione a correta:", list(mapeamento_letras.keys()), horizontal=True)
+                    
+                    btn_salvar = st.form_submit_button("💾 Salvar Pergunta", use_container_width=True)
+                    
+                    if btn_salvar:
+                        if not enunciado.strip() or not all([alt_a.strip(), alt_b.strip(), alt_c.strip(), alt_d.strip()]):
+                            st.error("Preencha todos os campos antes de realizar o envio.")
                         else:
-                            with st.spinner("Ativando sala..."):
-                                resultado = criar_quiz(titulo, user_id, disciplina, tema)
-                                if resultado and resultado.get("sucesso") == True:
-                                    # ✅ CORRIGIDO: Ativa a flag e força o rerun para renderizar FORA do form
-                                    st.session_state.quiz_criado_sucesso = True
+                            with st.spinner("Salvando questão..."):
+                                res = cadastrar_pergunta_completa(quiz_id_caderno, enunciado, tempo_limite, [alt_a, alt_b, alt_c, alt_d], mapeamento_letras[correta_letra])
+                                if res["sucesso"]:
+                                    st.success(res["mensagem"])
+                                    time.sleep(0.3)
                                     st.rerun()
                                 else:
-                                    st.error(resultado.get("mensagem", "Erro operacional ao tentar abrir sala."))
+                                    st.error(res["mensagem"])
 
+                if perguntas_atuais:
+                    with st.expander("👁️ Ver Questões Salvas", expanded=False):
+                        for p in perguntas_atuais:
+                            st.markdown(f"**Q{p['ordem']}. {p.get('enunciado') or p.get('texto')}** *({p.get('tempo_limite_segundos')}s)*")
+
+    # --- ABA 3: LISTAGEM E CONTROLE SÍNCRONO ---
     with aba_lista:
         st.subheader("Salas de Quiz Registradas")
         
-        col_atualizar, _ = st.columns([1, 3])
-        with col_atualizar:
-            if st.button("🔄 Sincronizar Salas", use_container_width=True):
-                st.rerun()
+        if st.button("🔄 Sincronizar Listagem", key="sync_geral"):
+            st.rerun()
                 
         quizzes = listar_quizzes_do_banco()
 
         if not quizzes:
-            st.info("Nenhuma sessão de quiz síncrono localizada no momento.")
+            st.info("Nenhuma sessão de quiz síncrono localizada.")
             return
 
         for q in quizzes:
             q_id = q.get("id")
-            
-            # Tratamento defensivo de string para conter variações de case ou espaçamento do banco
             status = str(q.get("status", "criado")).strip().lower()
             tema_txt = q.get("tema") or "Geral"
             
-            # 👥 EXTRAÇÃO BLINDADA DO AUTOR: Evita KeyError se o nó 'usuarios' vier plano, nulo ou como dicionário
             autor_objeto = q.get("usuarios")
-            if isinstance(autor_objeto, dict):
-                autor = autor_objeto.get("nome", "Professor")
-            else:
-                # Se o join falhar por conta do cache da tabela, faz uma query sob demanda rápida ou deixa o fallback estável
-                autor = "Professor Responsável"
+            autor = autor_objeto.get("nome", "Professor") if isinstance(autor_objeto, dict) else "Professor Responsável"
 
-            # Mapeamento visual estendido para aceitar 'ativo' ou 'andamento' sem quebrar as cores da interface
             if status in ("em_andamento", "andamento", "ativo"):
-                cor_status = "#2a9d8f"
-                txt_status = "Em Andamento 🟢"
+                cor_status, txt_status = "#2a9d8f", "Em Andamento 🟢"
             elif status == "finalizado":
-                cor_status = "#e63946"
-                txt_status = "Finalizado 🛑"
+                cor_status, txt_status = "#e63946", "Finalizado 🛑"
             else:
-                cor_status = "#00b4d8"
-                txt_status = "Aguardando Início ⏱️"
+                cor_status, txt_status = "#00b4d8", "Aguardando Início ⏱️"
 
             with st.container(border=True):
                 st.markdown(f"""
@@ -164,17 +201,15 @@ def tela_quiz_ao_vivo():
                     
                     with col1:
                         if status == "criado":
-                            # ✅ CORRIGIDO: Modificado de 'andamento' para 'ativo', satisfazendo a check constraint do Postgres
                             if st.button("▶️ Iniciar Quiz", key=f"start_{q_id}", type="primary", use_container_width=True):
-                                alterar_status_quiz(q_id, "ativo")
-                                st.toast("🚀 A sala do Quiz foi aberta para os alunos!")
-                                time.sleep(0.3)
-                                st.rerun()
+                                if alterar_status_quiz(q_id, "ativo"):
+                                    st.session_state.quiz_ativo_id = q_id
+                                    st.session_state.pagina = "quiz_rodada"
+                                    st.rerun()
                         elif status in ("em_andamento", "andamento", "ativo"):
-                            if st.button("🛑 Finalizar / Encerrar", key=f"stop_{q_id}", use_container_width=True):
-                                alterar_status_quiz(q_id, "finalizado")
-                                st.toast("Sala de quiz encerrada oficialmente.")
-                                time.sleep(0.3)
+                            if st.button("🎯 Ir p/ Painel da Rodada", key=f"go_curr_{q_id}", type="primary", use_container_width=True):
+                                st.session_state.quiz_ativo_id = q_id
+                                st.session_state.pagina = "quiz_rodada"
                                 st.rerun()
                         else:
                             st.button("🔒 Finalizado", key=f"ended_{q_id}", disabled=True, use_container_width=True)
@@ -187,14 +222,12 @@ def tela_quiz_ao_vivo():
 
                     with col3:
                         with st.popover("🗑️ Deletar", use_container_width=True):
-                            st.warning("Excluir este quiz permanentemente?")
+                            st.warning("Excluir permanentemente?")
                             if st.button("Sim, apagar", key=f"del_quiz_{q_id}", type="primary", use_container_width=True):
                                 if deletar_quiz(q_id):
-                                    st.toast("Quiz removido com sucesso!")
+                                    st.toast("Quiz removido!")
                                     time.sleep(0.3)
                                     st.rerun()
-                                else:
-                                    st.error("Erro ao deletar.")
                     
                     if status != "finalizado":
                         with st.expander("📢 Mapeamento de Links & QR Code para Alunos", expanded=False):
