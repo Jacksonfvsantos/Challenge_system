@@ -1,4 +1,6 @@
 import streamlit as st
+import time
+from datetime import datetime, timezone
 from database.conexao import supabase
 
 def buscar_dados_quiz(quiz_id):
@@ -72,9 +74,9 @@ def salvar_resposta_aluno(quiz_id, pergunta_id, usuario_id, alternativa_id, corr
     except Exception:
         return False
 
-# ✅ SOLUÇÃO: Sincronização nativa limpa por tempo (Sem loops infinitos manuais)
-@st.fragment(run_every=2.5)
-def executar_sincronia_automatica(quiz_id, etapa_atual, pergunta_atual_id):
+# 🔄 SENTINELA DE FLUXO E TEMPO AUTOMÁTICO (KAFOOT ENGINE)
+@st.fragment(run_every=1.0) # Verifica o segundo atual nativamente
+def executar_sincronia_automatica(quiz_id, etapa_atual, pergunta_atual_id, tempo_limite):
     quiz_recente = buscar_dados_quiz(quiz_id)
     if not quiz_recente:
         return
@@ -85,14 +87,40 @@ def executar_sincronia_automatica(quiz_id, etapa_atual, pergunta_atual_id):
     db_pergunta = str(quiz_recente.get("pergunta_atual_id") or "").strip()
     local_pergunta = str(pergunta_atual_id or "").strip()
 
+    # Se o professor avançou a questão, atualiza o app global na hora
     if (db_etapa != local_etapa) or (db_pergunta != local_pergunta):
         st.rerun(scope="app")
 
+    # Controle de Tempo Regressivo Dinâmico
     if local_etapa == "pergunta" and local_pergunta != "":
+        # Calcula quantos segundos se passaram desde a última atualização (quando o professor disparou a questao)
+        # Fallback para o horário atual caso o campo do banco não esteja preenchido
+        ultimo_update_str = quiz_recente.get("updated_at") or quiz_recente.get("data_resposta")
+        
+        if ultimo_update_str:
+            try:
+                # Trata formatações de timestamp ISO vindas do PostgreSQL/Supabase
+                ultimo_update_str = ultimo_update_str.replace("Z", "+00:00")
+                horario_inicio = datetime.fromisoformat(ultimo_update_str)
+                segundos_passados = (datetime.now(timezone.utc) - horario_inicio).total_seconds()
+            except Exception:
+                segundos_passados = 0
+        else:
+            segundos_passados = 0
+
+        # Regra 1: Tempo Limite de 30 segundos estourou
+        tempo_esgotado = segundos_passados >= tempo_limite
+        
+        # Regra 2: Todos os alunos responderam
         respostas, participantes = contar_respostas_e_participantes(quiz_id, pergunta_atual_id)
-        if respostas >= participantes and participantes > 0:
+        todos_responderam = respostas >= participantes and participantes > 0
+
+        if tempo_esgotado or todos_responderam:
             supabase.table("quizzes").update({"etapa_rodada": "gabarito"}).eq("id", quiz_id).execute()
             st.rerun(scope="app")
+        else:
+            # Atualiza dinamicamente o fragmento para renderizar os segundos decrescentes na tela
+            st.rerun()
 
 def tela_quiz_rodada():
     usuario = st.session_state.get("usuario_logado", {})
@@ -125,38 +153,59 @@ def tela_quiz_rodada():
             st.rerun()
         return
 
-    # 🚪 SALA DE ESPERA (Monitorada via fragmento nativo)
+    pergunta_ativa = next((p for p in perguntas if p["id"] == p_atual_id), perguntas[0])
+    tempo_limite = int(pergunta_ativa.get("tempo_limite_segundos", 30))
+
+    # 🚪 SALA DE ESPERA
     if not p_atual_id:
         if tipo in ("professor", "admin"):
             st.subheader("👨‍🏫 Painel de Moderação")
             st.info("Alunos conectados aguardando! Clique abaixo para disparar o quiz.")
             if st.button("🚀 Iniciar Quiz (Pergunta 1)", type="primary", use_container_width=True, key="btn_trigger_first_q"):
                 first_p = perguntas[0]["id"]
-                supabase.table("quizzes").update({"pergunta_atual_id": first_p, "etapa_rodada": "pergunta"}).eq("id", quiz_id).execute()
+                # Atualiza o timestamp forçando o banco a registrar o momento exato do início
+                supabase.table("quizzes").update({
+                    "pergunta_atual_id": first_p, 
+                    "etapa_rodada": "pergunta",
+                    "status": "ativo"
+                }).eq("id", quiz_id).execute()
                 st.rerun()
         else:
             st.subheader("⏳ Sala de Espera")
             st.info("Conectado com sucesso! Aguarde o professor dar início à partida.")
-            executar_sincronia_automatica(quiz_id, etapa, p_atual_id)
+            executar_sincronia_automatica(quiz_id, etapa, p_atual_id, tempo_limite)
         return
 
-    pergunta_ativa = next((p for p in perguntas if p["id"] == p_atual_id), perguntas[0])
     alternativas = buscar_alternativas(pergunta_ativa["id"])
 
-    # Monitoramento síncrono ativo da rodada
-    executar_sincronia_automatica(quiz_id, etapa, p_atual_id)
+    # Ativa o sentinela contador de segundos e respostas
+    executar_sincronia_automatica(quiz_id, etapa, p_atual_id, tempo_limite)
+
+    # Cálculo do cronômetro visual
+    ultimo_update_str = quiz.get("updated_at") or quiz.get("data_resposta")
+    if ultimo_update_str and etapa == "pergunta":
+        try:
+            ultimo_update_str = ultimo_update_str.replace("Z", "+00:00")
+            segundos_decorridos = (datetime.now(timezone.utc) - datetime.fromisoformat(ultimo_update_str)).total_seconds()
+            tempo_restante = max(int(tempo_limite - segundos_decorridos), 0)
+        except Exception:
+            tempo_restante = tempo_limite
+    else:
+        tempo_restante = 0
 
     st.subheader(f"Questão {pergunta_ativa['ordem']}: {pergunta_ativa.get('enunciado') or pergunta_ativa.get('texto')}")
     respostas_enviadas, total_alunos = contar_respostas_e_participantes(quiz_id, pergunta_ativa["id"])
 
     # ------------------ VISÃO DO PROFESSOR ------------------
     if tipo in ("professor", "admin"):
-        st.metric(label="Respostas Recebidas", value=f"{respostas_enviadas} de {total_alunos} alunos")
+        c1, c2 = st.columns(2)
+        c1.metric(label="⏱️ Tempo Restante", value=f"{tempo_restante}s")
+        c2.metric(label="📥 Respostas Recebidas", value=f"{respostas_enviadas} de {total_alunos}")
         
         col1, col2 = st.columns(2)
         with col1:
             if etapa == "pergunta":
-                if st.button("👁️ Forçar Encerramento e Ver Gabarito", type="secondary", use_container_width=True, key="btn_lock_and_reveal"):
+                if st.button("👁️ Forçar Encerramento Manual", type="secondary", use_container_width=True, key="btn_lock_and_reveal"):
                     supabase.table("quizzes").update({"etapa_rodada": "gabarito"}).eq("id", quiz_id).execute()
                     st.rerun()
             else:
@@ -164,7 +213,10 @@ def tela_quiz_rodada():
                 if idx_atual + 1 < len(perguntas):
                     if st.button("➡️ Avançar para Próxima Questão", type="primary", use_container_width=True, key="btn_next_question_act"):
                         prox_p = perguntas[idx_atual + 1]["id"]
-                        supabase.table("quizzes").update({"pergunta_atual_id": prox_p, "etapa_rodada": "pergunta"}).eq("id", quiz_id).execute()
+                        supabase.table("quizzes").update({
+                            "pergunta_atual_id": prox_p, 
+                            "etapa_rodada": "pergunta"
+                        }).eq("id", quiz_id).execute()
                         st.rerun()
                 else:
                     if st.button("🛑 Finalizar Quiz e Ver Pódio", type="primary", use_container_width=True, key="btn_finish_quiz_global"):
@@ -187,6 +239,9 @@ def tela_quiz_rodada():
     # ------------------ VISÃO DO ALUNO ------------------
     else:
         if etapa == "pergunta":
+            # Mostra o timer regressivo para o aluno saber quanto tempo resta
+            st.metric(label="⏱️ Tempo Restante para Responder", value=f"{tempo_restante} segundos")
+            
             progresso_respostas = min(respostas_enviadas / total_alunos, 1.0)
             st.progress(progresso_respostas, text=f"📥 {respostas_enviadas}/{total_alunos} alunos já responderam...")
 
@@ -199,7 +254,7 @@ def tela_quiz_rodada():
 
             if ja_respondeu:
                 st.markdown("### 📥 Resposta Registrada com Sucesso!")
-                st.info("Aguardando os demais participantes concluírem para revelar o gabarito...")
+                st.info("Aguardando o encerramento do tempo regulamentar...")
             else:
                 st.caption("Selecione a opção correta:")
                 for alt in alternativas:
@@ -209,7 +264,7 @@ def tela_quiz_rodada():
                             st.toast("Resposta registrada!", icon="✅")
                             st.rerun()
         else:
-            st.markdown("### 🔒 Tempo Esgotado! Conferindo Resultados...")
+            st.markdown("### 🔒 Rodada Encerrada!")
             st.markdown("---")
             
             alt_correta = next((a for a in alternativas if a["correta"]), None)
@@ -229,6 +284,7 @@ def tela_quiz_rodada():
                     else:
                         st.error(f"😞 **Você ERROU!**\n\n**Você marcou:** {text_marcado}\n\n**Gabarito Correto:** {text_correto}")
                 else:
-                    st.warning(f"⏱️ **O tempo acabou!** Você não enviou nenhuma resposta.\n\n**Gabarito Correto:** {text_correto}")
+                    # ✅ ADICIONADO: Mensagem clara solicitada caso o tempo acabe sem escolhas do aluno
+                    st.warning(f"⏱️ **Tempo esgotado, nenhuma alternativa escolhida!**\n\n**Gabarito Correto:** {text_correto}")
             except Exception:
                 st.info(f"Gabarito oficial: {text_correto}")
