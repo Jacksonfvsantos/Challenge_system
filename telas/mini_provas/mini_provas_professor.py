@@ -272,7 +272,7 @@ def tela_mini_provas_professor():
                             st.error(f"Erro na inserção em massa no Supabase: {e}")
                 else:
                     st.warning("⚠️ O texto foi extraído, mas nenhum padrão de questão (Questão X ou A, B, C...) foi localizado de forma clara.")
-                    with St.expander("Ver texto bruto extraído", expanded=True):
+                    with st.expander("Ver texto bruto extraído", expanded=True):
                         st.text(texto_extraido)
 
     st.divider()
