@@ -71,8 +71,13 @@ try:
 except ImportError:
     def tela_resultados_mini_provas(): st.error("Tela 'resultados_mini_provas' não localizada.")
 
-# Fallbacks de páginas do painel do Professor
-def tela_mini_provas_professor(): pass
+# 🎯 Painel de Gerenciamento do Professor (Mapeado para o arquivo real)
+try:
+    from telas.mini_provas.mini_provas_professor import tela_mini_provas_professor
+except ImportError:
+    def tela_mini_provas_professor(): st.error("Módulo de gerenciamento do professor não localizado.")
+
+# Fallbacks das demais páginas administrativas secundárias
 def tela_cadastro_perguntas(): pass
 def tela_lista_perguntas(): pass
 
@@ -208,6 +213,9 @@ elif pagina == "recompensas":
 # 🎯 Rotas do Módulo de Mini-Provas (Mapeamento Unificado e Seguro)
 elif pagina == "mini_provas":
     tela_mini_provas()
+
+elif pagina == "mini_provas_professor":
+    tela_mini_provas_professor()
 
 elif pagina == "pontuacao_mini_provas":
     tela_pontuacao_mini_provas()
