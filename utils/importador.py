@@ -38,8 +38,8 @@ def parsear_questoes_com_ia(texto_bruto):
     try:
         genai.configure(api_key=api_key)
         
-        # 🚀 CORREÇÃO DEFINITIVA DO 404: Utilizando o identificador canônico aceito universalmente pela API v1/v1beta
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # 🚀 RESOLUÇÃO DEFINITIVA DO 404: Mapeamento canônico universal para a chamada síncrona
+        model = genai.GenerativeModel('models/gemini-1.5-flash')
         
         prompt = f"""
         Você é um assistente de engenharia de software especializado em estruturar dados.
