@@ -41,46 +41,70 @@ def extrair_texto_arquivo(arquivo_subido, extensao):
 
 def parsing_questoes_regex(texto):
     """
-    Algoritmo inteligente de quebra (Parsing) de texto automatizado.
-    Procura por padrões como: Questão 1, 1-, 1), Q1, seguido pelas alternativas.
+    Algoritmo de parsing robusto focado em capturar exames densos (+30 questões).
+    Identifica padrões flexíveis de numeração e busca o gabarito no próprio texto.
     """
-    # Expressão regular para capturar blocos de questões iniciados por números ou Q+número
-    blocos = re.split(r'\n(?=(?:Questão\s+)?\d+[\s\.\-\)])', texto)
+    # Expressão regular flexível: detecta números de 1 a 99 seguidos de ponto, traço ou parêntese
+    # Remove a obrigatoriedade da quebra de linha física (\n) na captura inicial
+    padrao_questao = r'(?:Questão\s+)?(\d+)[\s\.\-\)]+'
+    
+    # Encontra todas as posições onde começam as questões no documento
+    matches = list(re.finditer(padrao_questao, texto, re.IGNORECASE))
     questoes_mapeadas = []
 
-    for bloco in blocos:
-        bloco = bloco.strip()
-        if not bloco:
-            continue
+    for i, match in enumerate(matches):
+        inicio_bloco = match.start()
+        # O fim do bloco da questão atual é o início da próxima questão (ou o fim do texto completo)
+        fim_bloco = matches[i + 1].start() if i + 1 < len(matches) else len(texto)
         
-        # Tenta separar o enunciado das alternativas (A, B, C, D, E)
-        linhas = bloco.split('\n')
+        bloco_completo = texto[inicio_bloco:fim_bloco].strip()
+        if not bloco_completo:
+            continue
+
+        # Quebra o bloco em linhas para separar enunciado de alternativas
+        linhas = bloco_completo.split('\n')
         enunciado_linhas = []
         alternativas = {}
-        
-        for linha in linhas:
+        gabarito_detectado = "A"  # Fallback padrão seguro
+
+        for linha in lines:
             linha_str = linha.strip()
-            # Procura o início de uma alternativa (Ex: A) ou A - ou a.)
-            match_alt = re.match(r'^([A-Ea-e])[\s\.\-\)]+(.*)', linha_str)
+            if not linha_str:
+                continue
+
+            # Identifica alternativas como: A) texto, B - texto, *C) correto, D. texto
+            # Captura opcionalmente marcadores de gabarito comuns como asteriscos ou colchetes [X]
+            match_alt = re.search(r'(?:\*|\[X\]|\(X\))?\s*([A-Ea-e])[\s\.\-\)]+(.*)', linha_str)
+            
             if match_alt:
                 letra = match_alt.group(1).upper()
                 conteudo_alt = match_alt.group(2).strip()
                 alternativas[letra] = conteudo_alt
+                
+                # Se a linha continha um marcador de sucesso no documento original, define o gabarito
+                if '*' in linha_str or '[X]' in linha_str.upper() or '(X)' in linha_str.upper():
+                    gabarito_detectado = letra
             else:
-                if not alternativas:  # Se ainda não achou alternativa, é parte do enunciado
-                    enunciado_linhas.append(linha)
-        
-        enunciado_completo = "\n".join(enunciado_linhas).strip()
-        
-        # Limpa o indicador do número no começo do enunciado se houver
+                # Se a linha também contiver um padrão explícito isolado no fim (Ex: "Gabarito: C")
+                match_gab_final = re.search(r'(?:Gabarito|Resposta):\s*([A-E])', linha_str, re.IGNORECASE)
+                if match_gab_final:
+                    gabarito_detectado = match_gab_final.group(1).upper()
+                elif not alternativas:
+                    # Se ainda não começaram as alternativas, a linha faz parte do enunciado
+                    enunciado_linhas.append(linha_str)
+
+        enunciado_completo = " ".join(enunciado_linhas).strip()
+        # Limpa o numeral da questão do início do enunciado
         enunciado_completo = re.sub(r'^(?:Questão\s+)?\d+[\s\.\-\)]*', '', enunciado_completo).strip()
 
+        # Só adiciona se possuir conteúdo consistente (Evita capturar cabeçalhos ou notas de rodapé)
         if enunciado_completo and len(alternativas) >= 2:
             questoes_mapeadas.append({
                 "enunciado": enunciado_completo,
-                "alternativas": alternativas
+                "alternativas": alternativas,
+                "gabarito": gabarito_detectado
             })
-            
+
     return questoes_mapeadas
 
 
@@ -208,33 +232,29 @@ def tela_mini_provas_professor():
                 questoes_processadas = parsing_questoes_regex(texto_extraido)
                 
                 if questoes_processadas:
-                    st.success(f"🎯 O sistema identificou {len(questoes_processadas)} questões em potencial no arquivo!")
-                    
-                    # Armazena temporariamente na sessão para gravação segura via clique
+                    st.success(f"🎯 O sistema identificou com sucesso {len(questoes_processadas)} questões no arquivo!")
                     st.session_state.pool_questoes_importadas = questoes_processadas
                     
-                    # Renderiza o preview estruturado das questões mapeadas antes de salvar
+                    # Preview das questões mapeadas com seus respectivos gabaritos mapeados
                     for idx, q_map in enumerate(questoes_processadas):
-                        with st.expander(f"📋 Questão Pré-Mapeada {idx + 1}", expanded=False):
+                        with st.expander(f"📋 Questão {idx + 1} - Gabarito Detectado: [{q_map['gabarito']}]", expanded=False):
                             st.write(f"**Enunciado:** {q_map['enunciado']}")
                             for letra, texto_alt in q_map["alternativas"].items():
-                                st.write(f"*{letra})* {texto_alt}")
+                                marca = "🟢 (Correta)" if letra == q_map["gabarito"] else ""
+                                st.write(f"*{letra})* {texto_alt} {marca}")
                     
                     st.divider()
-                    st.markdown("⚠️ **Atenção:** As alternativas corretas devem ser conferidas. Por padrão, a primeira alternativa (A) será marcada temporariamente até que você selecione o gabarito oficial abaixo:")
                     
-                    gabarito_lote = st.selectbox("Definir o gabarito padrão das questões desse lote como:", ["A", "B", "C", "D", "E"])
-                    
-                    # 🚀 BOTÃO PEDIDO: Manda de fato as questões para o banco de dados
+                    # 🚀 Gravação direta usando o gabarito específico de cada item do dicionário
                     if st.button("💾 CONFIRMAR E SALVAR TODAS AS QUESTÕES NO BANCO DE DADOS", type="primary", use_container_width=True):
                         try:
                             sucessos = 0
                             for q_pool in st.session_state.pool_questoes_importadas:
-                                # Insere a questão
+                                # Insere a questão na tabela correspondente
                                 res_q = supabase.table("questoes").insert({"mini_prova_id": prova_id_i, "enunciado": q_pool["enunciado"]}).execute()
                                 q_id = res_q.data[0]["id"]
                                 
-                                # Insere as alternativas mapeadas
+                                # Insere o bloco relacional de alternativas
                                 lote_alt = []
                                 for idx, letra in enumerate(["A", "B", "C", "D", "E"]):
                                     texto_alt = q_pool["alternativas"].get(letra, "")
@@ -243,13 +263,13 @@ def tela_mini_provas_professor():
                                             "questao_id": q_id,
                                             "texto": texto_alt,
                                             "ordem": idx + 1,
-                                            "correta": (letra == gabarito_lote)
+                                            "correta": (letra == q_pool["gabarito"])  # ✅ Puxa o gabarito dinâmico extraído
                                         })
                                 if lote_alt:
                                     supabase.table("alternativas").insert(lote_alt).execute()
                                 sucessos += 1
                                 
-                            st.success(f"🔥 Sucesso! {sucessos} questões foram salvas e vinculadas à prova de forma definitiva!")
+                            st.success(f"🔥 Pronto! {sucessos} questões foram salvas no banco de dados com seus respectivos gabaritos!")
                             st.session_state.pop("pool_questoes_importadas", None)
                         except Exception as e:
                             st.error(f"Erro na inserção em massa no Supabase: {e}")
