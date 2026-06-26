@@ -33,14 +33,36 @@ try:
 except ImportError:
     def tela_recompensas(): st.warning("Módulo de recompensas indisponível.")
 
-# Sub-módulos: Mini Provas (Mapeado estritamente para o arquivo mini_provas.py real)
+# 🎯 Sub-módulos: MINI PROVAS (Roteador Dinâmico e Telas Secundárias do Aluno)
 try:
     from telas.tela_mini_provas_principal import tela_mini_provas
 except ImportError as e:
     mensagem_erro_prova = str(e)
     def tela_mini_provas(err=mensagem_erro_prova): 
         st.warning(f"Módulo de mini provas indisponível. Erro: {err}")
-# Fallbacks de páginas síncronas/assíncronas do ecossistema de testes
+
+# Imports dinâmicos das sub-telas das mini provas para evitar reset no State Router
+try:
+    from telas.mini_provas.realizar_mini_prova import tela_realizar_mini_prova
+except ImportError:
+    def tela_realizar_mini_prova(): st.error("Tela 'realizar_mini_prova' não localizada.")
+
+try:
+    from telas.mini_provas.responder import tela_responder_mini_prova
+except ImportError:
+    def tela_responder_mini_prova(): st.error("Tela 'responder' não localizada.")
+
+try:
+    from telas.mini_provas.resultado_mini_prova import tela_resultado_mini_prova
+except ImportError:
+    def tela_resultado_mini_prova(): st.error("Tela 'resultado_mini_prova' não localizada.")
+
+try:
+    from telas.mini_provas.resultados_mini_provas import tela_resultados_mini_provas
+except ImportError:
+    def tela_resultados_mini_provas(): st.error("Tela 'resultados_mini_provas' não localizada.")
+
+# Fallbacks de páginas do painel do Professor
 def tela_mini_provas_professor(): pass
 def tela_cadastro_perguntas(): pass
 def tela_lista_perguntas(): pass
@@ -101,7 +123,7 @@ if not st.session_state.get("usuario_logado"):
         st.rerun()
 
 # ----------------------------------------------------------------------------
-# 🚀 NOVO: ROTEADOR INTELIGENTE VIA QUERY STRING (QR CODE / LINKS DIRETOS)
+# 🚀 ROTEADOR INTELIGENTE VIA QUERY STRING (QR CODE / LINKS DIRETOS)
 # ----------------------------------------------------------------------------
 query_params = st.query_params
 
@@ -119,10 +141,10 @@ if "sala" in query_params and "id" in query_params:
             st.session_state.pagina = "batalha_rodada"
         elif tipo_sala == "quiz":
             st.session_state.quiz_ativo_id = sala_id
-            st.session_state.pagina = "quiz_ao_vivo" # Direciona para a lista reativa de Ingressar
+            st.session_state.pagina = "quiz_ao_vivo" 
         elif tipo_sala == "prova":
             st.session_state.prova_ativa_id = sala_id
-            st.session_state.pagina = "mini_provas" # Alinhado com o arquivo real telas/mini_provas.py
+            st.session_state.pagina = "mini_provas" 
             
         # Limpa os parâmetros da barra de endereços para liberar navegação livre
         st.query_params.clear()
@@ -174,9 +196,21 @@ elif pagina == "quiz_ao_vivo":
 elif pagina == "recompensas":
     tela_recompensas()
 
-# Rotas do Módulo de Mini-Provas (Mapeamento unificado do arquivo telas/mini_provas.py real)
+# 🎯 Rotas do Módulo de Mini-Provas (Mapeamento Unificado e Seguro)
 elif pagina == "mini_provas":
     tela_mini_provas()
+
+elif pagina == "realizar_mini_prova":
+    tela_realizar_mini_prova()
+
+elif pagina == "prova_responder":
+    tela_responder_mini_prova()
+
+elif pagina == "resultados_mini_provas":
+    tela_resultados_mini_provas()
+
+elif pagina == "resultado_mini_prova":
+    tela_resultado_mini_prova()
 
 elif pagina == "cadastro_perguntas":
     tela_cadastro_perguntas()
