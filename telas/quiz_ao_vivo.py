@@ -21,17 +21,14 @@ def listar_quizzes_do_banco():
 def alterar_status_quiz(quiz_id, novo_status):
     try:
         res = supabase.table("quizzes").update({"status": novo_status}).eq("id", quiz_id).execute()
-        # Se res.data vier vazio, significa que o banco não alterou nenhuma linha (RLS ou ID inválido)
         if not res.data:
-            st.error(f"⚠️ O banco de dados recebeu o comando, mas nenhuma linha foi alterada. Pode ser bloqueio de RLS.")
-            print(f"⚠️ Banco não alterou linhas para o ID: {quiz_id}")
+            st.error(f"⚠️ O banco de dados recebeu o comando, mas nenhuma linha foi alterada.")
             return False
         return True
     except Exception as e:
-        # Se o banco rejeitar o tipo de dado ou a coluna, o erro aparecerá na tela do Streamlit
         st.error(f"❌ Erro direto do Supabase ao mudar status: {e}")
-        print(f"❌ Erro operacional no UPDATE: {e}")
         return False
+
 
 def tela_quiz_ao_vivo():
     aplicar_estilo()
@@ -45,7 +42,7 @@ def tela_quiz_ao_vivo():
         "Participe de sessões síncronas de perguntas e respostas em sala de aula"
     )
 
-    # ⏱️ AUTO-REFRESH SÍNCRONO: Atualizado para a API estável st.iframe
+    # ⏱️ AUTO-REFRESH SÍNCRONO: Atualizado para st.iframe
     if tipo == "aluno":
         st.iframe(
             src="data:text/html;charset=utf-8," + """
@@ -116,7 +113,8 @@ def tela_quiz_ao_vivo():
             else:
                 autor = usuario.get("nome", "Professor") if tipo in ("professor", "admin") else "Docente"
             
-            if status == "em_andamento":
+            # ✅ CORRIGIDO: Mapeando 'andamento' como a string aceita pela CHECK CONSTRAINT do seu banco
+            if status in ("em_andamento", "andamento", "ativo"):
                 cor_status = "#2a9d8f"
                 txt_status = "Em Andamento 🟢"
             elif status == "finalizado":
@@ -139,16 +137,17 @@ def tela_quiz_ao_vivo():
                 
                 if tipo in ("professor", "admin"):
                     st.markdown("<br>", unsafe_allow_html=True)
-                    col1, col2, col3 = st.columns([2, 2, 1]) # ✅ Mudado para 3 colunas para acomodar o excluir
+                    col1, col2, col3 = st.columns([2, 2, 1])
                     
                     with col1:
                         if status == "criado":
+                            # ✅ CORRIGIDO: Enviando 'andamento' para satisfazer a regra do banco
                             if st.button("▶️ Iniciar Quiz", key=f"start_{q_id}", type="primary", use_container_width=True):
-                                alterar_status_quiz(q_id, "em_andamento")
+                                alterar_status_quiz(q_id, "andamento")
                                 st.toast("🚀 A sala do Quiz foi aberta para os alunos!")
                                 time.sleep(0.3)
                                 st.rerun()
-                        elif status == "em_andamento":
+                        elif status in ("em_andamento", "andamento", "ativo"):
                             if st.button("🛑 Finalizar / Encerrar", key=f"stop_{q_id}", use_container_width=True):
                                 alterar_status_quiz(q_id, "finalizado")
                                 st.toast("Sala de quiz encerrada oficialmente.")
@@ -163,7 +162,6 @@ def tela_quiz_ao_vivo():
                             st.session_state.pagina = "quiz_ranking_global"
                             st.rerun()
 
-                    # ✅ NOVO: Botão de exclusão com popover de confirmação de segurança
                     with col3:
                         with st.popover("🗑️ Deletar", use_container_width=True):
                             st.warning("Excluir este quiz permanentemente?")
@@ -181,7 +179,7 @@ def tela_quiz_ao_vivo():
                 
                 else:
                     st.markdown("<br>", unsafe_allow_html=True)
-                    if status == "em_andamento":
+                    if status in ("em_andamento", "andamento", "ativo"):
                         if st.button("🎯 Ingressar na Sala e Responder", key=f"play_{q_id}", type="primary", use_container_width=True):
                             st.session_state.quiz_ativo_id = q_id
                             st.session_state.pagina = "quiz_rodada"
