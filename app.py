@@ -37,14 +37,17 @@ if "sala" in query_params and "id" in query_params:
         st.query_params.clear()
 
 # ============================================================================
-# 🗺️ÁRVORE DE NAVEGAÇÃO / RENDERIZAÇÃO DE TELAS (ESTADOS)
+# 🗺️ ÁRVORE DE NAVEGAÇÃO / RENDERIZAÇÃO DE TELAS (ESTADOS)
 # ============================================================================
 pagina_atual = st.session_state.pagina
 
 # Fluxo de Autenticação
 if pagina_atual == "login":
     from telas.login import tela_login
-    tela_login()
+    
+    # ✅ CORRIGIDO: Injetando os argumentos exigidos pela assinatura da função
+    # (Substitua pelos nomes exatos das suas instâncias de cookies declaradas no topo do app.py se mudarem)
+    tela_login(cookie_manager=cookie_manager, minutos_validade=minutos_validade)
 
 elif pagina_atual == "cadastro":
     from telas.cadastro import tela_cadastro
