@@ -6,8 +6,10 @@ def calcular_ranking_quiz(quiz_id):
     try:
         # Puxa os registros agregados de pontos
         res = supabase.table("respostas_quiz").select("pontuacao_obtida, usuarios(nome)").eq("quiz_id", quiz_id).execute()
+        
+        # ✅ CORRIGIDO: Se não houver dados, retorna um DataFrame vazio com as colunas estruturadas
         if not res.data:
-            return []
+            return pd.DataFrame(columns=["Nome", "Pontuação Total"])
         
         # Converte em DataFrame para agrupar e somar os pontos por aluno
         df = pd.DataFrame([{
@@ -18,7 +20,8 @@ def calcular_ranking_quiz(quiz_id):
         ranking = df.groupby("Nome")["Pontuação Total"].sum().reset_index()
         return ranking.sort_values(by="Pontuação Total", ascending=False).reset_index(drop=True)
     except Exception:
-        return []
+        # ✅ CORRIGIDO: Retorna DataFrame vazio no bloco de exceção também
+        return pd.DataFrame(columns=["Nome", "Pontuação Total"])
 
 def tela_quiz_ranking_global():
     st.title("🏆 Telão de Líderes - Ranking Síncrono")
@@ -46,6 +49,7 @@ def tela_quiz_ranking_global():
 
     ranking_df = calcular_ranking_quiz(quiz_id)
 
+    # ✅ Agora funciona perfeitamente pois ranking_df sempre será um DataFrame
     if ranking_df.empty:
         st.info("Nenhuma resposta computada para gerar o placar até o momento.")
     else:
