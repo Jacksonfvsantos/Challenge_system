@@ -172,20 +172,42 @@ def tela_quiz_rodada():
             prefixo = "✅" if alt["correta"] else "❌"
             st.markdown(f"### {prefixo} {alt['texto']}")
 
-    # ------------------ VISÃO DO ALUNO ------------------
+# ------------------ VISÃO DO ALUNO (TRAVAMENTO DE RESPOSTA) ------------------
     else:
         if etapa == "pergunta":
-            st.caption("⏱️ Escolha a alternativa correta antes do professor travar a rodada!")
+            # 🛑 NOVIDADE: Checa se o aluno já respondeu esta questão específica nesta rodada
+            ja_respondeu = False
+            try:
+                res_verificacao = supabase.table("respostas_quiz") \
+                    .select("id") \
+                    .eq("pergunta_id", pergunta_ativa["id"]) \
+                    .eq("usuario_id", user_id) \
+                    .execute()
+                ja_respondeu = bool(res_verificacao.data)
+            except Exception:
+                pass
+
+            # Se já respondeu, trava a tela com uma mensagem limpa
+            if ja_respondeu:
+                st.markdown("### 📥 Resposta Registrada com Sucesso!")
+                st.info("Sua escolha foi guardada. Aguarde o professor encerrar o tempo para visualizar o gabarito oficial.")
             
-            # Renderiza as 4 opções como botões dinâmicos de resposta
-            for alt in alternativas:
-                if st.button(f"🔘 {alt['texto']}", key=f"btn_alt_{alt['id']}", use_container_width=True):
-                    # Passa o alt['ordem'] correspondente para satisfazer a coluna indice_resposta do banco
-                    sucesso = salvar_resposta_aluno(quiz_id, pergunta_ativa["id"], user_id, alt["id"], alt["correta"], alt["ordem"])
-                    if sucesso:
-                        st.toast("Resposta registrada! Aguardando o gabarito do professor...", icon="📥")
-                    else:
-                        st.warning("Você já respondeu esta questão!")
+            # Se ainda não respondeu, exibe os botões normalmente
+            else:
+                st.caption("⏱️ Escolha a alternativa correta antes do professor travar a rodada!")
+                
+                # Renderiza as 4 opções como botões dinâmicos de resposta
+                for alt in alternativas:
+                    if st.button(f"🔘 {alt['texto']}", key=f"btn_alt_{alt['id']}", use_container_width=True):
+                        # Passa o alt['ordem'] correspondente para satisfazer a coluna indice_resposta do banco
+                        sucesso = salvar_resposta_aluno(quiz_id, pergunta_ativa["id"], user_id, alt["id"], alt["correta"], alt["ordem"])
+                        if sucesso:
+                            st.toast("Resposta registrada com sucesso!", icon="✅")
+                            time.sleep(0.5)
+                            st.rerun()  # Dá um refresh para alternar o estado do front na hora
+                        else:
+                            st.error("Erro operacional ao salvar sua resposta. Tente novamente.")
+        
         else:
             st.markdown("### 🔒 Rodada Encerrada pelo Docente!")
             # Validação imediata do acerto/erro baseado na resposta guardada
