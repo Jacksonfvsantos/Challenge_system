@@ -26,18 +26,18 @@ def buscar_alternativas(pergunta_id):
 
 def salvar_resposta_aluno(quiz_id, pergunta_id, usuario_id, alternativa_id, correta):
     try:
-        # Kahoot dá mais pontos para quem responde rápido: 1000 pontos base se for correto
         pontos = 1000.0 if correta else 0.0
         supabase.table("respostas_quiz").insert({
             "quiz_id": quiz_id,
             "pergunta_id": pergunta_id,
             "usuario_id": usuario_id,
             "alternativa_id": alternativa_id,
-            "pontuacao_obtida": points
+            "pontuacao_obtida": pontos  # ✅ CORRIGIDO: de points para pontos
         }).execute()
         return True
-    except Exception:
-        return False # Se já respondeu, a constraint UNIQUE barra um segundo clique
+    except Exception as e:
+        st.error(f"Erro ao salvar resposta: {str(e)}")
+        return False
 
 def tela_quiz_rodada():
     usuario = st.session_state.get("usuario_logado", {})
