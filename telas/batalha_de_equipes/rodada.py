@@ -3,6 +3,9 @@ import time
 from database.conexao import supabase
 from services.batalha_service import encerrar_partida_sincrona, processar_resposta_sincrona, obter_estado_batalha
 
+# 🚀 CORREÇÃO DO NAMEERROR: Importando a função utilitária de layout que estava faltando
+from utils.estilo import aplicar_estilo 
+
 # --- FUNÇÕES DE SUPORTE AO BACKEND DA RODADA ---
 
 def obter_nomes_dos_times(time_a_id, time_b_id):
@@ -26,7 +29,7 @@ def obter_pergunta_atual(batalha_id, ordem_pergunta):
             
         dados_questao = questao.data[0]
         alternativas = supabase.table("alternativas").select("*").eq("questao_id", q_id).order("ordem").execute()
-        lista_alt_data = alternativas.data or []
+        lista_alt_data = alternatives.data or []
         
         alternativas_formatadas = []
         for alt in lista_alt_data:
@@ -118,7 +121,6 @@ def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, no
             for item in historico:
                 id_time_respondido = str(item.get("time_id")).strip()
                 nome_do_respondente = nome_time_a if id_time_respondido == time_a_id else nome_time_b
-                chance = item.get("tentativa_numero", 1)
                 alt_id_submetida = str(item.get("alternativa_id")).strip() if item.get("alternativa_id") else None
                 letra_escolhida = mapa_alternativas.get(alt_id_submetida, "marcada") if alt_id_submetida else "marcada"
                 
@@ -128,9 +130,10 @@ def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, no
                     st.error(f"❌ **{nome_do_respondente}** escolheu a alternativa **({letra_escolhida})** e ERROU a questão {ordem_alvo_log}!")
             st.markdown("---")
 
-# --- INTERFACE PRINCIPAL ---
+# --- INTERFACE VISUAL PRINCIPAL ---
 def tela_batalha_rodada():
-    aplicar_estilo()
+    aplicar_estilo() # ✅ Agora a chamada funcionará perfeitamente sem NameError
+    
     if st.session_state.get("forcar_refresh_global", False):
         st.session_state["forcar_refresh_global"] = False
         st.rerun()
@@ -236,7 +239,6 @@ def tela_batalha_rodada():
             pode_clicar = eh_a_vez_deste_time and (not eh_espectador)
             
             if st.button(texto_opcao, key=f"btn_alt_{alt['id']}", use_container_width=True, disabled=not pode_clicar):
-                # ✅ CORRIGIDO E SINCRONIZADO: Enviando exatamente os 7 parâmetros esperados!
                 res = processar_resposta_sincrona(
                     batalha_id, dados_pergunta["id"], time_id, alt["id"],
                     alt["correta"], time_adversario_id, tentativa_atual
