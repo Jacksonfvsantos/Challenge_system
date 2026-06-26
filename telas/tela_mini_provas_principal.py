@@ -1,5 +1,5 @@
 import streamlit as st
-from services.mini_provas_service import listar_mini_provas
+from services.mini_prova_service import listar_mini_provas
 from utils.compartilhamento import exibir_painel_compartilhamento
 
 def tela_mini_provas():

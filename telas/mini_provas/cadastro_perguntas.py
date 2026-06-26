@@ -47,7 +47,7 @@ def tela_cadastro_perguntas():
                 "disciplina": disciplina,
                 "assunto": assunto,
                 "enunciado": pergunta,
-                "nivel": difficulty,
+                "nivel": dificuldade,
                 "alternativa_a": alternativa_a,
                 "alternativa_b": alternativas_b,
                 "alternativa_c": alternativa_c,
