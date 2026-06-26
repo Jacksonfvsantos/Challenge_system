@@ -38,10 +38,10 @@ def tela_quiz_ao_vivo():
         "Participe de sessões síncronas de perguntas e respostas em sala de aula"
     )
 
-    # ⏱️ AUTO-REFRESH SÍNCRONO: Injeta um script leve em HTML que atualiza a tela do aluno a cada 3 segundos
+    # ⏱️ AUTO-REFRESH SÍNCRONO: Atualizado para a API estável st.iframe
     if tipo == "aluno":
-        st.components.v1.html(
-            """
+        st.iframe(
+            src="data:text/html;charset=utf-8," + """
             <script>
                 if (!window.refreshIntervalSet) {
                     window.refreshIntervalSet = true;
