@@ -12,7 +12,6 @@ def listar_quizzes_do_banco():
         res = supabase.table("quizzes").select("*").order("data_criacao", desc=True).execute()
         return res.data or []
     except Exception as e:
-        # Fallback caso data_criacao não exista
         try:
             res = supabase.table("quizzes").select("*").execute()
             return res.data or []
@@ -26,94 +25,6 @@ def alterar_status_quiz(quiz_id, novo_status):
     except Exception:
         return False
 
-# ✅ Adicionado st.fragment para permitir atualizações parciais assíncronas na listagem
-@st.fragment
-def renderizar_lista_quizzes(tipo, usuario, user_id):
-    col_atualizar, _ = st.columns([1, 3])
-    with col_atualizar:
-        if st.button("🔄 Sincronizar Salas", use_container_width=True):
-            st.rerun()
-            
-    quizzes = listar_quizzes_do_banco()
-
-    if not quizzes:
-        st.info("Nenhuma sessão de quiz síncrono localizada no momento.")
-        return
-
-    for q in quizzes:
-        q_id = q.get("id")
-        status = str(q.get("status", "criado")).strip().lower()
-        tema_txt = q.get("tema") or "Geral"
-        
-        autor_objeto = q.get("usuarios")
-        if isinstance(autor_objeto, dict):
-            autor = autor_objeto.get("nome", "Professor")
-        else:
-            autor = usuario.get("nome", "Professor") if tipo in ("professor", "admin") else "Docente"
-        
-        if status == "em_andamento":
-            cor_status = "#2a9d8f"
-            txt_status = "Em Andamento 🟢"
-        elif status == "finalizado":
-            cor_status = "#e63946"
-            txt_status = "Finalizado 🛑"
-        else:
-            cor_status = "#00b4d8"
-            txt_status = "Aguardando Início ⏱️"
-
-        with st.container(border=True):
-            st.markdown(f"""
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <h4 style="margin:0; color:#1b3a5c;">{q.get('titulo')}</h4>
-                <span style="background:{cor_status}; color:#fff; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600;">{txt_status}</span>
-            </div>
-            <p style="margin:5px 0 0; font-size:12px; color:#555;">
-                👤 Responsável: <strong>{autor}</strong> | 📌 Tema: <code>{tema_txt}</code>
-            </p>
-            """, unsafe_allow_html=True)
-            
-            if tipo in ("professor", "admin"):
-                st.markdown("<br>", unsafe_allow_html=True)
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    if status == "criado":
-                        if st.button("▶️ Iniciar Quiz / Liberar Pergunta", key=f"start_{q_id}", type="primary", use_container_width=True):
-                            alterar_status_quiz(q_id, "em_andamento")
-                            st.toast("🚀 A sala do Quiz foi aberta para os alunos!")
-                            time.sleep(0.3)
-                            st.rerun()
-                    elif status == "em_andamento":
-                        if st.button("🛑 Encerrar Sessão", key=f"stop_{q_id}", use_container_width=True):
-                            alterar_status_quiz(q_id, "finalizado")
-                            st.toast("Sala de quiz encerrada oficialmente.")
-                            time.sleep(0.3)
-                            st.rerun()
-                    else:
-                        st.button("🔒 Quiz Já Finalizado", key=f"ended_{q_id}", disabled=True, use_container_width=True)
-                        
-                with col2:
-                    if st.button("📊 Ver Telão de Líderes", key=f"rank_{q_id}", use_container_width=True, disabled=(status == "criado")):
-                        st.session_state.quiz_ranking_id = q_id
-                        st.session_state.pagina = "quiz_ranking_global"
-                        st.rerun()
-                
-                if status != "finalizado":
-                    with st.expander("📢 Mapeamento de Links & QR Code para Alunos", expanded=False):
-                        exibir_painel_compartilhamento(tipo_sala="quiz", sala_id=q_id)
-            
-            else:
-                st.markdown("<br>", unsafe_allow_html=True)
-                if status == "em_andamento":
-                    if st.button("🎯 Ingressar na Sala e Responder", key=f"play_{q_id}", type="primary", use_container_width=True):
-                        st.session_state.quiz_ativo_id = q_id
-                        st.session_state.pagina = "quiz_rodada"
-                        st.rerun()
-                elif status == "finalizado":
-                    st.button("🔒 Quiz Encerrado", key=f"play_{q_id}", use_container_width=True, disabled=True)
-                else:
-                    st.button("⏳ Aguardando Professor Iniciar...", key=f"play_{q_id}", use_container_width=True, disabled=True)
-
 
 def tela_quiz_ao_vivo():
     aplicar_estilo()
@@ -126,6 +37,22 @@ def tela_quiz_ao_vivo():
         "🎮 Quiz Acadêmico ao Vivo",
         "Participe de sessões síncronas de perguntas e respostas em sala de aula"
     )
+
+    # ⏱️ AUTO-REFRESH SÍNCRONO: Injeta um script leve em HTML que atualiza a tela do aluno a cada 3 segundos em background
+    if tipo == "aluno":
+        st.components.v1.html(
+            """
+            <script>
+                if (!window.refreshIntervalSet) {
+                    window.refreshIntervalSet = true;
+                    setInterval(function() {
+                        window.parent.postMessage({type: 'streamlit:setComponentValue', value: true}, '*');
+                    }, 3000);
+                }
+            </script>
+            """,
+            height=0
+        )
 
     if tipo in ("professor", "admin"):
         aba_gestao, aba_lista = st.tabs(["✨ Criar Novo Quiz", "📊 Painel de Controle Síncrono"])
@@ -159,5 +86,89 @@ def tela_quiz_ao_vivo():
 
     with aba_lista:
         st.subheader("Salas de Quiz Registradas")
-        # Invoca a lista protegida pelo fragmento
-        renderizar_lista_quizzes(tipo, usuario, user_id)
+        
+        # Botão manual de sincronia mantido para redundância de rede
+        col_atualizar, _ = st.columns([1, 3])
+        with col_atualizar:
+            if st.button("🔄 Sincronizar Salas", use_container_width=True):
+                st.rerun()
+                
+        quizzes = listar_quizzes_do_banco()
+
+        if not quizzes:
+            st.info("Nenhuma sessão de quiz síncrono localizada no momento.")
+            return
+
+        for q in quizzes:
+            q_id = q.get("id")
+            status = str(q.get("status", "criado")).strip().lower()
+            tema_txt = q.get("tema") or "Geral"
+            
+            autor_objeto = q.get("usuarios")
+            if isinstance(autor_objeto, dict):
+                autor = autor_objeto.get("nome", "Professor")
+            else:
+                autor = usuario.get("nome", "Professor") if tipo in ("professor", "admin") else "Docente"
+            
+            if status == "em_andamento":
+                cor_status = "#2a9d8f"
+                txt_status = "Em Andamento 🟢"
+            elif status == "finalizado":
+                cor_status = "#e63946"
+                txt_status = "Finalizado 🛑"
+            else:
+                cor_status = "#00b4d8"
+                txt_status = "Aguardando Início ⏱️"
+
+            with st.container(border=True):
+                st.markdown(f"""
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h4 style="margin:0; color:#1b3a5c;">{q.get('titulo')}</h4>
+                    <span style="background:{cor_status}; color:#fff; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600;">{txt_status}</span>
+                </div>
+                <p style="margin:5px 0 0; font-size:12px; color:#555;">
+                    👤 Responsável: <strong>{autor}</strong> | 📌 Tema: <code>{tema_txt}</code>
+                </p>
+                """, unsafe_allow_html=True)
+                
+                if tipo in ("professor", "admin"):
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        if status == "criado":
+                            if st.button("▶️ Iniciar Quiz / Liberar Pergunta", key=f"start_{q_id}", type="primary", use_container_width=True):
+                                alterar_status_quiz(q_id, "em_andamento")
+                                st.toast("🚀 A sala do Quiz foi aberta para os alunos!")
+                                time.sleep(0.3)
+                                st.rerun()
+                        elif status == "em_andamento":
+                            if st.button("🛑 Encerrar Sessão", key=f"stop_{q_id}", use_container_width=True):
+                                alterar_status_quiz(q_id, "finalizado")
+                                st.toast("Sala de quiz encerrada oficialmente.")
+                                time.sleep(0.3)
+                                st.rerun()
+                        else:
+                            st.button("🔒 Quiz Já Finalizado", key=f"ended_{q_id}", disabled=True, use_container_width=True)
+                            
+                    with col2:
+                        if st.button("📊 Ver Telão de Líderes", key=f"rank_{q_id}", use_container_width=True, disabled=(status == "criado")):
+                            st.session_state.quiz_ranking_id = q_id
+                            st.session_state.pagina = "quiz_ranking_global"
+                            st.rerun()
+                    
+                    if status != "finalizado":
+                        with st.expander("📢 Mapeamento de Links & QR Code para Alunos", expanded=False):
+                            exibir_painel_compartilhamento(tipo_sala="quiz", sala_id=q_id)
+                
+                else:
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    if status == "em_andamento":
+                        if st.button("🎯 Ingressar na Sala e Responder", key=f"play_{q_id}", type="primary", use_container_width=True):
+                            st.session_state.quiz_ativo_id = q_id
+                            st.session_state.pagina = "quiz_rodada"
+                            st.rerun()
+                    elif status == "finalizado":
+                        st.button("🔒 Quiz Encerrado", key=f"play_{q_id}", use_container_width=True, disabled=True)
+                    else:
+                        st.button("⏳ Aguardando Professor Iniciar...", key=f"play_{q_id}", use_container_width=True, disabled=True)
