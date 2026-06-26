@@ -35,10 +35,10 @@ except ImportError:
 
 # Sub-módulos: Mini Provas (Mapeado estritamente para o arquivo mini_provas.py real)
 try:
-    from telas.mini_provas import tela_mini_provas
+    from telas.tela_mini_provas_principal import tela_mini_provas
 except ImportError as e:
     mensagem_erro_prova = str(e)
-    def tela_mini_provas(err=e):
+    def tela_mini_provas(err=mensagem_erro_prova): 
         st.warning(f"Módulo de mini provas indisponível. Erro: {err}")
 # Fallbacks de páginas síncronas/assíncronas do ecossistema de testes
 def tela_mini_provas_professor(): pass
