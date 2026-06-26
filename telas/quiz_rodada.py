@@ -28,15 +28,39 @@ def salvar_resposta_aluno(quiz_id, pergunta_id, usuario_id, alternativa_id, corr
     try:
         pontos = 1000.0 if correta else 0.0
         
+        # 1. Verificar se o usuário já existe na tabela intermediária 'participantes_quiz' para este quiz
+        id_participante_real = None
+        try:
+            res_part = supabase.table("participantes_quiz").select("id").eq("quiz_id", quiz_id).eq("usuario_id", usuario_id).execute()
+            if res_part.data:
+                id_participante_real = res_part.data[0]["id"]
+            else:
+                # Se não existir, insere o aluno na sessão para gerar o ID de participante correto
+                res_novo_part = supabase.table("participantes_quiz").insert({
+                    "quiz_id": quiz_id,
+                    "usuario_id": usuario_id
+                }).execute()
+                if res_novo_part.data:
+                    id_participante_real = res_novo_part.data[0]["id"]
+        except Exception as e_part:
+            # Fallback caso a tabela antiga use outra nomenclatura (ex: participante_id ou id_usuario)
+            st.error(f"⚠️ Erro ao validar participante na sessão: {e_part}")
+            return False
+
+        if not id_participante_real:
+            st.error("❌ Não foi possível vincular seu usuário à sessão ativa de participantes.")
+            return False
+
+        # 2. Envia o payload contendo a chave estrangeira correta gerada pelo banco antigo
         payload = {
             "quiz_id": quiz_id,
             "pergunta_id": pergunta_id,
             "usuario_id": usuario_id,
-            "participante_id": usuario_id,
+            "participante_id": id_participante_real,  # ✅ SOLUÇÃO: Agora enviando o ID da tabela correta!
             "alternativa_id": alternativa_id,
             "pontuacao_obtida": pontos,
             "indice_resposta": int(indice_resposta),
-            "correta": bool(correta)  # ✅ SOLUÇÃO: Preenche a coluna obrigatória "correta" que o banco antigo exige
+            "correta": bool(correta)
         }
         
         res = supabase.table("respostas_quiz").insert(payload).execute()
