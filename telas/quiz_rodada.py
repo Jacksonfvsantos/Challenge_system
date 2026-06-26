@@ -1,5 +1,6 @@
 import streamlit as st
 import time
+from datetime import datetime, timezone
 from database.conexao import supabase
 
 def buscar_dados_quiz(quiz_id):
@@ -22,6 +23,15 @@ def buscar_alternativas(pergunta_id):
         return res.data or []
     except Exception:
         return []
+
+def contar_respostas_e_participantes(quiz_id, pergunta_id):
+    """Retorna o total de alunos que responderam e o total de participantes na sala."""
+    try:
+        total_parts = supabase.table("participantes_quiz").select("id", count="exact").eq("quiz_id", quiz_id).execute().count or 0
+        total_resps = supabase.table("respostas_quiz").select("id", count="exact").eq("pergunta_id", pergunta_id).execute().count or 0
+        return total_resps, max(total_parts, 1) # evita divisão por zero
+    except Exception:
+        return 0, 1
 
 def salvar_resposta_aluno(quiz_id, pergunta_id, usuario_id, alternativa_id, correta, indice_resposta):
     try:
@@ -58,22 +68,37 @@ def salvar_resposta_aluno(quiz_id, pergunta_id, usuario_id, alternativa_id, corr
         
         res = supabase.table("respostas_quiz").insert(payload).execute()
         return bool(res.data)
-        
-    except Exception as e:
+    except Exception:
         return False
 
-# 🔄 SENTINELA DE ATUALIZAÇÃO SÍNCRONA (ESCOPO GLOBAL DE APLICATIVO)
+# 🔄 SENTINELA DE AUTOMAÇÃO DE FLUXO (RODA EM SEGUNDO PLANO PARA TODOS)
 @st.fragment
-def executar_sincronia_aluno(quiz_id, etapa_atual, pergunta_atual_id):
+def executar_sincronia_automatica(quiz_id, etapa_atual, pergunta_atual_id, tempo_limite):
     """
-    Monitora o banco de dados em background a cada 2 segundos.
-    Se o professor mudar de questão ou liberar o gabarito, reconstrói o app inteiro.
+    Dorme por 1.5s, checa as condições de Kahoot (Tempo Esgotado ou Todos Responderam).
+    Se a condição bater, muda o status no banco e força o Rerun Global.
     """
-    time.sleep(2.0)
+    time.sleep(1.5)
     quiz_recente = buscar_dados_quiz(quiz_id)
-    if quiz_recente:
-        if (quiz_recente.get("etapa_rodada") != etapa_atual) or (quiz_recente.get("pergunta_atual_id") != pergunta_atual_id):
-            # scope="app" força o Streamlit a redesenhar a tela de ponta a ponta
+    if not quiz_recente:
+        return
+
+    # Se o professor mudou manualmente na outra ponta, atualiza na hora
+    if (quiz_recente.get("etapa_rodada") != etapa_atual) or (quiz_recente.get("pergunta_atual_id") != pergunta_atual_id):
+        st.rerun(scope="app")
+
+    # Se a rodada ainda está aberta para respostas, valida se deve fechar automaticamente
+    if etapa_atual == "pergunta" and pergunta_atual_id:
+        respostas, participantes = contar_respostas_e_participantes(quiz_id, pergunta_atual_id)
+        
+        # Condição 1: Todos os participantes escolheram uma alternativa
+        todos_responderam = respostas >= participantes
+        
+        if todos_responderam:
+            supabase.table("quizzes").update({"etapa_rodada": "gabarito"}).eq("id", quiz_id).execute()
+            st.rerun(scope="app")
+        else:
+            # Força atualização para atualizar contadores e interface
             st.rerun(scope="app")
 
 def tela_quiz_rodada():
@@ -94,14 +119,8 @@ def tela_quiz_rodada():
         st.error("Erro ao carregar dados da sala.")
         return
 
-    # 🚀 CONFIGURAÇÃO E EXTRAÇÃO DE ESTADOS DA RODADA
     p_atual_id = quiz.get("pergunta_atual_id")
     etapa = quiz.get("etapa_rodada", "pergunta")
-
-    # 🔥 CENTRAL DE SINCRONIZAÇÃO: Executa no topo da UI se o usuário for um aluno
-    # Captura mudanças mesmo se estiver na sala de espera ou trocando de pergunta
-    if tipo == "aluno":
-        executar_sincronia_aluno(quiz_id, etapa, p_atual_id)
 
     st.title(f"🎮 {quiz.get('titulo')}")
     perguntas = buscar_perguntas_do_quiz(quiz_id)
@@ -113,35 +132,43 @@ def tela_quiz_rodada():
             st.rerun()
         return
 
-    # 🚪 SALA DE ESPERA (Antes de disparar a primeira pergunta)
+    # 🚪 SALA DE ESPERA (Antes do Quiz Começar)
     if not p_atual_id:
         if tipo in ("professor", "admin"):
             st.subheader("👨‍🏫 Painel de Moderação")
-            st.info("A sala está cheia de alunos aguardando! Dispare a primeira questão para iniciar o show.")
-            if st.button("🚀 Liberar Pergunta 1", type="primary", use_container_width=True, key="btn_trigger_first_q"):
+            st.info("Alunos conectados aguardando! Clique abaixo para disparar o quiz.")
+            if st.button("🚀 Iniciar Quiz (Pergunta 1)", type="primary", use_container_width=True, key="btn_trigger_first_q"):
                 first_p = perguntas[0]["id"]
                 supabase.table("quizzes").update({"pergunta_atual_id": first_p, "etapa_rodada": "pergunta"}).eq("id", quiz_id).execute()
                 st.rerun()
         else:
-            st.subheader("⏳ Aguardando o Professor...")
-            st.info("Prepare sua mente! O professor iniciará a primeira rodada a qualquer momento.")
+            st.subheader("⏳ Sala de Espera")
+            st.info("Conectado com sucesso! Aguarde o professor dar início à partida.")
+            # Aluno fica escutando até o professor clicar em Iniciar
+            executar_sincronia_automatica(quiz_id, etapa, p_atual_id, 30)
         return
 
-    # Mapeamento dinâmico da questão ativa baseada no painel de moderação
     pergunta_ativa = next((p for p in perguntas if p["id"] == p_atual_id), perguntas[0])
     alternativas = buscar_alternativas(pergunta_ativa["id"])
     tempo_limite = int(pergunta_ativa.get("tempo_limite_segundos", 30))
 
+    # Ativa o sentinela inteligente em segundo plano para monitorar as regras de tempo/respostas
+    executar_sincronia_automatica(quiz_id, etapa, p_atual_id, tempo_limite)
+
     st.subheader(f"Questão {pergunta_ativa['ordem']}: {pergunta_ativa.get('enunciado') or pergunta_ativa.get('texto')}")
     
+    # Busca contagem de envios para exibir no topo de ambas as telas
+    respostas_enviadas, total_alunos = contar_respostas_e_participantes(quiz_id, pergunta_ativa["id"])
+
     # ------------------ VISÃO DO PROFESSOR ------------------
     if tipo in ("professor", "admin"):
-        st.write(f"⏱️ **Tempo sugerido para esta questão:** `{tempo_limite} segundos`")
+        # Mostra o placar de respostas em tempo real para o professor ver quem já votou
+        st.metric(label="Respostas Recebidas", value=f"{respostas_enviadas} de {total_alunos} alunos")
         
         col1, col2 = st.columns(2)
         with col1:
             if etapa == "pergunta":
-                if st.button("👁️ Mostrar Gabarito e Bloquear Respostas", type="primary", use_container_width=True, key="btn_lock_and_reveal"):
+                if st.button("👁️ Forçar Encerramento e Ver Gabarito", type="secondary", use_container_width=True, key="btn_lock_and_reveal"):
                     supabase.table("quizzes").update({"etapa_rodada": "gabarito"}).eq("id", quiz_id).execute()
                     st.rerun()
             else:
@@ -152,7 +179,7 @@ def tela_quiz_rodada():
                         supabase.table("quizzes").update({"pergunta_atual_id": prox_p, "etapa_rodada": "pergunta"}).eq("id", quiz_id).execute()
                         st.rerun()
                 else:
-                    if st.button("🛑 Encerrar Quiz e Mostrar Campeões", type="primary", use_container_width=True, key="btn_finish_quiz_global"):
+                    if st.button("🛑 Finalizar Quiz e Ver Pódio", type="primary", use_container_width=True, key="btn_finish_quiz_global"):
                         supabase.table("quizzes").update({"status": "finalizado"}).eq("id", quiz_id).execute()
                         st.session_state.quiz_ranking_id = quiz_id
                         st.session_state.pagina = "quiz_ranking_global"
@@ -164,7 +191,7 @@ def tela_quiz_rodada():
                 st.rerun()
 
         st.markdown("---")
-        st.write("📋 **Visualização do Gabarito do Professor:**")
+        st.write("📋 **Gabarito de Referência (Oculto para Alunos):**")
         for alt in alternativas:
             prefixo = "✅" if alt["correta"] else "❌"
             st.markdown(f"### {prefixo} {alt['texto']}")
@@ -172,7 +199,9 @@ def tela_quiz_rodada():
     # ------------------ VISÃO DO ALUNO ------------------
     else:
         if etapa == "pergunta":
-            st.progress(1.0, text="⏳ A rodada está aberta! Responda rápido!")
+            # Barra de progresso baseada nas respostas enviadas
+            progresso_respostas = min(respostas_enviadas / total_alunos, 1.0)
+            st.progress(progresso_respostas, text=f"📥 {respostas_enviadas}/{total_alunos} alunos já responderam...")
 
             ja_respondeu = False
             try:
@@ -183,25 +212,24 @@ def tela_quiz_rodada():
 
             if ja_respondeu:
                 st.markdown("### 📥 Resposta Registrada com Sucesso!")
-                st.info("Sua escolha foi guardada. Aguarde o professor encerrar o tempo para visualizar o gabarito oficial.")
+                st.info("Aguardando os demais participantes concluírem para revelar o gabarito...")
             else:
-                st.caption(f"⏱️ Tempo sugerido: {tempo_limite}s. Selecione a opção correta:")
-                
+                st.caption("Selecione a opção correta:")
                 for alt in alternativas:
                     if st.button(f"🔘 {alt['texto']}", key=f"btn_submit_alt_{alt['id']}", use_container_width=True):
                         sucesso = salvar_resposta_aluno(quiz_id, pergunta_ativa["id"], user_id, alt["id"], alt["correta"], alt["ordem"])
                         if sucesso:
-                            st.toast("Resposta registrada com sucesso!", icon="✅")
+                            st.toast("Resposta registrada!", icon="✅")
                             time.sleep(0.3)
                             st.rerun()
 
-        # ETAPA GABARITO: REVELAÇÃO EM TEMPO REAL PARA O ALUNO
+        # ETAPA GABARITO (GABARITO REVELADO AUTOMATICAMENTE)
         else:
-            st.markdown("### 🔒 Rodada Encerrada pelo Professor!")
+            st.markdown("### 🔒 Tempo Esgotado! Conferindo Resultados...")
             st.markdown("---")
             
             alt_correta = next((a for a in alternativas if a["correta"]), None)
-            text_correto = alt_correta["texto"] if alt_correta else "Não definida"
+            text_correto = alt_correta["texto"] if alt_correta else ""
 
             try:
                 resp = supabase.table("respostas_quiz").select("alternativa_id, correta").eq("pergunta_id", pergunta_ativa["id"]).eq("usuario_id", user_id).execute()
@@ -209,16 +237,14 @@ def tela_quiz_rodada():
                 if resp.data:
                     aluno_acertou = resp.data[0]["correta"]
                     id_marcado = resp.data[0]["alternativa_id"]
-                    
                     alt_marcada = next((a for a in alternativas if a["id"] == id_marcado), None)
-                    text_marcado = alt_marcada["texto"] if alt_marcada else "Desconhecida"
+                    text_marcado = alt_marcada["texto"] if alt_marcada else ""
 
                     if aluno_acertou:
                         st.success(f"🎉 **Você ACERTOU!**\n\n**Sua Resposta:** {text_marcado}")
                     else:
                         st.error(f"😞 **Você ERROU!**\n\n**Você marcou:** {text_marcado}\n\n**Gabarito Correto:** {text_correto}")
                 else:
-                    st.warning(f"⏱️ **O tempo acabou!** Você não enviou nenhuma resposta para esta questão.\n\n**Gabarito Correto:** {text_correto}")
-            
+                    st.warning(f"⏱️ **O tempo acabou!** Você não enviou nenhuma resposta.\n\n**Gabarito Correto:** {text_correto}")
             except Exception:
-                st.info(f"O tempo expirou! **Gabarito oficial:** {text_correto}")
+                st.info(f"Gabarito oficial: {text_correto}")
