@@ -2,7 +2,6 @@ import streamlit as st
 import time
 from database.conexao import supabase
 from services.batalha_service import encerrar_partida_sincrona, processar_resposta_sincrona, obter_estado_batalha
-from utils.estilo import aplicar_estilo, cabecalho
 
 # --- FUNÇÕES DE SUPORTE AO BACKEND DA RODADA ---
 
@@ -16,14 +15,7 @@ def obter_nomes_dos_times(time_a_id, time_b_id):
 
 def obter_pergunta_atual(batalha_id, ordem_pergunta):
     try:
-        vinculo = (
-            supabase
-            .table("batalha_perguntas")
-            .select("questao_id")
-            .eq("batalha_id", batalha_id)
-            .eq("ordem", int(ordem_pergunta))
-            .execute()
-        )
+        vinculo = supabase.table("batalha_perguntas").select("questao_id").eq("batalha_id", batalha_id).eq("ordem", int(ordem_pergunta)).execute()
         if not vinculo.data:
             return None
             
@@ -33,8 +25,6 @@ def obter_pergunta_atual(batalha_id, ordem_pergunta):
             return None
             
         dados_questao = questao.data[0]
-        
-        # Leitura limpa e relacional das alternativas mapeadas no Postgres
         alternativas = supabase.table("alternativas").select("*").eq("questao_id", q_id).order("ordem").execute()
         lista_alt_data = alternativas.data or []
         
@@ -81,8 +71,7 @@ def calcular_placar_atual(batalha_id, time_a_id, time_b_id):
     except Exception:
         return 0, 0
 
-
-# --- COMPONENTE REATIVO AUTO-REFRESH ---
+# --- 🔄 COMPONENTE REATIVO AUTO-REFRESH ---
 @st.fragment(run_every=3)
 def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, nome_time_b, dados_pergunta, ordem_renderizada_atualmente, status_renderizado_atualmente):
     batalha_live = obter_estado_batalha(batalha_id)
@@ -90,7 +79,7 @@ def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, no
         ordem_banco = int(batalha_live.get("pergunta_atual_ordem", 1))
         status_banco = str(batalha_live.get("status_sincrono", "aguardando_resposta"))
         if ordem_banco != int(ordem_renderizada_atualmente) or status_banco != str(status_renderizado_atualmente):
-            st.session_state["forcar_refresh_pergunta"] = True
+            st.session_state["forcar_refresh_global"] = True
             st.rerun()
 
     pontos_a, pontos_b = calcular_placar_atual(batalha_id, time_a_id, time_b_id)
@@ -125,23 +114,25 @@ def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, no
 
         if historico:
             st.markdown(f"##### 📢 Registro de Submissões (Questão {ordem_alvo_log}):")
+            mapa_alternativas = {str(alt["id"]).strip(): chr(64 + int(alt["ordem"])) for alt in pergunta_alvo_dados["alternativas"]}
             for item in historico:
                 id_time_respondido = str(item.get("time_id")).strip()
                 nome_do_respondente = nome_time_a if id_time_respondido == time_a_id else nome_time_b
+                chance = item.get("tentativa_numero", 1)
+                alt_id_submetida = str(item.get("alternativa_id")).strip() if item.get("alternativa_id") else None
+                letra_escolhida = mapa_alternativas.get(alt_id_submetida, "marcada") if alt_id_submetida else "marcada"
                 
                 if item.get("resposta_correta") is True:
-                    st.success(f"🎯 **{nome_do_respondente}** respondeu e ACERTOU a questão {ordem_alvo_log}!")
+                    st.success(f"🎯 **{nome_do_respondente}** escolheu a alternativa **({letra_escolhida})** e ACERTOU a questão {ordem_alvo_log}!")
                 else:
-                    st.error(f"❌ **{nome_do_respondente}** respondeu e ERROU a questão {ordem_alvo_log}!")
+                    st.error(f"❌ **{nome_do_respondente}** escolheu a alternativa **({letra_escolhida})** e ERROU a questão {ordem_alvo_log}!")
             st.markdown("---")
-
 
 # --- INTERFACE PRINCIPAL ---
 def tela_batalha_rodada():
     aplicar_estilo()
-    
-    if st.session_state.get("forcar_refresh_pergunta", False):
-        st.session_state["forcar_refresh_pergunta"] = False
+    if st.session_state.get("forcar_refresh_global", False):
+        st.session_state["forcar_refresh_global"] = False
         st.rerun()
 
     usuario = st.session_state.get("usuario_logado", {})
@@ -162,7 +153,6 @@ def tela_batalha_rodada():
 
     batalha_id = st.session_state.batalha_ativa_id
     batalha = obter_estado_batalha(batalha_id)
-    
     if not batalha:
         st.warning("Batalha não localizada.")
         return
@@ -177,27 +167,12 @@ def tela_batalha_rodada():
 
     painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, nome_time_b, dados_pergunta, pergunta_ordem, status_sincrono)
 
-    # Verificação de fim do jogo
     if batalha.get("finalizada") is True or str(batalha.get("status")).lower() == "finalizada" or not dados_pergunta:
         if not batalha.get("finalizada"):
             encerrar_partida_sincrona(batalha_id)
-            
-        st.success("🏁 **A batalha foi encerrada oficialmente! Todas as perguntas foram respondidas.**")
-        pontos_a, pontos_b = calcular_placar_atual(batalha_id, time_a_id, time_b_id)
-        
-        if pontos_a > pontos_b:
-            st.markdown(f"### 🏆 Vencedor da Arena: **{nome_time_a}** (Placar: {pontos_a} vs {pontos_b})")
-        elif pontos_b > pontos_a:
-            st.markdown(f"### 🏆 Vencedor da Arena: **{nome_time_b}** (Placar: {pontos_b} vs {pontos_a})")
-        else:
-            st.markdown(f"### 🤝 Fim de Confronto: **Empate Técnico!** (Placar: {pontos_a} vs {pontos_b})")
-            
-        if st.button("Voltar para a Arena de Equipes", use_container_width=True, key="btn_batalha_fim"):
-            st.session_state.pagina = "batalha_de_equipes"
-            st.rerun()
+        st.success("🏁 **A batalha foi encerrada oficialmente!**")
         return
 
-    # Controles do professor
     if tipo_usuario in ("professor", "admin") and str(batalha.get("status")).lower() == "agendada":
         st.markdown("### 🎛️ Painel de Controle de Início da Partida")
         try:
@@ -218,21 +193,19 @@ def tela_batalha_rodada():
         return
 
     if tipo_usuario == "aluno" and str(batalha.get("status")).lower() == "agendada":
-        st.info("⏳ **Sala de Espera:** Aguardando o professor dar o sinal de início. Esta tela atualizará sozinha.")
+        st.info("⏳ **Sala de Espera:** Aguardando o professor dar o sinal de início.")
         return
 
-    # Modos de Visualização e Vez de Jogar
     eh_espectador = False
     if tipo_usuario == "aluno":
         if str(time_id) != time_a_id and str(time_id) != time_b_id:
-            st.warning("👁️ Modo Espectador ativo. Acompanhe os rounds na tela.")
+            st.warning("👁️ Modo Espectador ativo.")
             eh_espectador = True
     else:
         eh_espectador = True
 
     time_adversario_id = time_b_id if str(time_id) == time_a_id else time_a_id
     time_da_vez_id = str(batalha.get("time_da_vez_id")).strip() if batalha.get("time_da_vez_id") else ""
-    
     tentativa_atual = 2 if status_sincrono == "rebate_ativo" else 1
     eh_a_vez_deste_time = (str(time_id).strip() == time_da_vez_id)
 
@@ -240,18 +213,14 @@ def tela_batalha_rodada():
     
     if tipo_usuario == "aluno" and not eh_espectador:
         if eh_a_vez_deste_time:
-            st.markdown(f"""
-            <div style="background-color: #065f46; border-left: 6px solid #10b981; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
-                <h4 style="color: #a7f3d0; margin: 0;">🟢 SEU TIME RESPONDE AGORA! ({time_nome})</h4>
+            st.markdown(f"""<div style="background-color: #065f46; border-left: 6px solid #10b981; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+                <h4 style="color: #a7f3d0; margin: 0;">🟢 SEU TIME RESPONDE AGORA!</h4>
                 <p style="color: #a7f3d0; margin: 5px 0 0 0; font-size: 14px;">Tentativa: {tentativa_atual}ª Chance</p>
-            </div>
-            """, unsafe_allow_html=True)
+            </div>""", unsafe_allow_html=True)
         else:
-            st.markdown(f"""
-            <div style="background-color: #7c2d12; border-left: 6px solid #ea580c; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+            st.markdown("""<div style="background-color: #7c2d12; border-left: 6px solid #ea580c; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
                 <h4 style="color: #ffedd5; margin: 0;">⏱️ AGUARDANDO ADVERSÁRIO...</h4>
-            </div>
-            """, unsafe_allow_html=True)
+            </div>""", unsafe_allow_html=True)
 
     with st.container(border=True):
         st.markdown(f"**Enunciado:**\n{dados_pergunta['enunciado']}")
@@ -267,21 +236,10 @@ def tela_batalha_rodada():
             pode_clicar = eh_a_vez_deste_time and (not eh_espectador)
             
             if st.button(texto_opcao, key=f"btn_alt_{alt['id']}", use_container_width=True, disabled=not pode_clicar):
-                # ✅ Chamada limpa com 6 argumentos direcionada ao batalha_service
+                # ✅ CORRIGIDO E SINCRONIZADO: Enviando exatamente os 7 parâmetros esperados!
                 res = processar_resposta_sincrona(
-                    batalha_id, 
-                    dados_pergunta["id"], 
-                    time_id,
-                    alt["correta"], 
-                    time_adversario_id, 
-                    tentativa_atual
-        )
-        time.sleep(0.5)
-        st.rerun()
-
-    st.markdown("<br><hr style='border-color: #334155;'>", unsafe_allow_html=True)
-    if st.button("🚪 Sair da Sala / Voltar para a Arena", use_container_width=True, type="secondary", key="btn_sair_sala_emergencia"):
-        if "batalha_ativa_id" in st.session_state:
-            del st.session_state["batalha_ativa_id"]
-        st.session_state.pagina = "batalha_de_equipes"
-        st.rerun()
+                    batalha_id, dados_pergunta["id"], time_id, alt["id"],
+                    alt["correta"], time_adversario_id, tentativa_atual
+                )
+                time.sleep(0.4)
+                st.rerun()
