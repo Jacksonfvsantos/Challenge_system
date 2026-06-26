@@ -1,6 +1,5 @@
 import streamlit as st
 import time
-from datetime import datetime, timezone
 from database.conexao import supabase
 
 def buscar_dados_quiz(quiz_id):
@@ -25,11 +24,15 @@ def buscar_alternativas(pergunta_id):
         return []
 
 def contar_respostas_e_participantes(quiz_id, pergunta_id):
-    """Retorna o total de alunos que responderam e o total de participantes na sala."""
+    """Retorna o total de alunos que responderam e o total de participantes na sala de forma segura."""
     try:
-        total_parts = supabase.table("participantes_quiz").select("id", count="exact").eq("quiz_id", quiz_id).execute().count or 0
-        total_resps = supabase.table("respostas_quiz").select("id", count="exact").eq("pergunta_id", pergunta_id).execute().count or 0
-        return total_resps, max(total_parts, 1) # evita divisão por zero
+        res_parts = supabase.table("participantes_quiz").select("id").eq("quiz_id", quiz_id).execute()
+        res_resps = supabase.table("respostas_quiz").select("id").eq("pergunta_id", pergunta_id).execute()
+        
+        total_parts = len(res_parts.data) if res_parts.data else 0
+        total_resps = len(res_resps.data) if res_resps.data else 0
+        
+        return total_resps, max(total_parts, 1)
     except Exception:
         return 0, 1
 
@@ -71,35 +74,28 @@ def salvar_resposta_aluno(quiz_id, pergunta_id, usuario_id, alternativa_id, corr
     except Exception:
         return False
 
-# 🔄 SENTINELA DE AUTOMAÇÃO DE FLUXO (RODA EM SEGUNDO PLANO PARA TODOS)
+# 🔄 SENTINELA DE AUTOMAÇÃO DE FLUXO (RODA APENAS SE A PARTIDA ESTIVER ATIVA)
 @st.fragment
-def executar_sincronia_automatica(quiz_id, etapa_atual, pergunta_atual_id, tempo_limite):
-    """
-    Dorme por 1.5s, checa as condições de Kahoot (Tempo Esgotado ou Todos Responderam).
-    Se a condição bater, muda o status no banco e força o Rerun Global.
-    """
-    time.sleep(1.5)
+def executar_sincronia_automatica(quiz_id, etapa_atual, pergunta_atual_id):
+    """Monitora o banco a cada 2.5s. Se todos responderam ou se o professor mudou de tela, atualiza o app."""
+    time.sleep(2.5)
     quiz_recente = buscar_dados_quiz(quiz_id)
     if not quiz_recente:
         return
 
-    # Se o professor mudou manualmente na outra ponta, atualiza na hora
+    # Se houve mudança de estado global, atualiza a tela de todos imediatamente
     if (quiz_recente.get("etapa_rodada") != etapa_atual) or (quiz_recente.get("pergunta_atual_id") != pergunta_atual_id):
         st.rerun(scope="app")
 
-    # Se a rodada ainda está aberta para respostas, valida se deve fechar automaticamente
+    # Regra Kahoot: Fecha a rodada se a pergunta estiver aberta e todos já tiverem votado
     if etapa_atual == "pergunta" and pergunta_atual_id:
         respostas, participantes = contar_respostas_e_participantes(quiz_id, pergunta_atual_id)
-        
-        # Condição 1: Todos os participantes escolheram uma alternativa
-        todos_responderam = respostas >= participantes
-        
-        if todos_responderam:
+        if respostas >= participantes and participantes > 0:
             supabase.table("quizzes").update({"etapa_rodada": "gabarito"}).eq("id", quiz_id).execute()
             st.rerun(scope="app")
         else:
-            # Força atualização para atualizar contadores e interface
-            st.rerun(scope="app")
+            # Atualiza o fragmento de forma suave para atualizar as barras de progresso
+            st.rerun()
 
 def tela_quiz_rodada():
     usuario = st.session_state.get("usuario_logado", {})
@@ -132,7 +128,7 @@ def tela_quiz_rodada():
             st.rerun()
         return
 
-    # 🚪 SALA DE ESPERA (Antes do Quiz Começar)
+    # 🚪 SALA DE ESPERA (LIVRE DE LOOPS - ATUALIZAÇÃO RESTRITA)
     if not p_atual_id:
         if tipo in ("professor", "admin"):
             st.subheader("👨‍🏫 Painel de Moderação")
@@ -144,25 +140,23 @@ def tela_quiz_rodada():
         else:
             st.subheader("⏳ Sala de Espera")
             st.info("Conectado com sucesso! Aguarde o professor dar início à partida.")
-            # Aluno fica escutando até o professor clicar em Iniciar
-            executar_sincronia_automatica(quiz_id, etapa, p_atual_id, 30)
+            
+            # Para a sala de espera inicial do aluno, usamos um sleep simples para não interceptar cliques
+            time.sleep(2.0)
+            st.rerun()
         return
 
     pergunta_ativa = next((p for p in perguntas if p["id"] == p_atual_id), perguntas[0])
     alternativas = buscar_alternativas(pergunta_ativa["id"])
-    tempo_limite = int(pergunta_ativa.get("tempo_limite_segundos", 30))
 
-    # Ativa o sentinela inteligente em segundo plano para monitorar as regras de tempo/respostas
-    executar_sincronia_automatica(quiz_id, etapa, p_atual_id, tempo_limite)
+    # Ativa o sentinela inteligente apenas após o quiz ser iniciado
+    executar_sincronia_automatica(quiz_id, etapa, p_atual_id)
 
     st.subheader(f"Questão {pergunta_ativa['ordem']}: {pergunta_ativa.get('enunciado') or pergunta_ativa.get('texto')}")
-    
-    # Busca contagem de envios para exibir no topo de ambas as telas
     respostas_enviadas, total_alunos = contar_respostas_e_participantes(quiz_id, pergunta_ativa["id"])
 
     # ------------------ VISÃO DO PROFESSOR ------------------
     if tipo in ("professor", "admin"):
-        # Mostra o placar de respostas em tempo real para o professor ver quem já votou
         st.metric(label="Respostas Recebidas", value=f"{respostas_enviadas} de {total_alunos} alunos")
         
         col1, col2 = st.columns(2)
@@ -199,7 +193,6 @@ def tela_quiz_rodada():
     # ------------------ VISÃO DO ALUNO ------------------
     else:
         if etapa == "pergunta":
-            # Barra de progresso baseada nas respostas enviadas
             progresso_respostas = min(respostas_enviadas / total_alunos, 1.0)
             st.progress(progresso_respostas, text=f"📥 {respostas_enviadas}/{total_alunos} alunos já responderam...")
 
@@ -222,8 +215,6 @@ def tela_quiz_rodada():
                             st.toast("Resposta registrada!", icon="✅")
                             time.sleep(0.3)
                             st.rerun()
-
-        # ETAPA GABARITO (GABARITO REVELADO AUTOMATICAMENTE)
         else:
             st.markdown("### 🔒 Tempo Esgotado! Conferindo Resultados...")
             st.markdown("---")
