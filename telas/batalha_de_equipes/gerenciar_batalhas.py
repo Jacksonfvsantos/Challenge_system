@@ -161,22 +161,27 @@ def tela_batalha_gerenciar():
                             st.rerun()
 
     with aba_finalizadas:
-        st.markdown("### 📜 Arquivo de Confrontos Encerrados")
+        st.markdown("### 📜 Arquivo de Confrontos Encerrados (Histórico)")
         batalhas_passadas = obter_batalhas_finalizadas()
         if not batalhas_passadas:
-            st.info("Nenhuma batalha arquivada.")
+            st.info("Nenhuma batalha arquivada no histórico permanente até o momento.")
         else:
             for bat in batalhas_passadas:
                 with st.container(border=True):
                     col_hist_info, col_hist_del = st.columns([4, 1])
                     with col_hist_info:
-                        st.markdown(f"#### 🏁 {bat['titulo']} (Encerrada)")
+                        st.markdown(f"#### 🏁 {bat['titulo']}")
+                        st.markdown(f"**Desfecho:** {bat.get('resultado_extenso', 'Sem dados consolidados.')}")
+                        if bat.get("encerrado_em"):
+                            st.caption(f"Partida finalizada em: {bat['encerrado_em'][:10]} às {bat['encerrado_em'][11:16]}")
                     with col_hist_del:
+                        st.markdown("<br>", unsafe_allow_html=True)
                         if st.button("🗑️ Limpar", key=f"del_hist_{bat['id']}", use_container_width=True):
-                            if deletar_batalha(bat['id']):
-                                st.success("Histórico limpo!")
-                                time.sleep(0.5)
-                                st.rerun()
+                            # Remove o registro permanente do histórico
+                            supabase.table("historico_batalhas").delete().eq("id", bat['id']).execute()
+                            st.success("Registro removido!")
+                            time.sleep(0.5)
+                            st.rerun()
 
     # 🤖 NOVA ABA: PROCESSAMENTO AUTOMÁTICO DE PROVAS COM IA
     with aba_ia:

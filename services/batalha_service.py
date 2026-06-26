@@ -143,9 +143,11 @@ def obter_estado_batalha(batalha_id):
         return None
 
 def obter_batalhas_finalizadas():
+    """
+    Busca os dados consolidados e imutáveis direto da tabela de histórico.
+    """
     try:
-        # Busca direta e blindada para garantir que o histórico liste independente de joins complexos
-        res = supabase.table("batalhas").select("*").eq("finalizada", True).order("created_at", descending=True).execute()
+        res = supabase.table("historico_batalhas").select("*").order("encerrado_em", descending=True).execute()
         return res.data or []
     except Exception as e:
         print(f"❌ Erro [obter_batalhas_finalizadas]: {e}")
@@ -270,11 +272,67 @@ def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id,
         return "erro"
 
 def encerrar_partida_sincrona(batalha_id):
+    """
+    Consolida o placar atual, gera o resultado oficial imutável, 
+    salva na tabela de histórico e encerra o estado da partida ativa.
+    """
     try:
+        # 1. Puxa o estado atual da batalha para descobrir os IDs dos times e o título
+        res_batalha = supabase.table("batalhas").select("*").eq("id", batalha_id).execute()
+        if not res_batalha.data:
+            return False
+        batalha = res_batalha.data[0]
+        
+        time_a_id = batalha.get("time_a_id")
+        time_b_id = batalha.get("time_b_id")
+        titulo = batalha.get("titulo", "Batalha Arena")
+        
+        # 2. Busca os nomes das equipes de forma segura
+        nome_a, nome_b = "Time A", "Time B"
+        if time_a_id and time_b_id:
+            res_times = supabase.table("times").select("id, nome").in_("id", [time_a_id, time_b_id]).execute()
+            if res_times.data:
+                mapeamento = {str(t["id"]).strip(): t["nome"] for t in res_times.data}
+                nome_a = mapeamento.get(str(time_a_id).strip(), "Time A")
+                nome_b = mapeamento.get(str(time_b_id).strip(), "Time B")
+
+        # 3. Calcula o placar final computando as respostas corretas no banco
+        res_respostas = supabase.table("batalha_respostas").select("time_id, resposta_correta").eq("batalha_id", batalha_id).execute()
+        pontos_a, pontos_b = 0, 0
+        if res_respostas.data:
+            for resp in res_respostas.data:
+                if resp.get("resposta_correta") is True:
+                    if str(resp.get("time_id")).strip() == str(time_a_id).strip():
+                        pontos_a += 1
+                    elif str(resp.get("time_id")).strip() == str(time_b_id).strip():
+                        pontos_b += 1
+
+        # 4. Determina a string descritiva do resultado de encerramento
+        if pontos_a > pontos_b:
+            resultado_extenso = f"🥇 Vencedor: {nome_a} ({pontos_a} XP) | 🥈 Perdedor: {nome_b} ({pontos_b} XP)"
+        elif pontos_b > pontos_a:
+            resultado_extenso = f"🥇 Vencedor: {nome_b} ({pontos_b} XP) | 🥈 Perdedor: {nome_a} ({pontos_a} XP)"
+        else:
+            resultado_extenso = f"🤝 Resultado: Empate entre as equipes ({pontos_a} XP cada)"
+
+        # 5. Salva de forma permanente e persistente na tabela historico_batalhas
+        payload_historico = {
+            "batalha_id": batalha_id,
+            "titulo": titulo,
+            "time_a_nome": nome_a,
+            "time_b_nome": nome_b,
+            "pontos_time_a": pontos_a,
+            "points_time_b": pontos_b, # Compatibilidade relacional interna
+            "pontos_time_b": pontos_b,
+            "resultado_extenso": resultado_extenso
+        }
+        supabase.table("historico_batalhas").insert(payload_historico).execute()
+
+        # 6. Atualiza o status da tabela ativa para finalizada
         supabase.table("batalhas").update({"finalizada": True, "status": "finalizada"}).eq("id", batalha_id).execute()
         return True
     except Exception as e:
-        print(f"❌ Erro ao encerrar partida: {e}")
+        print(f"❌ Erro crítico ao gravar histórico: {e}")
         return False
 
 def deletar_batalha(batalha_id):
