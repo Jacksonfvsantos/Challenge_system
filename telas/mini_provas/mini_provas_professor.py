@@ -1,10 +1,9 @@
 import streamlit as st
 from database.conexao import supabase
-from services.mini_prova_service import criar_mini_prova
 from utils.estilo import aplicar_estilo, cabecalho
 import io
 
-# 🛡️ Blindagem de pacotes externos (Evita o ImportError no app.py se não estiver instalado na nuvem)
+# Bibliotecas para extração de texto com fallback seguro
 try:
     from pypdf import PdfReader
 except ImportError:
@@ -21,14 +20,14 @@ def extrair_texto_arquivo(arquivo_subido, extensao):
     try:
         if extensao == "pdf":
             if PdfReader is None:
-                st.error("❌ Erro: O pacote 'pypdf' não está instalado no servidor. Adicione 'pypdf' ao seu requirements.txt.")
+                st.error("❌ Erro: O pacote 'pypdf' não está instalado. Adicione-o ao requirements.txt.")
                 return ""
             leitor = PdfReader(io.BytesIO(arquivo_subido.read()))
             for pagina in leitor.pages:
                 texto_bruto += pagina.extract_text() + "\n"
         elif extensao == "docx":
             if Document is None:
-                st.error("❌ Erro: O pacote 'python-docx' não está instalado no servidor. Adicione 'python-docx' ao seu requirements.txt.")
+                st.error("❌ Erro: O pacote 'python-docx' não está instalado. Adicione-o ao requirements.txt.")
                 return ""
             doc = Document(io.BytesIO(arquivo_subido.read()))
             for paragrafo in doc.paragraphs:
@@ -97,7 +96,6 @@ def tela_mini_provas_professor():
         
         # Carrega as provas do professor para vinculação da chave estrangeira
         try:
-            # ✅ CORRIGIDO: Alterado de criado_by para criado_por casado com seu DDL original
             res_provas = supabase.table("mini_provas").select("id, titulo").eq("criado_por", usuario_id).execute()
             lista_provas = res_provas.data or []
         except Exception as e:
