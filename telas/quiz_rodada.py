@@ -28,25 +28,14 @@ def salvar_resposta_aluno(quiz_id, pergunta_id, usuario_id, alternativa_id, corr
     try:
         pontos = 1000.0 if correta else 0.0
         
-        # Como o banco exige a string da resposta, vamos buscar o texto dela rapidamente
-        texto_alternativa = "Alternativa Selecionada"
-        try:
-            res_alt = supabase.table("alternativas_quiz").select("texto").eq("id", alternativa_id).single().execute()
-            if res_alt.data:
-                texto_alternativa = res_alt.data["texto"]
-        except Exception:
-            pass
-
-        # Inserção preenchendo tanto o modelo síncrono quanto todas as colunas NOT NULL antigas
+        # Envia apenas o que é estritamente necessário e relacional
         supabase.table("respostas_quiz").insert({
             "quiz_id": quiz_id,
             "pergunta_id": pergunta_id,
             "usuario_id": usuario_id,
-            "participante_id": usuario_id,      # Coluna antiga NOT NULL 1
+            "participante_id": usuario_id,  # Mantido para o campo NOT NULL antigo
             "alternativa_id": alternativa_id,
-            "pontuacao_obtida": pontos,
-            "resposta": texto_alternativa,       # ✅ SOLUÇÃO: Coluna antiga NOT NULL 2
-            "correta": bool(correta)            # ✅ SOLUÇÃO: Coluna antiga NOT NULL 3
+            "pontuacao_obtida": pontos
         }).execute()
         return True
     except Exception as e:
