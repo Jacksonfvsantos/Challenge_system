@@ -120,7 +120,6 @@ def blackjack_mover_aluno(usuario_id: str, destino_time_id: str) -> bool:
         print(f"❌ Erro [mover_aluno]: {erro}")
         return False
 
-# Adiciona o alias para compatibilidade com as telas que buscam por mover_aluno
 mover_aluno = blackjack_mover_aluno
 
 # ============================================================================
@@ -151,7 +150,6 @@ def obter_batalhas_finalizadas():
         print(f"❌ Erro [obter_batalhas_finalizadas]: {e}")
         return []
 
-# 🚀 REINTRODUZIDO: Função exigida pelas telas de gerenciamento docente
 def cadastrar_nova_batalha(titulo, descricao, modalidade, data_limite=None, lista_questoes_ids=None, time_a_id=None, time_b_id=None):
     try:
         payload = {
@@ -193,13 +191,13 @@ def cadastrar_nova_batalha(titulo, descricao, modalidade, data_limite=None, list
         print(f"❌ Erro em [cadastrar_nova_batalha]: {e}")
         return {"sucesso": False, "mensagem": f"Erro interno: {str(e)}"}
 
+# 🚀 CORREÇÃO CIRÚRGICA: Removido 'tipo' e 'pontos' que quebravam o schema cache do PostgREST
 def cadastrar_questao_rapida(enunciado, alternativas_texto, indice_correta):
     try:
         res_q = supabase.table("questoes").insert({
-            "enunciado": enunciado,
-            "tipo": "multipla_escolha",
-            "pontos": 1
+            "enunciado": enunciado.strip()
         }).execute()
+        
         if not res_q.data:
             return {"sucesso": False, "mensagem": "Erro ao criar enunciado."}
             
@@ -208,7 +206,7 @@ def cadastrar_questao_rapida(enunciado, alternativas_texto, indice_correta):
         for i, texto in enumerate(alternativas_texto):
             linhas_alt.append({
                 "questao_id": q_id,
-                "texto": texto,
+                "texto": texto.strip(),
                 "ordem": i + 1,
                 "correta": (i == indice_correta)
             })
@@ -269,9 +267,6 @@ def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id,
     except Exception as e:
         print(f"❌ Erro [processar_resposta_sincrona]: {e}")
         return "erro"
-
-def verificar_paridade_rodada(batalha_id, numero_rodada):
-    return True
 
 def encerrar_partida_sincrona(batalha_id):
     try:
