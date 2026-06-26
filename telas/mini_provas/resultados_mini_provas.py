@@ -14,12 +14,12 @@ def tela_resultados_mini_provas():
         st.error("Sessão de usuário inválida.")
         return
 
-    # 🔍 Busca o histórico real do aluno integrado com os dados da mini prova
+    # 🔍 BUSCA O HISTÓRICO REAL DO ALUNO COM A SINTAXE DE ORDENAÇÃO CORRIGIDA (.order(..., desc=True))
     try:
         res = supabase.table("historico_mini_provas")\
             .select("*, mini_provas(titulo, disciplina, assunto)")\
             .eq("usuario_id", usuario_id)\
-            .order("created_at", descending=True)\
+            .order("created_at", desc=True)\
             .execute()
         historico = res.data or []
     except Exception as e:
@@ -68,9 +68,8 @@ def tela_resultados_mini_provas():
             
             st.markdown("<br>", unsafe_allow_html=True)
             
-            # Botão reativo para abrir o Gabarito Detalhado daquela prova específica
+            # Botão reativo para abrir o Gabarito Detalhado
             if st.button(f"🔍 Ver Detalhes e Gabarito", key=f"ver_gabarito_{tentativa['id']}_{idx}", use_container_width=True):
-                # Estrutura o payload esperado pela tela 'resultado_mini_prova.py'
                 st.session_state.resultado_prova_calculado = {
                     "sucesso": True,
                     "nota": nota,
