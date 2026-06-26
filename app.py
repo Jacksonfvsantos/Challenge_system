@@ -59,8 +59,8 @@ elif pagina_atual == "cadastro":
 
 # Dashboard Principal / Home
 elif pagina_atual == "dashboard":
-    from telas.dashboard import tela_dashboard
-    tela_dashboard()
+    from telas.home import tela_home
+    tela_home()
 
 # ⚔️ Ecossistema: Batalha de Equipes
 elif pagina_atual == "batalha_de_equipes":
