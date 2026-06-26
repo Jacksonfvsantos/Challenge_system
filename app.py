@@ -1,8 +1,16 @@
 import streamlit as st
 from utils.session import iniciar_session
+from extra_streamlit_components import CookieManager
 
 # 1. Inicializa o estado global da sessão do ecossistema
 iniciar_session()
+
+@st.cache_resource
+def obter_cookie_manager():
+    return CookieManager()
+
+cookie_manager = obter_cookie_manager()
+minutos_validade = 1440  # Exemplo: 24 horas (ajuste para o valor desejado)
 
 # ============================================================================
 # 🚀 ROTEADOR CENTRAL VIA QUERY STRING (QR CODE / LINKS COMPARTILHÁVEIS)
