@@ -14,12 +14,12 @@ def tela_resultados_mini_provas():
         st.error("Sessão de usuário inválida.")
         return
 
-    # 🔍 BUSCA O HISTÓRICO REFEITO COM OS CAMPOS REAIS DO SEU DDL (Apenas colunas existentes)
+    # 🔍 BUSCA O HISTÓRICO COM A COLUNA DE ORDENAÇÃO CORRETA (data_realizacao)
     try:
         res = supabase.table("historico_provas")\
             .select("*, mini_provas(titulo, descricao)")\
             .eq("usuario_id", usuario_id)\
-            .order("created_at", desc=True)\
+            .order("data_realizacao", desc=True)\
             .execute()
         historico = res.data or []
     except Exception as e:
@@ -45,8 +45,8 @@ def tela_resultados_mini_provas():
         descricao_prova = prova_dados.get("descricao", "Sem descrição.")
         
         nota = tentativa.get("nota", 0.0)
-        pontos = tentativa.get("pontuacao", 0.0)  # ✅ Ajustado para a coluna 'pontuacao' do seu DDL
-        acertos = tentativa.get("acertos", "0/0")  # ✅ Ajustado para a coluna 'acertos' (texto) do seu DDL
+        pontos = tentativa.get("pontuacao", 0.0)
+        acertos = tentativa.get("acertos", "0/0")
         
         # Define a cor do card com base no aproveitamento (Acima ou abaixo de 6.0)
         cor_borda = "#2a9d8f" if float(nota) >= 6.0 else "#e63946"
