@@ -28,17 +28,25 @@ def salvar_resposta_aluno(quiz_id, pergunta_id, usuario_id, alternativa_id, corr
     try:
         pontos = 1000.0 if correta else 0.0
         
-        # Envia apenas o que é estritamente necessário e relacional
-        supabase.table("respostas_quiz").insert({
+        payload = {
             "quiz_id": quiz_id,
             "pergunta_id": pergunta_id,
             "usuario_id": usuario_id,
-            "participante_id": usuario_id,  # Mantido para o campo NOT NULL antigo
+            "participante_id": usuario_id,
             "alternativa_id": alternativa_id,
             "pontuacao_obtida": pontos
-        }).execute()
-        return True
+        }
+        
+        # Executa o insert no Supabase
+        res = supabase.table("respostas_quiz").insert(payload).execute()
+        
+        if res.data:
+            return True
+        return False
+        
     except Exception as e:
+        # 🚨 DIAGNÓSTICO: Mostra o erro real do banco na barra de notificações do Streamlit
+        st.error(f"Erro estrutural no banco: {str(e)}")
         return False
 
 def tela_quiz_rodada():
