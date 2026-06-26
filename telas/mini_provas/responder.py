@@ -1,172 +1,146 @@
 import streamlit as st
 import time
-from conexao import buscar_miniprova
-from modules.utils import ir
+from services.mini_prova_service import buscar_mini_prova, computar_resultado_avaliacao
 
-def render():
+def tela_responder_mini_prova():
+    # Validações de segurança de escopo
+    prova_id = st.session_state.get("prova_ativa_id")
+    caderno = st.session_state.get("caderno_questoes_ativo")
+    usuario = st.session_state.get("usuario_logado")
 
-    # BUSCA A PROVA DO BANCO
-    prova_id = st.session_state.get('prova_id', None)
-    if prova_id is None:
-        st.error("Nenhuma prova selecionada.")
-        if st.button("Voltar"):
-            ir('mp_iniciar')
+    if not prova_id or not caderno or not usuario:
+        st.error("❌ Sessão de avaliação inválida ou expirada.")
+        if st.button("Voltar para o Painel"):
+            st.session_state.pagina = "mini_provas"
+            st.rerun()
         return
 
-    prova = buscar_miniprova(prova_id).data
+    prova = buscar_mini_prova(prova_id)
     if not prova:
-        st.error("Prova não encontrada.")
+        st.error("Prova não localizada.")
         return
 
-    prova = prova[0]
-    TEMPO_TOTAL = prova["duracao_minutos"] * 60  # converte para segundos
+    TEMPO_TOTAL_SEGUNDOS = int(prova["duracao_minutos"] * 60)
 
-    questoes = [
-        # virão do banco futuramente
-        {
-            "enunciado": "Qual é a capital do Brasil?",
-            "alternativas": ["São Paulo", "Brasília", "Rio de Janeiro", "Salvador"],
-        },
-        {
-            "enunciado": "Quanto é 2 + 2?",
-            "alternativas": ["3", "4", "5", "6"],
-        },
-    ]
-    total_questoes = len(questoes)
+    # Inicializa o marco temporal do início do teste
+    if st.session_state.get("timestamp_inicio_prova") is None:
+        st.session_state.timestamp_inicio_prova = time.time()
+    if "questao_index_atual" not in st.session_state:
+        st.session_state.questao_index_atual = 0
+    if "respostas_aluno_atual" not in st.session_state:
+        st.session_state.respostas_aluno_atual = {}
 
-    # INICIALIZA ESTADO
-    if 'prova_inicio' not in st.session_state:
-        st.session_state.prova_inicio = time.time()
-    if 'questao_atual' not in st.session_state:
-        st.session_state.questao_atual = 0
-    if 'tempo_esgotado' not in st.session_state:
-        st.session_state.tempo_esgotado = False
-    if 'respostas' not in st.session_state:
-        st.session_state.respostas = {}
+    # Calcula tempo restante real
+    tempo_passado = time.time() - st.session_state.timestamp_inicio_prova
+    tempo_restante = max(0, TEMPO_TOTAL_SEGUNDOS - int(tempo_passado))
 
-    # CALCULA TEMPO RESTANTE
-    tempo_passado = time.time() - st.session_state.prova_inicio
-    tempo_restante = max(0, TEMPO_TOTAL - int(tempo_passado))
-
+    # TELA DE TEMPO ESGOTADO (Submissão forçada com o que foi respondido)
     if tempo_restante <= 0:
-        st.session_state.tempo_esgotado = True
-
-    # TELA DE TEMPO ESGOTADO
-    if st.session_state.tempo_esgotado:
         st.markdown("""
-            <div style="
-                display: flex; flex-direction: column;
-                align-items: center; justify-content: center;
-                padding: 60px 20px; text-align: center;
-            ">
-                <div style="
-                    background: #111210; border: 0.5px solid #E24B4A;
-                    border-radius: 12px; padding: 48px; max-width: 400px;
-                ">
-                    <div style="font-size: 52px; margin-bottom: 16px;">⏱️</div>
-                    <div style="font-size: 20px; font-weight: 500;
-                                color: #D3D1C7; margin-bottom: 8px;">
-                        Tempo esgotado!
-                    </div>
-                    <div style="font-size: 14px; color: #888780;">
-                        Suas respostas não foram salvas.
-                    </div>
-                </div>
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; text-align: center;">
+            <div style="background: #fff5f5; border: 1px solid #e53e3e; border-radius: 12px; padding: 35px; max-width: 500px;">
+                <div style="font-size: 48px; margin-bottom: 16px;">⏱️</div>
+                <div style="font-size: 20px; font-weight: bold; color: #e53e3e; margin-bottom: 8px;">Tempo Limite Esgotado!</div>
+                <div style="font-size: 14px; color: #666;">Sua avaliação foi encerrada pelo sistema. Suas respostas preenchidas até o momento estão sendo computadas.</div>
             </div>
+        </div>
         """, unsafe_allow_html=True)
-
-        if st.button("Voltar para o início", use_container_width=True):
-            st.session_state.pop('prova_inicio', None)
-            st.session_state.pop('questao_atual', None)
-            st.session_state.pop('tempo_esgotado', None)
-            st.session_state.pop('respostas', None)
-            st.session_state.pop('prova_id', None)
-            ir('mp_iniciar')
+        
+        if st.button("Verificar Meu Resultado Forçado", use_container_width=True, type="primary"):
+            res = computar_resultado_avaliacao(usuario["id"], prova_id, st.session_state.respostas_aluno_atual, caderno)
+            st.session_state.resultado_prova_calculado = res
+            st.session_state.pagina = "resultado_mini_prova"
+            st.rerun()
         return
 
-    # CRONÔMETRO
+    # COMPONENTE VISUAL DO CRONÔMETRO DE TOPO FIXO
     minutos = tempo_restante // 60
     segundos = tempo_restante % 60
-    cor_tempo = "#E24B4A" if tempo_restante <= 10 else "#D3D1C7"
-    classe_pulso = "cronometro-pulsando" if tempo_restante <= 10 else ""
+    cor_tempo = "#e53e3e" if tempo_restante <= 30 else "#1b3a5c"
 
     st.markdown(f"""
-        <div style="
-            position: fixed; top: 60px; right: 24px; z-index: 999;
-            background: #111210; border: 0.5px solid #2C2C2A;
-            border-radius: 8px; padding: 8px 16px;
-            display: flex; align-items: center; gap: 8px;
-        ">
-            <span style="font-size: 13px; color: #5F5E5A;">⏱</span>
-            <span class="{classe_pulso}" style="font-size: 15px; font-weight: 500;
-                         color: {cor_tempo}; font-variant-numeric: tabular-nums;">
-                {minutos:02d}:{segundos:02d}
-            </span>
-        </div>
+    <div style="position: fixed; top: 60px; right: 24px; z-index: 999; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 14px; color: #64748b; font-weight:600;">⏱️ Tempo Restante:</span>
+        <span style="font-size: 16px; font-weight: 700; color: {cor_tempo}; font-variant-numeric: tabular-nums;">
+            {minutos:02d}:{segundos:02d}
+        </span>
+    </div>
     """, unsafe_allow_html=True)
 
-    # PROGRESSO
-    questao_idx = st.session_state.questao_atual
-    progresso = questao_idx / total_questoes
+    # CONTROLADOR DE PROGRESSO DA PROVA
+    total_questoes = len(caderno)
+    questao_idx = st.session_state.questao_index_atual
+    progresso_percentual = (questao_idx + 1) / total_questoes
 
-    st.markdown(f"""
-        <div style="margin-bottom: 8px;">
-            <span style="font-size: 12px; color: #5F5E5A;">
-                Questão {questao_idx + 1} de {total_questoes}
-            </span>
-        </div>
-        <div style="background: #1D1D1B; border-radius: 999px;
-                    height: 4px; margin-bottom: 24px;">
-            <div style="width: {int(progresso * 100)}%; height: 100%;
-                        background: #1D9E75; border-radius: 999px;"></div>
-        </div>
-    """, unsafe_allow_html=True)
+    st.caption(f"**Questão {questao_idx + 1} de {total_questoes}**")
+    st.progress(progresso_percentual)
 
-    # QUESTÃO ATUAL
-    questao = questoes[questao_idx]
-    resposta_salva = st.session_state.respostas.get(questao_idx, None)
-    index_salvo = questao["alternativas"].index(resposta_salva) if resposta_salva in questao["alternativas"] else None
+    # RENDERIZAÇÃO DA QUESTÃO DO CADERNO ATIVO
+    questao = caderno[questao_idx]
+    
+    # Mapeamento de alternativas estruturadas
+    opcoes_alternativas = []
+    if questao.get("alternativa_a"): opcoes_alternativas.append(questao["alternativa_a"])
+    if questao.get("alternativa_b"): opcoes_alternativas.append(questao["alternativa_b"])
+    if questao.get("alternativa_c"): opcoes_alternativas.append(questao["alternativa_c"])
+    if questao.get("alternativa_d"): opcoes_alternativas.append(questao["alternativa_d"])
+    if questao.get("alternativa_e"): opcoes_alternativas.append(questao["alternativa_e"])
+
+    # Recupera se o aluno já tinha marcado alguma opção nesta questão (Navegação segura)
+    resposta_salva = st.session_state.respostas_aluno_atual.get(questao_idx)
+    index_opcao_salva = opcoes_alternativas.index(resposta_salva) if resposta_salva in opcoes_alternativas else None
 
     with st.container(border=True):
-        st.write(f"**{questao['enunciado']}**")
+        st.markdown(f"#### {questao['enunciado']}")
+        st.divider()
+        
         escolha = st.radio(
-            "Alternativas",
-            questao["alternativas"],
-            index=index_salvo,
-            label_visibility="collapsed",
-            key=f"questao_{questao_idx}"
+            "Selecione a alternativa correta:",
+            opcoes_alternativas,
+            index=index_opcao_salva,
+            key=f"render_q_{questao_idx}"
         )
 
+    # BARRA DE DIRECIONAMENTO E FLUXO (BOTÕES)
     st.write("")
+    col_ant, col_prox = st.columns(2)
 
-    col1, col2 = st.columns(2)
-
-    with col1:
+    with col_ant:
         if questao_idx > 0:
-            if st.button("← Anterior", use_container_width=True):
+            if st.button("⬅️ Questão Anterior", use_container_width=True):
                 if escolha:
-                    st.session_state.respostas[questao_idx] = escolha
-                st.session_state.questao_atual -= 1
+                    st.session_state.respostas_aluno_atual[questao_idx] = escolha
+                st.session_state.questao_index_atual -= 1
                 st.rerun()
 
-    with col2:
+    with col_prox:
         if questao_idx < total_questoes - 1:
-            if st.button("Próxima →", use_container_width=True):
+            if st.button("Próxima Questão ➡️", use_container_width=True):
                 if escolha is None:
-                    st.warning("Selecione uma alternativa antes de continuar.")
+                    st.warning("Por favor, selecione uma alternativa antes de avançar.")
                 else:
-                    st.session_state.respostas[questao_idx] = escolha
-                    st.session_state.questao_atual += 1
+                    st.session_state.respostas_aluno_atual[questao_idx] = escolha
+                    st.session_state.questao_index_atual += 1
                     st.rerun()
         else:
-            if st.button("Finalizar Prova ✓", use_container_width=True, type="primary"):
+            # Última Questão: Finalizar e Corrigir Automaticamente pelo Service
+            if st.button("🏁 Finalizar e Entregar Prova", use_container_width=True, type="primary"):
                 if escolha is None:
-                    st.warning("Selecione uma alternativa antes de finalizar.")
+                    st.warning("Selecione uma alternativa para poder concluir a avaliação.")
                 else:
-                    st.session_state.respostas[questao_idx] = escolha
-                    st.session_state.questao_atual = 0
-                    ir('mp_resultado')
+                    st.session_state.respostas_aluno_atual[questao_idx] = escolha
+                    
+                    with st.spinner("Corrigindo gabarito e computando XP..."):
+                        resultado_final = computar_resultado_avaliacao(
+                            usuario["id"], 
+                            prova_id, 
+                            st.session_state.respostas_aluno_atual, 
+                            caderno
+                        )
+                        st.session_state.resultado_prova_calculado = resultado_final
+                        st.session_state.pagina = "resultado_mini_prova"
+                        st.rerun()
 
-    # ATUALIZA A CADA 1 SEGUNDO
+    # Thread de atualização de 1 segundo para manter o cronômetro síncrono
     time.sleep(1)
     st.rerun()
