@@ -64,26 +64,39 @@ def tela_mini_provas():
 
     st.divider()
 
-    # 🔍 Sistema de Filtro e Histórico
-    pesquisa = st.text_input("🔍 Pesquisar mini prova por título:")
-
-    col_esq, col_dir = st.columns(2)
-    with col_esq:
-        st.markdown("### 📋 Provas Ativas")
-    with col_dir:
-        if st.button("📜 Ver Meus Resultados (Histórico)", use_container_width=True):
-            st.session_state.pagina = "resultados_mini_provas"
-            st.rerun()
-
     # Consome a lista limpa diretamente do service relacional
     mini_provas = listar_mini_provas()
-
-    if pesquisa:
-        mini_provas = [p for p in mini_provas if pesquisa.lower() in str(p.get("titulo", "")).lower()]
-
-    # ✅ CORRIGIDO: Filtra para exibir APENAS as provas com status 'Disponível'. 
-    # Qualquer prova finalizada some automaticamente desta tela e vai para o histórico.
     provas_ativas = [p for p in mini_provas if p.get("status") == "Disponível"]
+
+    # ============================================================================
+    # 🔍 SEÇÃO CONDICIONAL DE FILTROS E HISTÓRICO (ALUNO vs PROFESSOR)
+    # ============================================================================
+    if tipo_usuario == "aluno":
+        # Aluno vê campo de busca individual e seu próprio histórico
+        pesquisa = st.text_input("🔍 Pesquisar mini prova por título:")
+        if pesquisa:
+            provas_ativas = [p for p in provas_ativas if pesquisa.lower() in str(p.get("titulo", "")).lower()]
+
+        col_esq, col_dir = st.columns(2)
+        with col_esq:
+            st.markdown("### 📋 Provas Ativas")
+        with col_dir:
+            if st.button("📜 Ver Meus Resultados (Histórico)", use_container_width=True):
+                st.session_state.pagina = "resultados_mini_provas"
+                st.rerun()
+    else:
+        # ✅ PROFESSOR: Removida a barra de pesquisa individual e o botão antigo.
+        # Agora exibe o cabeçalho limpo e o botão focado no histórico geral/global.
+        col_esq, col_dir = st.columns(2)
+        with col_esq:
+            st.markdown("### 📋 Provas Ativas")
+        with col_dir:
+            if st.button("📜 Ver Histórico Geral de Provas Encerradas", use_container_width=True):
+                # Direciona para a tela de desempenho onde ele audita todas as notas por prova
+                st.session_state.pagina = "desempenho_mini_provas"
+                st.rerun()
+
+    # ============================================================================
 
     if not provas_ativas:
         st.info("💡 Nenhuma mini prova em andamento ou publicada no momento.")
@@ -118,7 +131,6 @@ def tela_mini_provas():
                 with col_fechar:
                     if st.button("🔴 Finalizar Antes", key=f"close_p_{prova['id']}", use_container_width=True):
                         try:
-                            # Altera para Indisponível. Na próxima linha (st.rerun), ela sairá da tela na hora.
                             supabase.table("mini_provas").update({"status": "Indisponível"}).eq("id", prova["id"]).execute()
                             st.success("Avaliação finalizada! Movendo para o histórico...")
                             time.sleep(0.5)
