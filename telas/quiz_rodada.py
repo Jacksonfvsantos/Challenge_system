@@ -74,7 +74,7 @@ def tela_quiz_rodada():
     st.title(f"🎮 {quiz.get('titulo')}")
     perguntas = buscar_perguntas_do_quiz(quiz_id)
     
-    if not preguntas:
+    if not perguntas:
         st.info("Este quiz ainda não possui perguntas cadastradas.")
         if st.button("⬅️ Voltar"):
             st.session_state.pagina = "quiz_ao_vivo"
