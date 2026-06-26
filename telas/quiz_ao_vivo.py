@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import time
+import datetime
 from utils.estilo import aplicar_estilo, cabecalho
 from services.quiz_ao_vivo_service import criar_quiz
 from utils.compartilhamento import exibir_painel_compartilhamento
@@ -8,10 +9,11 @@ from database.conexao import supabase
 
 def listar_quizzes_do_banco():
     try:
-        # ✅ CORRIGIDO: Adicionado .order() para fixar a posição do card após o UPDATE
-        res = supabase.table("quizzes").select("*, usuarios(nome)").order("created_at", desc=True).execute()
+        # ✅ BLINDADO: Se der qualquer inconsistência no Join nativo do PostgREST, pegamos os dados brutos da tabela
+        res = supabase.table("quizzes").select("*").order("created_at", desc=True).execute()
         return res.data or []
-    except Exception:
+    except Exception as e:
+        st.error(f"Erro ao ler tabela de quizzes: {e}")
         return []
 
 def alterar_status_quiz(quiz_id, novo_status):
@@ -75,8 +77,14 @@ def tela_quiz_ao_vivo():
         for q in quizzes:
             q_id = q.get("id")
             status = q.get("status", "criado")
-            autor = q.get("usuarios", {}).get("nome", "Professor")
             tema_txt = q.get("tema") or "Geral"
+            
+            # ✅ CORRIGIDO: Tratamento seguro para o nome do autor do quiz, evitando quebras por nós nulos do relacionamento
+            autor_objeto = q.get("usuarios")
+            if isinstance(autor_objeto, dict):
+                autor = autor_objeto.get("nome", "Professor")
+            else:
+                autor = usuario.get("nome", "Professor") if tipo in ("professor", "admin") else "Docente"
             
             cor_status = "#00b4d8" if status == "criado" else "#2a9d8f" if status == "em_andamento" else "#e63946"
             txt_status = "Aguardando Início ⏱️" if status == "criado" else "Em Andamento 🟢" if status == "em_andamento" else "Finalizado 🛑"
@@ -94,8 +102,6 @@ def tela_quiz_ao_vivo():
                 
                 if tipo in ("professor", "admin"):
                     st.markdown("<br>", unsafe_allow_html=True)
-                    
-                    # ✅ CORRIGIDO: Estrutura dinâmica de botões de controle de estado (Iniciar e Parar)
                     col1, col2 = st.columns(2)
                     
                     with col1:
