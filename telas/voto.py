@@ -12,7 +12,6 @@ from utils.estilo import aplicar_estilo, cabecalho
 
 
 def tela_voto():
-
     aplicar_estilo()
 
     if "desafio_voto" not in st.session_state or not st.session_state.desafio_voto:
@@ -21,6 +20,10 @@ def tela_voto():
             st.session_state.pagina = "votacao"
             st.rerun()
         return
+
+    # ✅ CORRIGIDO: Garante a inicialização da flag de controle reativo de tela antes do render
+    if "editando_voto" not in st.session_state:
+        st.session_state.editando_voto = False
 
     desafio = st.session_state.desafio_voto
     usuario = st.session_state.usuario_logado
@@ -40,10 +43,7 @@ def tela_voto():
         desafio["titulo"]
     )
 
-    editar = False
-
     if voto_existente:
-
         st.markdown(f"""
         <div style="
             background:#e0f7fa;
@@ -59,17 +59,16 @@ def tela_voto():
         </div>
         """, unsafe_allow_html=True)
 
-        if st.button("Editar voto"):
-            st.session_state.editando_voto = True
-            st.rerun()
+        if not st.session_state.editando_voto:
+            if st.button("Editar voto"):
+                st.session_state.editando_voto = True
+                st.rerun()
 
-        editar = st.session_state.get("editando_voto", False)
-
+        editar = st.session_state.editando_voto
     else:
         editar = True
 
     if editar:
-
         st.markdown("### Escolha seu voto")
 
         voto = st.radio(
@@ -82,7 +81,6 @@ def tela_voto():
         st.markdown("<br>", unsafe_allow_html=True)
 
         if voto_existente:
-
             col1, col2 = st.columns(2)
 
             with col1:
@@ -93,15 +91,13 @@ def tela_voto():
                     st.rerun()
 
             with col2:
-                if st.button("Excluir voto", use_container_width=True):
+                if st.button("Excluir voto", use_container_width=True, type="primary"):
                     deletar_voto(voto_existente["id"])
                     st.session_state.editando_voto = False
                     st.success("Voto excluido!")
                     st.rerun()
-
         else:
-
-            if st.button("Enviar voto", use_container_width=True):
+            if st.button("Enviar voto", use_container_width=True, type="primary"):
                 registrar_voto(usuario["email"], desafio["titulo"], voto)
                 st.success("Voto registrado!")
                 st.rerun()
@@ -116,14 +112,13 @@ def tela_voto():
         st.rerun()
 
     if st.session_state.mostrar_resultado:
-
         votos = listar_votos_desafio(desafio["titulo"])
 
         if not votos:
             st.warning("Nenhum voto encontrado.")
             return
 
-        df       = pd.DataFrame(votos)
+        df = pd.DataFrame(votos)
         contagem = df["voto"].value_counts().reindex(opcoes, fill_value=0)
 
         st.markdown("### Resultado")
@@ -151,8 +146,7 @@ def tela_voto():
         st.bar_chart(contagem)
         st.caption(f"Total de votos: {len(df)}")
 
-        if usuario["tipo_usuario"] in ("professor", "admin"):
-
+        if usuario.get("tipo_usuario") in ("professor", "admin"):
             st.divider()
             st.markdown("### Gerenciar votos")
 
@@ -178,7 +172,6 @@ def tela_voto():
             st.divider()
 
             for v in votos_filtrados:
-
                 col1, col2, col3, col4 = st.columns([3, 2, 2, 2])
 
                 with col1:

@@ -2,8 +2,8 @@ import streamlit as st
 import pandas as pd
 from utils.estilo import aplicar_estilo, cabecalho
 from services.quiz_ao_vivo_service import criar_quiz
+from utils.compartilhamento import exibir_painel_compartilhamento
 
-# Fallbacks locais para evitar quebras de importação de listagem
 from database.conexao import supabase
 
 def listar_quizzes_do_banco():
@@ -38,7 +38,6 @@ def tela_quiz_ao_vivo():
     else:
         aba_lista, = st.tabs(["🎮 Quizzes Disponíveis"])
 
-    # --- ABA: GESTÃO (Exclusivo do Professor - Item 4.103) ---
     if tipo in ("professor", "admin"):
         with aba_gestao:
             st.subheader("Configurar Nova Sessão de Quiz")
@@ -62,7 +61,6 @@ def tela_quiz_ao_vivo():
                         else:
                             st.error(resultado.get("mensagem", "Erro operacional."))
 
-    # --- ABA: LISTA E EXECUÇÃO (Alunos e Professores) ---
     with aba_lista:
         st.subheader("Salas de Quiz Registradas")
         quizzes = listar_quizzes_do_banco()
@@ -77,7 +75,6 @@ def tela_quiz_ao_vivo():
             autor = q.get("usuarios", {}).get("nome", "Professor")
             tema_txt = q.get("tema") or "Geral"
             
-            # Formatação visual do status por Badge (Item 4.108)
             cor_status = "#00b4d8" if status == "criado" else "#2a9d8f" if status == "em_andamento" else "#6c757d"
             txt_status = "Aguardando Início ⏱️" if status == "criado" else "Em Andamento 🟢" if status == "em_andamento" else "Finalizado 🛑"
 
@@ -92,7 +89,6 @@ def tela_quiz_ao_vivo():
                 </p>
                 """, unsafe_allow_html=True)
                 
-                # Ações dinâmicas baseadas no perfil logado
                 if tipo in ("professor", "admin"):
                     st.markdown("<br>", unsafe_allow_html=True)
                     col1, col2 = st.columns(2)
@@ -110,14 +106,20 @@ def tela_quiz_ao_vivo():
                                 st.rerun()
                     with col2:
                         st.button("📊 Ver Telão de Líderes", key=f"rank_{q_id}", use_container_width=True, disabled=(status == "criado"))
+                    
+                    if status != "finalizado":
+                        with st.expander("📢 Mapeamento de Links & QR Code para Alunos", expanded=False):
+                            exibir_painel_compartilhamento(tipo_sala="quiz", sala_id=q_id)
                 
                 else:
-                    # Visão do Aluno (Item 4.109)
                     st.markdown("<br>", unsafe_allow_html=True)
                     if status == "criado":
                         st.button("⏳ Aguardando Professor Iniciar...", key=f"play_{q_id}", use_container_width=True, disabled=True)
                     elif status == "em_andamento":
+                        # ✅ CORRIGIDO: Redirecionamento unificado apontando para o arquivo dinâmico de rodadas do quiz
                         if st.button("🎯 Ingressar na Sala e Responder", key=f"play_{q_id}", type="primary", use_container_width=True):
-                            st.success("Você entrou na sala! Carregando painel de alternativas...")
+                            st.session_state.quiz_ativo_id = q_id
+                            st.session_state.pagina = "quiz_rodada"
+                            st.rerun()
                     else:
                         st.button("🔒 Prova Encerrada", key=f"play_{q_id}", use_container_width=True, disabled=True)

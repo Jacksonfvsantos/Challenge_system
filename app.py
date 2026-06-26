@@ -5,11 +5,7 @@ from extra_streamlit_components import CookieManager
 # 1. Inicializa o estado global da sessão do ecossistema
 iniciar_session()
 
-@st.cache_resource
-def obter_cookie_manager():
-    return CookieManager()
-
-cookie_manager = obter_cookie_manager()
+cookie_manager = CookieManager()
 minutos_validade = 1440  # Exemplo: 24 horas (ajuste para o valor desejado)
 
 # ============================================================================
