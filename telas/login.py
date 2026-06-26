@@ -6,6 +6,7 @@ def tela_login(cookie_manager, minutos_validade):
     """
     Renderiza a interface de autenticação estruturada como um formulário nativo,
     permitindo o envio dos dados tanto pelo clique quanto pelo pressionamento do Enter.
+    Também gerencia o redirecionamento pendente de QR Codes/Links de acesso direto.
     """
     
     _, col_central, _ = st.columns([1, 2, 1])
@@ -47,11 +48,34 @@ def tela_login(cookie_manager, minutos_validade):
                     usuario = login_usuario(email, senha)
                     
                     if usuario:
+                        # 1. Autentica o usuário na sessão
                         st.session_state.usuario_logado = usuario
-                        st.session_state.pagina = "home"
                         
+                        # 🚀 2. MOTOR DE REDIRECIONAMENTO DE INSTÂNCIA (QR CODE / LINKS DIRETOS)
+                        redirecionamento = st.session_state.get("redirecionamento_pendente")
+                        
+                        if redirecionamento:
+                            tipo_sala = redirecionamento["sala"]
+                            sala_id = redirecionamento["id"]
+                            
+                            if tipo_sala == "batalha":
+                                st.session_state.batalha_ativa_id = sala_id
+                                st.session_state.pagina = "batalha_rodada"
+                            elif tipo_sala == "quiz":
+                                st.session_state.quiz_ativo_id = sala_id
+                                st.session_state.pagina = "quiz_rodada"
+                            elif tipo_sala == "prova":
+                                st.session_state.prova_ativa_id = sala_id
+                                st.session_state.pagina = "prova_responder"
+                                
+                            # Limpa o cache pendente para evitar loops de roteamento
+                            del st.session_state["redirecionamento_pendente"]
+                        else:
+                            # Fluxo padrão de navegação sem link externo externo
+                            st.session_state.pagina = "dashboard"
+                        
+                        # 3. Geração e persistência do Cookie de Sessão
                         data_expiracao = datetime.datetime.now() + datetime.timedelta(minutes=int(minutos_validade))
-                        
                         try:
                             cookie_manager.set(
                                 cookie="user_session_token",

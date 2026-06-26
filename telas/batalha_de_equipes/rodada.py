@@ -77,7 +77,6 @@ def tela_batalha_rodada():
     b_id = st.session_state.batalha_ativa_id
     b = obter_estado_batalha(b_id)
     
-    # ✅ CORRIGIDO: Removida a sintaxe := que disparava erro no Pylance
     if not b:
         st.warning("Batalha não localizada.")
         return
@@ -90,7 +89,6 @@ def tela_batalha_rodada():
 
     painel_estatistico_reativo(b_id, ta_id, tb_id, nome_ta, nome_tb, dados_p, p_ordem, st_sinc)
 
-    # Fluxo unificado de desfechos finais com salvamento no histórico
     if b.get("finalizada") is True or str(b.get("status")).lower() == "finalizada" or not dados_p:
         if dados_p is None and not b.get("finalizada"):
             encerrar_partida_sincrona(b_id)
@@ -109,7 +107,7 @@ def tela_batalha_rodada():
             iniciar_partida_sincrona(b_id, ta_id); st.rerun()
         return
 
-    # ✅ MODIFICADO: Exibição direta do enunciado no título principal
+    # ✅ EXIBIÇÃO DIRETA: Removido o rótulo ordinário
     st.markdown(f"### 📍 Pergunta: {dados_p['enunciado']}")
     eh_vez = (str(tid).strip() == str(b.get("time_da_vez_id")).strip())
     tentativa = 2 if st_sinc == "rebate_ativo" else 1

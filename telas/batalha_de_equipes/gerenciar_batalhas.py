@@ -12,7 +12,7 @@ from services.batalha_service import (
 
 def tela_batalha_gerenciar():
     aplicar_estilo()
-    cabecalho("🛠️ Painel de Governança Híbrida", "Gerencie confrontos ativos ou importe avaliações inteiras em segundos")
+    cabecalho("🛠️ Painel de Governança Híbrida", "Gerencie confrontos ativos ou crie novas disputas em tempo real")
 
     aba_ativas, aba_finalizadas, aba_ia = st.tabs(["⚔️ Batalhas Ativas / Agendadas", "📜 Histórico de Confrontos", "🤖 Importação por IA"])
 
@@ -44,7 +44,7 @@ def tela_batalha_gerenciar():
                                 time.sleep(0.5)
                                 st.rerun()
                     
-                    # 🚀 INTEGRAÇÃO: QR Code e Link Direto acoplado ao card
+                    # 🚀 INTEGRAÇÃO: Gaveta com QR Code e link direto para os alunos
                     with st.expander("📢 Mapeamento de Links & QR Code para Alunos", expanded=False):
                         exibir_painel_compartilhamento(tipo_sala="batalha", sala_id=bat['id'])
 
