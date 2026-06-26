@@ -144,6 +144,7 @@ def obter_estado_batalha(batalha_id):
 
 def obter_batalhas_finalizadas():
     try:
+        # Busca direta e blindada para garantir que o histórico liste independente de joins complexos
         res = supabase.table("batalhas").select("*").eq("finalizada", True).order("created_at", descending=True).execute()
         return res.data or []
     except Exception as e:
