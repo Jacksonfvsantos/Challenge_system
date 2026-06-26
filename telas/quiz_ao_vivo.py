@@ -3,7 +3,6 @@ import pandas as pd
 from utils.estilo import aplicar_estilo, cabecalho
 from services.quiz_ao_vivo_service import criar_quiz
 from utils.compartilhamento import exibir_painel_compartilhamento
-
 from database.conexao import supabase
 
 def listar_quizzes_do_banco():
@@ -56,7 +55,7 @@ def tela_quiz_ao_vivo():
                     else:
                         resultado = criar_quiz(titulo, user_id, disciplina, tema)
                         if resultado.get("sucesso"):
-                            st.success(f"✅ {resultado.get('mensagem', 'Sala criada!')}")
+                            st.success(f"✅ {resultado.get('mensagem')}")
                             st.rerun()
                         else:
                             st.error(resultado.get("mensagem", "Erro operacional."))
@@ -116,7 +115,6 @@ def tela_quiz_ao_vivo():
                     if status == "criado":
                         st.button("⏳ Aguardando Professor Iniciar...", key=f"play_{q_id}", use_container_width=True, disabled=True)
                     elif status == "em_andamento":
-                        # ✅ CORRIGIDO: Redirecionamento unificado apontando para o arquivo dinâmico de rodadas do quiz
                         if st.button("🎯 Ingressar na Sala e Responder", key=f"play_{q_id}", type="primary", use_container_width=True):
                             st.session_state.quiz_ativo_id = q_id
                             st.session_state.pagina = "quiz_rodada"

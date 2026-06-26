@@ -1,22 +1,24 @@
 from database.conexao import supabase
 
-def criar_quiz(titulo, usuario_id, disciplina_id, tema):
+def criar_quiz(titulo, usuario_id, disciplina, tema):
     """
-    Cadastra um novo quiz síncrono associado a uma disciplina e a um tema específico.
+    Cadastra um novo quiz síncrono no banco de dados.
     """
     try:
-        # ✅ CORREÇÃO: Variável mapeada corretamente com todas as letras 'i'
         res = supabase.table("quizzes").insert({
             "titulo": titulo.strip(),
             "criado_por": usuario_id,
-            "disciplina_id": disciplina_id,
-            "tema": tema.strip()
+            "disciplina": disciplina.strip(), # Tratando como string livre relacional
+            "tema": tema.strip(),
+            "status": "criado" # Garante o estado inicial
         }).execute()
         
-        return res.data if res.data else []
+        if res.data:
+            return {"sucesso": True, "mensagem": "Sala de Quiz ativada com sucesso!"}
+        return {"sucesso": False, "mensagem": "Não foi possível registrar o quiz no banco."}
     except Exception as e:
         print(f"❌ Erro operacional [criar_quiz]: {e}")
-        return []
+        return {"sucesso": False, "mensagem": f"Erro interno: {e}"}
 
 def listar_quizzes_ativos():
     """
@@ -31,7 +33,7 @@ def listar_quizzes_ativos():
 
 def deletar_quiz(quiz_id):
     """
-    Remove um quiz específico do banco de dados (as chaves estrangeiras cuidam do cascade).
+    Remove um quiz específico do banco de dados.
     """
     try:
         res = supabase.table("quizzes").delete().eq("id", quiz_id).execute()
