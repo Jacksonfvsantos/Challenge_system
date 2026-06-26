@@ -43,22 +43,28 @@ if "sala" in query_params and "id" in query_params:
         st.query_params.clear()
 
 # ============================================================================
-# 🗂️ CONSTRUÇÃO DA BARRA LATERAL FIXA (PERSISTE PÓS-REDIRECIONAMENTO)
+# 🗂️ CONSTRUÇÃO DA BARRA LATERAL ORGANIZADA POR DIVISÕES (MENU DOCENTE/ALUNO)
 # ============================================================================
 usuario_atual = st.session_state.get("usuario_logado")
 pagina_atual = st.session_state.pagina
 
 if usuario_atual:
     with st.sidebar:
+        # Cabeçalho do Perfil
         st.markdown(f"### 👤 {usuario_atual.get('nome', 'Usuário')}")
         st.caption(f"Perfil: {str(usuario_atual.get('tipo_usuario', 'Aluno')).capitalize()}")
         st.divider()
         
-        # Botões de Navegação Centralizada
+        # ─── DIVISÃO 1: AMBIENTE GERAL ──────────────────────────────────────
+        st.markdown("### 🏢 Navegação Principal")
         if st.button("🏠 Início / Novidades", use_container_width=True):
             st.session_state.pagina = "dashboard"
             st.rerun()
             
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # ─── DIVISÃO 2: DINÂMICAS EM TEMPO REAL (SÍNCRONAS) ─────────────────
+        st.markdown("### ⚡ Atividades síncronas")
         if st.button("⚔️ Batalha de Equipes", use_container_width=True):
             st.session_state.pagina = "batalha_de_equipes"
             st.rerun()
@@ -67,11 +73,19 @@ if usuario_atual:
             st.session_state.pagina = "quiz_ao_vivo"
             st.rerun()
             
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # ─── DIVISÃO 3: TRILHAS E AVALIAÇÕES (ASSÍNCRONAS) ─────────────────
+        st.markdown("### 📚 Avaliações e Práticas")
         if st.button("📝 Mini Provas Práticas", use_container_width=True):
             st.session_state.pagina = "mini_provas"
             st.rerun()
             
-        if st.button("🏆 Central de Pontuações", use_container_width=True):
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # ─── DIVISÃO 4: INDICADORES E DIRETRIZES ────────────────────────────
+        st.markdown("### 🏆 Conquistas e Regras")
+        if st.button("🏅 Central de Pontuações", use_container_width=True):
             st.session_state.pagina = "ranking"
             st.rerun()
             
@@ -79,6 +93,7 @@ if usuario_atual:
             st.session_state.pagina = "regras"
             st.rerun()
             
+        # Rodapé de Desconexão
         st.divider()
         if st.button("🚪 Encerrar Sessão (Sair)", type="primary", use_container_width=True):
             st.session_state.usuario_logado = None
