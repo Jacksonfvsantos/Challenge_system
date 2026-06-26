@@ -1,55 +1,70 @@
 import streamlit as st
+import json
 from pypdf import PdfReader
 from docx import Document
-import json
-import google.generativeai as genai  # Certifique-se de configurar a API key se usar genai
+import google.generativeai as genai
 
 def extrair_texto_pdf(arquivo_bytes):
-    reader = PdfReader(arquivo_bytes)
-    texto = ""
-    for page in reader.pages:
-        texto += page.extract_text() + "\n"
-    return texto
+    try:
+        reader = PdfReader(arquivo_bytes)
+        texto = ""
+        for page in reader.pages:
+            texto += page.extract_text() + "\n"
+        return texto
+    except Exception as e:
+        st.error(f"Erro ao ler PDF: {e}")
+        return ""
 
 def extrair_texto_docx(arquivo_bytes):
-    doc = Document(arquivo_bytes)
-    texto = ""
-    for paragraph in doc.paragraphs:
-        texto += paragraph.text + "\n"
-    return texto
+    try:
+        doc = Document(arquivo_bytes)
+        texto = ""
+        for paragraph in doc.paragraphs:
+            texto += paragraph.text + "\n"
+        return texto
+    except Exception as e:
+        st.error(f"Erro ao ler DOCX: {e}")
+        return ""
 
 def parsear_questoes_com_ia(texto_bruto):
     """
-    Usa IA para interpretar o texto bagunçado do PDF/DOC e estruturar em JSON estável.
+    Envia o texto extraído para o Gemini estruturar estritamente como JSON válido.
     """
-    # Exemplo utilizando a biblioteca oficial do Google GenAI
-    # Certifique-se de ter genai.configure(api_key=st.secrets["GEMINI_API_KEY"]) no boot do app
+    api_key = st.secrets.get("GEMINI_API_KEY")
+    if not api_key:
+        st.error("🛑 API Key 'GEMINI_API_KEY' não configurada nos Secrets do Streamlit Cloud.")
+        return None
+
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        genai.configure(api_key=api_key)
+        
+        # 🚀 CORREÇÃO DO ERRO 404: Forçando o uso do identificador estável completo do modelo
+        model = genai.GenerativeModel('models/gemini-1.5-flash-latest')
         
         prompt = f"""
-        Analise o texto abaixo que contém questões de múltipla escolha com alternativas e gabarito.
-        Extraia todas as questões e retorne EXCLUSIVAMENTE um array JSON válido, sem formatação markdown (sem ```json), seguindo exatamente esta estrutura:
+        Você é um assistente de engenharia de software especializado em estruturar dados.
+        Analise o texto abaixo, que contém questões de múltipla escolha com alternativas e gabarito indicador.
+        
+        Extraia todas as questões localizadas e retorne EXCLUSIVAMENTE um array JSON puro (sem markdown, sem ```json), seguindo rigorosamente esta estrutura:
         [
           {{
-            "enunciado": "Texto completo do enunciado da questão",
+            "enunciado": "Enunciado completo da questão",
             "alternativas": [
-              {{"texto": "Texto da alternativa A", "correta": false}},
-              {{"texto": "Texto da alternativa B", "correta": true}},
-              {{"texto": "Texto da alternativa C", "correta": false}},
-              {{"texto": "Texto da alternativa D", "correta": false}}
+              {{"texto": "Texto da opção A", "correta": false}},
+              {{"texto": "Texto da opção B", "correta": true}},
+              {{"texto": "Texto da opção C", "correta": false}},
+              {{"texto": "Texto da opção D", "correta": false}}
             ]
           }}
         ]
         
-        Texto das questões:
+        Texto bruto extraído do arquivo:
         {texto_bruto}
         """
         
         resposta = model.generate_content(prompt)
-        # Limpa possíveis formatações que a IA envie por costume
         conteudo_limpo = resposta.text.replace("```json", "").replace("```", "").strip()
         return json.loads(conteudo_limpo)
     except Exception as e:
-        st.error(f"Erro no processamento da IA: {e}")
+        st.error(f"Falha na interpretação da inteligência artificial: {e}")
         return None
