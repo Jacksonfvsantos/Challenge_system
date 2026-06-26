@@ -33,17 +33,14 @@ def listar_quizzes_ativos():
 
 def deletar_quiz(quiz_id):
     """
-    Remove um quiz específico do banco de dados tratando o retorno do PostgREST.
+    Remove um quiz específico do banco de dados utilizando contagem exata
+    para contornar o retorno vazio padrão do PostgREST.
     """
     try:
-        # Adicionamos o count="exact" para saber exatamente quantas linhas foram afetadas
+        # Usa count="exact" para obter quantas linhas foram removidas com sucesso
         res = supabase.table("quizzes").delete(count="exact").eq("id", quiz_id).execute()
-        
-        # Se o count retornar maior que 0, ou se houver dados retornados, a exclusão foi um sucesso
         if hasattr(res, "count") and res.count is not None:
             return res.count > 0
-            
-        # Fallback de segurança caso a API mude o comportamento do contador
         return True
     except Exception as e:
         print(f"❌ Erro operacional [deletar_quiz]: {e}")

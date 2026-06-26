@@ -27,6 +27,7 @@ def salvar_resposta_aluno(quiz_id, pergunta_id, usuario_id, alternativa_id, corr
     try:
         pontos = 1000.0 if correta else 0.0
         
+        # Vínculo dinâmico com a tabela intermediária 'participantes_quiz'
         id_participante_real = None
         try:
             res_part = supabase.table("participantes_quiz").select("id").eq("quiz_id", quiz_id).eq("usuario_id", usuario_id).execute()
@@ -62,15 +63,16 @@ def salvar_resposta_aluno(quiz_id, pergunta_id, usuario_id, alternativa_id, corr
     except Exception as e:
         return False
 
-# 🔄 COMPONENTE DE SINCRONIZAÇÃO NATIVA POR FRAGMENTO
+# 🔄 COMPONENTE DE SINCRONIZAÇÃO NATIVA POR FRAGMENTO (CORRIGIDO)
 @st.fragment
 def executar_sincronia_aluno(quiz_id, etapa_atual, pergunta_atual_id):
-    """Verifica alterações no banco a cada 2 segundos em background sem travar cliques."""
+    """Verifica alterações no banco a cada 2 segundos e força o recarregamento total da UI."""
     time.sleep(2.0)
     quiz_recente = buscar_dados_quiz(quiz_id)
     if quiz_recente:
         if (quiz_recente.get("etapa_rodada") != etapa_atual) or (quiz_recente.get("pergunta_atual_id") != pergunta_atual_id):
-            st.rerun()
+            # scope="app" garante que a página inteira mude acompanhando as ações do professor
+            st.rerun(scope="app")
 
 def tela_quiz_rodada():
     usuario = st.session_state.get("usuario_logado", {})
