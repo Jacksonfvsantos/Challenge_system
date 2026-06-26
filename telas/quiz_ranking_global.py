@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import time
 from database.conexao import supabase
 
 def calcular_ranking_quiz(quiz_id):
@@ -20,8 +19,8 @@ def calcular_ranking_quiz(quiz_id):
     except Exception:
         return pd.DataFrame(columns=["Nome", "Pontuação Total"])
 
-# 🔄 PLACAR FRAGMENTADO: Atualiza apenas o bloco da tabela a cada 3 segundos
-@st.fragment
+# ✅ SOLUÇÃO: run_every gerencia o tempo nativamente e morre se mudarmos de página
+@st.fragment(run_every=3.0)
 def renderizar_tabela_ranking(quiz_id):
     ranking_df = calcular_ranking_quiz(quiz_id)
 
@@ -32,10 +31,6 @@ def renderizar_tabela_ranking(quiz_id):
         for idx, row in ranking_df.iterrows():
             medalha = "🥇" if idx == 0 else "🥈" if idx == 1 else "🥉" if idx == 2 else "👾"
             st.markdown(f"### {medalha} **{row['Nome']}** — `{int(row['Pontuação Total'])} pts`")
-            
-    # Dorme e força o recarregamento isolado apenas deste fragmento
-    time.sleep(3.0)
-    st.rerun()
 
 def tela_quiz_ranking_global():
     st.title("🏆 Telão de Líderes - Ranking Síncrono")
@@ -48,7 +43,7 @@ def tela_quiz_ranking_global():
             st.rerun()
         return
 
-    # Chama o componente fragmentado seguro
+    # Renderiza o componente de atualização controlada
     renderizar_tabela_ranking(quiz_id)
 
     st.markdown("<br>", unsafe_allow_html=True)
