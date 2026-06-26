@@ -51,7 +51,7 @@ def tela_quiz_ao_vivo():
                 }
             </script>
             """,
-            height=0
+            height=1
         )
 
     if tipo in ("professor", "admin"):
