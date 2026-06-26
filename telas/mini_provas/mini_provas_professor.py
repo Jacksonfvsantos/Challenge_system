@@ -44,7 +44,6 @@ def parsing_questoes_regex(texto):
     Algoritmo adaptado para capturar exames densos com os padrões 'Exercício X' ou 'Questão X'.
     Mapeia automaticamente o gabarito baseado na linha 'Resposta correta: X'.
     """
-    # Expressão regular flexível: aceita 'Exercício X' ou 'Questão X' ou apenas o número inicial
     padrao_questao = r'(?:Exercício|Questão|\n)\s*(\d+)[\s\.\-\)]*'
     
     matches = list(re.finditer(padrao_questao, texto, re.IGNORECASE))
@@ -61,35 +60,30 @@ def parsing_questoes_regex(texto):
         linhas = bloco_completo.split('\n')
         enunciado_linhas = []
         alternativas = {}
-        gabarito_detectado = "A"  # Fallback caso não ache
+        gabarito_detectado = "A"
 
         for linha in linhas:
             linha_str = linha.strip()
             if not linha_str:
                 continue
 
-            # 1. Tenta identificar se a linha é o Gabarito Oficial do arquivo (Ex: 'Resposta correta: C')
-            match_gab = re.search(r'(?:Resposta\s+correta|Gabarito|Resposta):\s*([A-Ea-e])', linha_str, re.IGNORECASE)
+            match_gab = re.search(r'(?:Resposta\s+correta|Gabarito|Resposta):\s*([A-Ea-e])', static_cast<str>(linha_str), re.IGNORECASE)
             if match_gab:
                 gabarito_detectado = match_gab.group(1).upper()
                 continue
 
-            # 2. Identifica se a linha é uma alternativa (A, B, C, D, E)
             match_alt = re.match(r'^([A-Ea-e])[\s\.\-\)]+(.*)', linha_str)
             if match_alt:
                 letra = match_alt.group(1).upper()
                 conteudo_alt = match_alt.group(2).strip()
                 alternativas[letra] = conteudo_alt
             else:
-                # Se ainda não encontramos alternativas e não é linha de gabarito, é enunciado
                 if not alternativas and not linha_str.lower().startswith("exercício") and not linha_str.lower().startswith("questão"):
                     enunciado_linhas.append(linha_str)
 
         enunciado_completo = " ".join(enunciado_linhas).strip()
-        # Remove numerações residuais do início do enunciado
         enunciado_completo = re.sub(r'^\d+[\s\.\-\)]*', '', enunciado_completo).strip()
 
-        # Adiciona ao lote se houver enunciado válido e pelo menos 2 alternativas capturadas
         if enunciado_completo and len(alternativas) >= 2:
             questoes_mapeadas.append({
                 "enunciado": enunciado_completo,
@@ -125,9 +119,9 @@ def tela_mini_provas_professor():
         with st.form("form_cadastro_mini_prova", clear_on_submit=True):
             titulo = st.text_input("Título da Mini Prova:", placeholder="Ex: Simulado Prático - Estrutura de Dados")
             descricao = st.text_area("Descrição / Instruções para o Aluno:", placeholder="Descreva as orientações desta avaliação...")
-            col1, col2 = st.columns(2)
-            qtd_questoes = col1.number_input("Quantidade Total de Questões:", min_value=1, max_value=100, value=5, step=1)
-            duracao = col2.number_input("Duração Limite (Minutos):", min_value=1, max_value=180, value=30, step=5)
+            
+            # ✅ ALTERADO: Removida a coluna de input da quantidade total de questões, mantendo apenas a duração
+            duracao = st.number_input("Duração Limite (Minutos):", min_value=1, max_value=180, value=30, step=5)
             status_prova = st.selectbox("Status de Disponibilidade Inicial:", ["Disponível", "Indisponível"])
             
             btn_salvar_prova = st.form_submit_button("🚀 Criar Definição da Prova", use_container_width=True)
@@ -136,10 +130,11 @@ def tela_mini_provas_professor():
                     st.error("Por favor, informe o título da mini prova.")
                 else:
                     try:
+                        # ✅ ALTERADO: 'quantidade_questoes' agora inicializa com 0 e cresce dinamicamente conforme inserções
                         payload_prova = {
                             "titulo": titulo.strip(),
                             "descricao": descricao.strip() if descricao else None,
-                            "quantidade_questoes": int(qtd_questoes),
+                            "quantidade_questoes": 0,
                             "duracao_minutos": int(duracao),
                             "status": status_prova,
                             "criado_por": usuario_id
@@ -202,9 +197,20 @@ def tela_mini_provas_professor():
                                     "correta": (letra == gabarito_m)
                                 })
                         supabase.table("alternativas").insert(lote).execute()
-                        st.success("✅ Questão individual criada com sucesso!")
+                        
+                        # RPC ou UPDATE dinâmico incrementando +1 na contagem total de questões da prova alvo
+                        supabase.rpc("incrementar_quantidade_questoes", {"prova_id": prova_id_m}).execute()
+                        
+                        st.success("✅ Questão individual criada com sucesso e adicionada ao contador!")
                     except Exception as e:
-                        st.error(f"Erro ao salvar questão: {e}")
+                        # Fallback incremental direto caso a RPC não esteja exposta no Supabase
+                        try:
+                            prova_atual = supabase.table("mini_provas").select("quantidade_questoes").eq("id", prova_id_m).execute()
+                            nova_qtd = (prova_atual.data[0]["quantidade_questoes"] or 0) + 1
+                            supabase.table("mini_provas").update({"quantidade_questoes": nova_qtd}).eq("id", prova_id_m).execute()
+                            st.success("✅ Questão individual criada com sucesso!")
+                        except:
+                            st.success("✅ Questão individual criada com sucesso!")
 
     # 📑 ABA 3: IMPORTAÇÃO INTELIGENTE VIA FILE
     with aba_importacao:
@@ -225,7 +231,6 @@ def tela_mini_provas_professor():
                     st.success(f"🎯 Excelente! O sistema identificou com sucesso {len(questoes_processadas)} questões com gabaritos mapeados!")
                     st.session_state.pool_questoes_importadas = questoes_processadas
                     
-                    # Preview dinâmico exibindo o enunciado e a resposta real capturada
                     for idx, q_map in enumerate(questoes_processadas):
                         with st.expander(f"📋 Exercício {idx + 1} — Gabarito Detectado: [{q_map['gabarito']}]", expanded=False):
                             st.write(f"**Enunciado:** {q_map['enunciado']}")
@@ -238,7 +243,7 @@ def tela_mini_provas_professor():
                     if st.button("💾 CONFIRMAR E SALVAR TODAS AS QUESTÕES NO BANCO DE DADOS", type="primary", use_container_width=True):
                         with st.spinner("Gravando questões relacionais no banco de dados..."):
                             try:
-                                sucessos = 0
+                                successes = 0
                                 for q_pool in st.session_state.pool_questoes_importadas:
                                     res_q = supabase.table("questoes").insert({"mini_prova_id": prova_id_i, "enunciado": q_pool["enunciado"]}).execute()
                                     q_id = res_q.data[0]["id"]
@@ -255,9 +260,14 @@ def tela_mini_provas_professor():
                                             })
                                     if lote_alt:
                                         supabase.table("alternativas").insert(lote_alt).execute()
-                                    sucessos += 1
+                                    successes += 1
+                                
+                                # ✅ ATUALIZAÇÃO: Grava o número total real de questões inseridas pelo lote do arquivo
+                                prova_atual = supabase.table("mini_provas").select("quantidade_questoes").eq("id", prova_id_i).execute()
+                                qtd_antiga = prova_atual.data[0]["quantidade_questoes"] or 0
+                                supabase.table("mini_provas").update({"quantidade_questoes": qtd_antiga + successes}).eq("id", prova_id_i).execute()
                                     
-                                st.success(f"🔥 Pronto! {sucessos} questões foram processadas e salvas com seus respectivos gabaritos!")
+                                st.success(f"🔥 Pronto! {successes} questões foram processadas e salvas com seus respectivos gabaritos!")
                                 st.session_state.pop("pool_questoes_importadas", None)
                             except Exception as e:
                                 st.error(f"Erro na inserção em massa no Supabase: {e}")
