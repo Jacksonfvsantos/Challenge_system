@@ -82,19 +82,30 @@ def tela_quiz_rodada():
         st.error("Erro ao carregar dados da sala.")
         return
 
-    # Sincronização automatizada via iframe no perfil do aluno (2 segundos)
+    # Sincronização automatizada via iframe no perfil do aluno (Long Pooling Corrigido)
     if tipo == "aluno":
-        st.iframe(
+        # 🔄 CAPTURA DO SINAL: Armazenamos o retorno do iframe em uma variável do Streamlit
+        refresh_sinal = st.iframe(
             src="data:text/html;charset=utf-8," + """
             <script>
                 if (!window.refreshIntervalSet) {
                     window.refreshIntervalSet = true;
-                    setInterval(function() { window.parent.postMessage({type: 'streamlit:setComponentValue', value: true}, '*'); }, 2000);
+                    setInterval(function() { 
+                        // Envia um valor incremental (timestamp) para forçar o Streamlit a notar a mudança
+                        window.parent.postMessage({
+                            type: 'streamlit:setComponentValue', 
+                            value: new Date().getTime()
+                        }, '*'); 
+                    }, 2000); // Verifica mudanças a cada 2 segundos
                 }
             </script>
             """,
             height=1
         )
+        
+        # 🚀 FORÇAR RERUN: Se o sinal mudou lá no JavaScript, o Python intercepta e força a tela a redesenhar
+        if refresh_sinal:
+            st.rerun()
 
     st.title(f"🎮 {quiz.get('titulo')}")
     perguntas = buscar_perguntas_do_quiz(quiz_id)
