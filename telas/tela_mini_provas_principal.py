@@ -1,7 +1,9 @@
 import streamlit as st
+import time
 from services.mini_prova_service import listar_mini_provas
 from utils.compartilhamento import exibir_painel_compartilhamento
 from utils.estilo import aplicar_estilo, cabecalho
+from database.conexao import supabase
 
 def tela_mini_provas():
     aplicar_estilo()
@@ -72,7 +74,7 @@ def tela_mini_provas():
             st.session_state.pagina = "resultados_mini_provas"
             st.rerun()
 
-    # Consome a lista limpa diretamente do service
+    # Consome a lista limpa diretamente do service relacional
     mini_provas = listar_mini_provas()
 
     if pesquisa:
@@ -82,12 +84,17 @@ def tela_mini_provas():
         st.info("💡 Nenhuma mini prova disponível ou publicada no momento.")
         return
 
-    # 🎯 Renderização dos Cards Reativos das Provas
+    # 🎯 Renderização dos Cards Reativos das Provas (Com controle de encerramento)
     for prova in mini_provas:
+        # Alunos não visualizam provas encerradas de forma global
+        if prova.get("status") == "Indisponível" and tipo_usuario == "aluno":
+            continue
+
         with st.container(border=True):
+            status_exibicao = "" if prova.get("status") == "Disponível" else " 🔒 (Encerrada)"
             st.markdown(f"""
             <div style="background:#f0f9ff; border-left:4px solid #00b4d8; border-radius:8px; padding:14px 18px; margin-bottom:10px;">
-                <strong style="color:#0d1b2a; font-size:16px;">{prova.get('titulo', 'Sem Título')}</strong><br>
+                <strong style="color:#0d1b2a; font-size:16px;">{prova.get('titulo', 'Sem Título')}{status_exibicao}</strong><br>
                 <span style="color:#555; font-size:13px;">{prova.get('descricao', 'Sem descrição definida para este exame.')}</span><br>
                 <span style="color:#00b4d8; font-size:12px; font-weight:600;">
                     📝 {prova.get('quantidade_questoes', '-')} Questões &nbsp;|&nbsp; ⏱️ {prova.get('duracao_minutos', '-')} min
@@ -101,6 +108,23 @@ def tela_mini_provas():
                     st.session_state.pagina = "realizar_mini_prova"
                     st.rerun()
             else:
-                # Se for Professor visualizando a lista, exibe as opções de compartilhamento do QR Code daquela prova
-                with st.expander("📢 Links de Acesso Direto & QR Code para Alunos", expanded=False):
-                    exibir_painel_compartilhamento(tipo_sala="prova", sala_id=prova["id"])
+                # 👑 VISÃO DOCENTE: Compartilhamento + Controle de Encerramento Antecipado
+                col_comp, col_fechar = st.columns([2, 1])
+                
+                with col_comp:
+                    with st.expander("📢 Links de Acesso Direto & QR Code", expanded=False):
+                        exibir_painel_compartilhamento(tipo_sala="prova", sala_id=prova["id"])
+                
+                with col_fechar:
+                    # Permite ao professor encerrar o exame a qualquer momento
+                    if prova.get("status") == "Disponível":
+                        if st.button("🔴 Finalizar Antes", key=f"close_p_{prova['id']}", use_container_width=True):
+                            try:
+                                supabase.table("mini_provas").update({"status": "Indisponível"}).eq("id", prova["id"]).execute()
+                                st.success("Avaliação encerrada com sucesso!")
+                                time.sleep(0.5)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Erro ao encerrar: {e}")
+                    else:
+                        st.button("✅ Já Encerrada", key=f"disabled_p_{prova['id']}", disabled=True, use_container_width=True)
