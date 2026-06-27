@@ -1,5 +1,19 @@
 from database.conexao import supabase
 
+def executar_decremento_atomo_rpc(quiz_id: str) -> dict:
+    try:
+        res = supabase.rpc("decrementar_tempo_quiz", {"quiz_id_alvo": quiz_id}).execute()
+        if res.data and len(res.data) > 0:
+            return {
+                "sucesso": True, 
+                "tempo_restante": res.data[0].get("tempo_atual", 0),
+                "etapa": res.data[0].get("etapa_atual", "gabarito")
+            }
+        return {"sucesso": False, "mensagem": "Nenhum retorno recebido da procedure."}
+    except Exception as e:
+        print(f"❌ Erro ao invocar RPC decrementar_tempo_quiz: {e}")
+        return {"sucesso": False, "mensagem": str(e)}
+
 def criar_quiz(titulo, usuario_id, disciplina, tema):
     try:
         res = supabase.table("quizzes").insert({
@@ -19,7 +33,7 @@ def criar_quiz(titulo, usuario_id, disciplina, tema):
 
 def listar_quizzes_ativos():
     try:
-        res = supabase.table("quizzes").select("*, usuarios(nome)").order("created_at", descending=True).execute()
+        res = supabase.table("quizzes").select("*, usuarios(nome)").order("data_criacao", desc=True).execute()
         return res.data or []
     except Exception as e:
         print(f"❌ Erro operacional [listar_quizzes_ativos]: {e}")
