@@ -35,7 +35,6 @@ def parsear_questoes_com_ia(texto_bruto):
     try:
         genai.configure(api_key=api_key)
         
-        # 🚀 ATUALIZADO: Usando o motor ativo estável Gemini 2.5 Flash
         model = genai.GenerativeModel('gemini-2.5-flash')
         
         prompt = f"""
