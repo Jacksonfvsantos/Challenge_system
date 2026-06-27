@@ -12,7 +12,6 @@ from services.recompensa_service import (
 
 def tela_recompensas():
     aplicar_estilo()
-    
     usuario = st.session_state.get("usuario_logado", {})
     usuario_id = str(usuario.get("id", "")).strip()
     tipo_usuario = str(usuario.get("tipo_usuario", "aluno")).lower()
@@ -22,12 +21,8 @@ def tela_recompensas():
         "Solicite resgates de insígnias ou gerencie aprovações de bônus e vantagens"
     )
 
-    # ------------------------------------------------------------------------
-    # SEÇÃO EXCLUSIVA DO PROFESSOR: ABAS DE GESTÃO E APROVAÇÃO
-    # ------------------------------------------------------------------------
     if tipo_usuario in ("professor", "admin"):
         aba_pedidos, aba_cadastro = st.tabs(["📥 Pedidos de Resgate", "✨ Cadastrar Nova Recompensa"])
-        
         with aba_cadastro:
             with st.container(border=True):
                 col_t1, col_t2 = st.columns([2, 1])
@@ -35,7 +30,6 @@ def tela_recompensas():
                     titulo = st.text_input("Título da Recompensa:", placeholder="Ex: Mestre do Refactoring")
                 with col_t2:
                     tipo = st.selectbox("Categoria:", ["medalha", "vantagem", "bonus"])
-                    
                 descricao = st.text_area("Diretrizes / Descrição da Conquista:", placeholder="Ex: Concedido ao aluno que otimizar o algoritmo...")
                 custo = st.number_input("Custo ou Pontuação Bônus (XP):", min_value=0, value=10, step=5)
                 
@@ -51,7 +45,6 @@ def tela_recompensas():
         with aba_pedidos:
             st.markdown("#### Solicitações Aguardando sua Permissão")
             pedidos = listar_solicitacoes_pendentes()
-            
             if not pedidos:
                 st.info("Nenhum pedido de resgate pendente no momento.")
             else:
@@ -78,12 +71,8 @@ def tela_recompensas():
                                     st.rerun()
         st.divider()
 
-    # ------------------------------------------------------------------------
-    # SEÇÃO PÚBLICA: VITRINE DE ITENS (VISÍVEL PARA PROFESSOR E ALUNO)
-    # ------------------------------------------------------------------------
     st.markdown("### 📋 Vitrine de Conquistas Disponíveis")
     recompensas = listar_recompensas()
-    
     if not recompensas:
         st.info("Nenhuma recompensa ou insígnia foi localizada na vitrine.")
         return
@@ -91,19 +80,14 @@ def tela_recompensas():
     for r in recompensas:
         r_id = str(r["id"]).strip()
         badge_emoji = "🥇" if r["tipo"] == "medalha" else "⚡" if r["tipo"] == "vantagem" else "🎁"
-        
         with st.container(border=True):
             col_info, col_acao = st.columns([3, 1])
-            
             with col_info:
                 st.markdown(f"### {badge_emoji} {r['titulo']} <span style='font-size:12px; background:#e2e8f0; color:#4a5568; padding:2px 8px; border-radius:10px;'>{r['tipo'].upper()}</span>", unsafe_allow_html=True)
                 st.write(r["descricao"])
                 st.markdown(f"**Requisito/Custo:** `{r['custo_pontos']} XP`")
-            
             with col_acao:
                 st.markdown("<br>", unsafe_allow_html=True)
-                
-                # Fluxo A: Se o usuário logado for Aluno -> Ele vê o botão de solicitar resgate
                 if tipo_usuario == "aluno":
                     if st.button("🛒 Resgatar", key=f"claim_{r_id}", type="primary", use_container_width=True):
                         retorno = solicitar_resgate(r_id, usuario_id)
@@ -111,8 +95,6 @@ def tela_recompensas():
                             st.success(retorno["mensagem"])
                         else:
                             st.warning(retorno["mensagem"])
-                
-                # Fluxo B: Se o usuário logado for Professor -> Ele ganha as ferramentas de modificação do item
                 else:
                     col_e, col_d = st.columns(2)
                     with col_e:
@@ -122,7 +104,6 @@ def tela_recompensas():
                             edit_tipo = st.selectbox("Categoria:", ["medalha", "vantagem", "bonus"], index=["medalha", "vantagem", "bonus"].index(r["tipo"]), key=f"tp_{r_id}")
                             edit_desc = st.text_area("Descrição:", value=r["descricao"], key=f"d_{r_id}")
                             edit_custo = st.number_input("Pontos:", min_value=0, value=int(r["custo_pontos"]), key=f"c_{r_id}")
-                            
                             if st.button("Salvar", key=f"save_{r_id}", use_container_width=True):
                                 if edit_titulo.strip() and editar_recompensa(r_id, edit_titulo, edit_desc, edit_custo, edit_tipo):
                                     st.success("Item atualizado!")

@@ -15,7 +15,6 @@ def formatar_data_br(data_str):
 
 def tela_desafios():
     aplicar_estilo()
-    
     usuario = st.session_state.get("usuario_logado", {})
     tipo_usuario = usuario.get("tipo_usuario", "aluno")
     usuario_id = usuario.get("id")
@@ -41,7 +40,6 @@ def tela_desafios():
                 titulo = desafio.get('titulo', 'Sem Título')
                 descricao = desafio.get('descricao', 'Sem descrição.')
                 nivel = desafio.get("nivel_dificuldade") or desafio.get("nivel") or "Não informado"
-                
                 prazo_cru = desafio.get('data_limite', 'Sem prazo')
                 prazo_br = formatar_data_br(prazo_cru)
 
@@ -67,7 +65,6 @@ def tela_desafios():
     if tipo_usuario == "professor":
         with abas[1]:
             st.subheader("Cadastrar Novo Desafio")
-            
             if "ins_titulo" not in st.session_state: st.session_state["ins_titulo"] = ""
             if "ins_desc" not in st.session_state: st.session_state["ins_desc"] = ""
 
@@ -76,7 +73,6 @@ def tela_desafios():
                 descricao_input = st.text_area("Descrição / Enunciado", value=st.session_state["ins_desc"])
                 nivel_input = st.selectbox("Nível de Dificuldade", ["Fácil", "Médio", "Dificil"])
                 data_limite_input = st.date_input("Data Limite de Entrega", value=datetime.today())
-                
                 enviado = st.form_submit_button("Salvar Desafio", use_container_width=True)
                 
                 if enviado:
@@ -85,7 +81,6 @@ def tela_desafios():
                     else:
                         data_iso = data_limite_input.strftime("%Y-%m-%d")
                         res = criar_desafio(titulo_input, descricao_input, usuario_id, data_iso, nivel_input)
-                        
                         if res.get("sucesso") or res.get("id") or isinstance(res, dict):
                             st.success("✅ Desafio criado com sucesso no servidor!")
                             st.session_state["ins_titulo"] = ""

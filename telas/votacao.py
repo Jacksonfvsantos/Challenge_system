@@ -11,15 +11,11 @@ except ImportError:
 
 def tela_votacao():
     aplicar_estilo()
-
     usuario = st.session_state.get("usuario_logado", {})
     tipo = usuario.get("tipo_usuario", "aluno")
     usuario_id_logado = str(usuario.get("id", ""))
 
-    cabecalho(
-        "Sistema de Votação",
-        "Avalie os projetos desenvolvidos pelos seus colegas por meio de notas."
-    )
+    cabecalho("Sistema de Votação", "Avalie os projetos desenvolvidos pelos seus colegas por meio de notas.")
 
     if tipo == "professor":
         st.subheader("📊 Painel de Monitoramento de Auditoria de Notas")
@@ -36,15 +32,13 @@ def tela_votacao():
                     df_votos['usuario_id'].astype(str).str.contains(filtro_busca) | 
                     df_votos['desafio_id'].astype(str).str.contains(filtro_busca)
                 ]
-            st.markdown("**Registros de Notas Localizados**")
+            st.markdown("**Placar de Avaliações Registradas**")
             st.dataframe(df_votos, use_container_width=True, hide_index=True)
         else:
             st.info("Nenhuma avaliação de nota foi computada até o momento.")
-                
     else:
         st.subheader("🎯 Desafios Disponíveis para Avaliação")
         pesquisa = st.text_input("🔍 Digite o título do desafio para filtrar a busca")
-        
         try:
             desafios = listar_desafios()
         except Exception:
@@ -61,7 +55,6 @@ def tela_votacao():
                     st.markdown(f"### {desafio.get('titulo', 'Sem Título')}")
                     st.write(f"📝 **Enunciado:** {desafio.get('descricao', 'Sem descrição.')}")
                     st.caption(f"📅 Prazo Limite: {desafio.get('data_limite', 'Não informado')}")
-                    
                     st.divider()
                     st.markdown("**Dar nota ao projeto:**")
                     
@@ -70,14 +63,12 @@ def tela_votacao():
                         options=["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
                         key=f"nota_slider_{desafio.get('id')}"
                     )
-
                     if st.button("Confirmar Envio da Nota", key=f"btn_voto_{desafio.get('id')}", use_container_width=True):
                         _processar_voto_nota(str(desafio.get("id")), str(nota_projeto), usuario_id_logado)
 
-
 def _processar_voto_nota(desafio_id, nota, usuario_id_logado):
     try:
-        resultado = registrar_voto(desafio_id, nota, usuario_id_logado)
+        registrar_voto(desafio_id, nota, usuario_id_logado)
         st.success(f"✅ Avaliação concluída! Você atribuiu nota {nota} a este desafio.")
         st.rerun()
     except Exception:

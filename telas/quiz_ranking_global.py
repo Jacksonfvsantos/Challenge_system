@@ -5,7 +5,6 @@ from database.conexao import supabase
 def calcular_ranking_quiz(quiz_id):
     try:
         res = supabase.table("respostas_quiz").select("pontuacao_obtida, usuarios(nome)").eq("quiz_id", quiz_id).execute()
-        
         if not res.data:
             return pd.DataFrame(columns=["Nome", "Pontuação Total"])
         
@@ -19,11 +18,9 @@ def calcular_ranking_quiz(quiz_id):
     except Exception:
         return pd.DataFrame(columns=["Nome", "Pontuação Total"])
 
-# ✅ SOLUÇÃO: run_every gerencia o tempo nativamente e morre se mudarmos de página
 @st.fragment(run_every=3.0)
 def renderizar_tabela_ranking(quiz_id):
     ranking_df = calcular_ranking_quiz(quiz_id)
-
     if ranking_df.empty:
         st.info("Nenhuma resposta computada para gerar o placar até o momento.")
     else:
@@ -34,7 +31,6 @@ def renderizar_tabela_ranking(quiz_id):
 
 def tela_quiz_ranking_global():
     st.title("🏆 Telão de Líderes - Ranking Síncrono")
-    
     quiz_id = st.session_state.get("quiz_ranking_id")
     if not quiz_id:
         st.warning("Nenhuma sala selecionada.")
@@ -43,10 +39,8 @@ def tela_quiz_ranking_global():
             st.rerun()
         return
 
-    # Renderiza o componente de atualização controlada
     renderizar_tabela_ranking(quiz_id)
-
     st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("⬅️ Voltar ao Painel de Controle", use_container_width=True, key="btn_back_to_panel_main"):
+    if st.button("⬅️ Voltar ao Painel De Controle", use_container_width=True, key="btn_back_to_panel_main"):
         st.session_state.pagina = "quiz_ao_vivo"
         st.rerun()

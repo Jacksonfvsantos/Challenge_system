@@ -35,7 +35,6 @@ def puxar_perguntas_cadastradas(quiz_id):
 
 def tela_quiz_ao_vivo():
     aplicar_estilo()
-
     usuario = st.session_state.get("usuario_logado", {})
     tipo = str(usuario.get("tipo_usuario", "aluno")).lower()
     user_id = usuario.get("id")
@@ -45,7 +44,6 @@ def tela_quiz_ao_vivo():
         "Participe ou gerencie sessões síncronas de perguntas e respostas em tempo real"
     )
 
-    # Definição Dinâmica das Abas por Nível de Usuário
     if tipo in ("professor", "admin"):
         aba_gestao, aba_caderno, aba_lista = st.tabs([
             "✨ Criar Novo Quiz", 
@@ -55,7 +53,6 @@ def tela_quiz_ao_vivo():
     else:
         aba_lista, = st.tabs(["🎮 Quizzes Disponíveis"])
 
-    # --- ABA 1: CRIAÇÃO DE SALA (SEM FORM PROTOCOL) ---
     if tipo in ("professor", "admin"):
         with aba_gestao:
             st.subheader("Configurar Nova Sessão de Quiz")
@@ -76,10 +73,8 @@ def tela_quiz_ao_vivo():
                         else:
                             st.error("Erro ao tentar abrir sala.")
 
-        # --- ABA 2: CADERNO DE QUESTÕES (SEM FORM PROTOCOL) ---
         with aba_caderno:
             st.subheader("Alimentar Banco de Perguntas")
-            
             quizzes_disponiveis = listar_quizzes_do_banco()
             if not quizzes_disponiveis:
                 st.info("💡 Você precisa criar uma Sala de Quiz primeiro na aba ao lado.")
@@ -103,10 +98,8 @@ def tela_quiz_ao_vivo():
                         st.rerun()
 
                 st.markdown("---")
-
                 enunciado = st.text_area("Enunciado da Pergunta", key="input_q_enunciado")
                 tempo_limite = st.slider("Tempo Limite (Segundos)", min_value=10, max_value=120, value=30, step=5, key="input_q_timer")
-                
                 alt_a = st.text_input("Alternativa A", key="input_q_alta")
                 alt_b = st.text_input("Alternativa B", key="input_q_altb")
                 alt_c = st.text_input("Alternativa C", key="input_q_altc")
@@ -133,15 +126,12 @@ def tela_quiz_ao_vivo():
                         for p in perguntas_atuais:
                             st.markdown(f"**Q{p['ordem']}. {p.get('enunciado') or p.get('texto')}** *({p.get('tempo_limite_segundos')}s)*")
 
-    # --- ABA 3: LISTAGEM E CONTROLE SÍNCRONO ---
     with aba_lista:
         st.subheader("Salas de Quiz Registradas")
-        
         if st.button("🔄 Sincronizar Listagem de Salas", key="btn_sync_manual_salas", use_container_width=True):
             st.rerun()
                 
         quizzes = listar_quizzes_do_banco()
-
         if not quizzes:
             st.info("Nenhuma sessão de quiz síncrono localizada.")
             return
@@ -150,7 +140,6 @@ def tela_quiz_ao_vivo():
             q_id = q.get("id")
             status = str(q.get("status", "criado")).strip().lower()
             tema_txt = q.get("tema") or "Geral"
-            
             autor_objeto = q.get("usuarios")
             autor = autor_objeto.get("nome", "Professor") if isinstance(autor_objeto, dict) else "Professor Responsável"
 
@@ -175,7 +164,6 @@ def tela_quiz_ao_vivo():
                 if tipo in ("professor", "admin"):
                     st.markdown("<br>", unsafe_allow_html=True)
                     col1, col2, col3 = st.columns([2, 2, 1])
-                    
                     with col1:
                         if status == "criado":
                             if st.button("▶️ Iniciar Quiz", key=f"btn_start_quiz_{q_id}", type="primary", use_container_width=True):
@@ -209,7 +197,6 @@ def tela_quiz_ao_vivo():
                     if status != "finalizado":
                         with st.expander("📢 Mapeamento de Links & QR Code para Alunos", expanded=False):
                             exibir_painel_compartilhamento(tipo_sala="quiz", sala_id=q_id)
-                
                 else:
                     st.markdown("<br>", unsafe_allow_html=True)
                     if status in ("em_andamento", "andamento", "ativo"):

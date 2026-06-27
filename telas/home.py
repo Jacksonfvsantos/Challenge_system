@@ -1,11 +1,10 @@
 import streamlit as st
 from services.desafio_service import listar_desafios
-from services.auth_service import excluir_conta_usuario  # Importado o serviço de exclusão
+from services.auth_service import excluir_conta_usuario
 from utils.estilo import aplicar_estilo, cabecalho
 
 def tela_home():
     aplicar_estilo()
-    
     usuario = st.session_state.get("usuario_logado", {})
     nome_usuario = usuario.get("nome", "Usuário")
     
@@ -15,7 +14,6 @@ def tela_home():
     )
     
     st.subheader("Desafios em Destaque")
-    
     try:
         desafios = listar_desafios()
     except Exception:
@@ -24,7 +22,6 @@ def tela_home():
     if not desafios:
         st.info("Nenhum desafio listado no momento.")
     else:
-        # Renderização segura dos desafios cadastrados (Exibe os 3 primeiros como destaque)
         for desafio in desafios[:3]:  
             with st.container(border=True):
                 st.markdown(f"### {desafio.get('titulo', 'Sem Título')}")
@@ -38,14 +35,11 @@ def tela_home():
                     prazo = desafio.get("data_limite", "Sem prazo")
                     st.caption(f"**Prazo final:** {prazo}")
 
-    # ─── IMPLEMENTAÇÃO DO TÓPICO 1: GERENCIAMENTO DE CONTA ──────────────────
     st.markdown("<br>", unsafe_allow_html=True)
     st.divider()
     
     with st.expander("⚙️ Configurações e Gerenciamento da Conta"):
         st.subheader("Privacidade e Inscrições")
-        
-        # Ajuste 1.1: Cancelar Inscrições (Item 1.17 do Relatório)
         st.markdown("**Gerenciar Participações**")
         st.caption("Clique abaixo para se desligar de eventos ou desafios pendentes no sistema.")
         
@@ -54,13 +48,10 @@ def tela_home():
             st.rerun()
             
         st.divider()
-        
-        # Ajuste 1.2: Remoção/Descadastramento de conta (Item 1.18 do Relatório)
         st.markdown("<span style='color: #ff4b4b; font-weight: bold;'>Zona de Perigo</span>", unsafe_allow_html=True)
         st.caption("A exclusão de conta é definitiva e removerá permanentemente seu histórico e suas pontuações.")
         
         confirmar_exclusao = st.checkbox("Estou ciente de que esta ação é irreversível e desejo apagar minha conta permanentemente.")
-        
         if st.button("⚠️ Solicitar Remoção Permanente da Conta", type="primary", use_container_width=True):
             if not confirmar_exclusao:
                 st.warning("Por favor, marque a caixa de confirmação para poder prosseguir.")

@@ -27,10 +27,8 @@ def contar_respostas_e_participantes(quiz_id, pergunta_id):
     try:
         res_parts = supabase.table("participantes_quiz").select("id").eq("quiz_id", quiz_id).execute()
         res_resps = supabase.table("respostas_quiz").select("id").eq("pergunta_id", pergunta_id).execute()
-        
         total_parts = len(res_parts.data) if res_parts.data else 0
         total_resps = len(res_resps.data) if res_resps.data else 0
-        
         return total_resps, max(total_parts, 1)
     except Exception:
         return 0, 1
@@ -38,7 +36,6 @@ def contar_respostas_e_participantes(quiz_id, pergunta_id):
 def salvar_resposta_aluno(quiz_id, pergunta_id, usuario_id, alternativa_id, correta, indice_resposta):
     try:
         pontos = 1000.0 if correta else 0.0
-        
         id_participante_real = None
         try:
             res_part = supabase.table("participantes_quiz").select("id").eq("quiz_id", quiz_id).eq("usuario_id", usuario_id).execute()
@@ -67,13 +64,11 @@ def salvar_resposta_aluno(quiz_id, pergunta_id, usuario_id, alternativa_id, corr
             "indice_resposta": int(indice_resposta),
             "correta": bool(correta)
         }
-        
         supabase.table("respostas_quiz").insert(payload).execute()
         return True
     except Exception:
         return False
 
-# 🔄 PLACAR E TEMPO CENTRALIZADOS
 @st.fragment(run_every=1.0)
 def renderizar_painel_sincrono_compartilhado(quiz_id, pergunta_id, tipo_usuario, etapa_atual):
     quiz_recente = buscar_dados_quiz(quiz_id)
@@ -84,7 +79,6 @@ def renderizar_painel_sincrono_compartilhado(quiz_id, pergunta_id, tipo_usuario,
     db_etapa = str(quiz_recente.get("etapa_rodada", "pergunta")).strip().lower()
     db_pergunta = str(quiz_recente.get("pergunta_atual_id") or "").strip()
     
-    # Redireciona imediatamente se o quiz foi marcado como finalizado pelo professor
     if db_status == "finalizado":
         st.session_state.quiz_ranking_id = quiz_id
         st.session_state.pagina = "quiz_ranking_global"
@@ -137,7 +131,6 @@ def tela_quiz_rodada():
         st.error("Erro ao carregar dados da sala.")
         return
 
-    # Verificação de status finalizado para o roteamento do Aluno antes do desenho da interface
     status_atual = str(quiz.get("status", "criado")).strip().lower()
     if status_atual == "finalizado":
         st.session_state.quiz_ranking_id = quiz_id
@@ -158,7 +151,6 @@ def tela_quiz_rodada():
             st.rerun()
         return
 
-    # 🚪 SALA DE ESPERA
     if not p_atual_id:
         if tipo in ("professor", "admin"):
             st.subheader("👨‍🏫 Painel de Moderação")
@@ -167,7 +159,6 @@ def tela_quiz_rodada():
                 first_p = perguntas[0]["id"]
                 first_p_dados = next((p for p in perguntas if p["id"] == first_p), {})
                 t_limite = int(first_p_dados.get("tempo_limite_segundos", 30))
-                
                 supabase.table("quizzes").update({
                     "pergunta_atual_id": first_p, 
                     "etapa_rodada": "pergunta",
@@ -178,8 +169,6 @@ def tela_quiz_rodada():
         else:
             st.subheader("⏳ Sala de Espera")
             st.info("Conectado com sucesso! Aguarde o professor dar início à partida.")
-            
-            # Fragmento passivo para o aluno aguardar o início monitorando se o status muda
             time.sleep(2.0)
             quiz_check = buscar_dados_quiz(quiz_id)
             if quiz_check and quiz_check.get("pergunta_atual_id"):
@@ -188,16 +177,13 @@ def tela_quiz_rodada():
 
     pergunta_ativa = next((p for p in perguntas if p["id"] == p_atual_id), perguntas[0])
     alternativas = buscar_alternativas(pergunta_ativa["id"])
-
     st.subheader(f"Questão {pergunta_ativa['ordem']}: {pergunta_ativa.get('enunciado') or pergunta_ativa.get('texto')}")
 
-    # Painel Síncrono Compartilhado
     if etapa == "pergunta" and tempo_banco > 0:
         renderizar_painel_sincrono_compartilhado(quiz_id, pergunta_ativa["id"], tipo, etapa)
     else:
         renderizar_painel_sincrono_compartilhado(quiz_id, pergunta_ativa["id"], tipo, etapa)
 
-    # ------------------ VISÃO DO PROFESSOR ------------------
     if tipo in ("professor", "admin"):
         col1, col2 = st.columns(2)
         with col1:
@@ -212,7 +198,6 @@ def tela_quiz_rodada():
                         prox_p = perguntas[idx_atual + 1]["id"]
                         prox_p_dados = perguntas[idx_atual + 1]
                         t_limite_prox = int(prox_p_dados.get("tempo_limite_segundos", 30))
-                        
                         supabase.table("quizzes").update({
                             "pergunta_atual_id": prox_p, 
                             "etapa_rodada": "pergunta",
@@ -237,7 +222,6 @@ def tela_quiz_rodada():
             prefixo = "✅" if alt["correta"] else "❌"
             st.markdown(f"### {prefixo} {alt['texto']}")
 
-    # ------------------ VISÃO DO ALUNO ------------------
     else:
         if etapa == "pergunta" and tempo_banco > 0:
             respostas_enviadas, total_alunos = contar_respostas_e_participantes(quiz_id, pergunta_ativa["id"])
@@ -265,13 +249,11 @@ def tela_quiz_rodada():
         else:
             st.markdown("### 🔒 Rodada Encerrada!")
             st.markdown("---")
-            
             alt_correta = next((a for a in alternativas if a["correta"]), None)
             text_correto = alt_correta["texto"] if alt_correta else ""
 
             try:
                 resp = supabase.table("respostas_quiz").select("alternativa_id, correta").eq("pergunta_id", pergunta_ativa["id"]).eq("usuario_id", user_id).execute()
-                
                 if resp.data:
                     aluno_acertou = resp.data[0]["correta"]
                     id_marcado = resp.data[0]["alternativa_id"]
@@ -283,6 +265,6 @@ def tela_quiz_rodada():
                     else:
                         st.error(f"😞 **Você ERROU!**\n\n**Você marcou:** {text_marcado}\n\n**Gabarito Correto:** {text_correto}")
                 else:
-                    st.warning(f"⏱️ **Tempo esgotado, nenhuma alternativa escolhida!**\n\n**Gabarito Correto:** {text_correto}")
+                    st.warning("⏱️ **Tempo esgotado, nenhuma alternativa escolhida!**\n\n**Gabarito Correto:** {text_correto}")
             except Exception:
                 st.info(f"Gabarito oficial: {text_correto}")

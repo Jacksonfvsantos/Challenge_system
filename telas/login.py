@@ -3,12 +3,6 @@ import datetime
 from services.auth_service import login_usuario
 
 def tela_login(cookie_manager, minutos_validade):
-    """
-    Renderiza a interface de autenticação estruturada como um formulário nativo,
-    permitindo o envio dos dados tanto pelo clique quanto pelo pressionamento do Enter.
-    Também gerencia o redirecionamento pendente de QR Codes/Links de acesso direto.
-    """
-    
     _, col_central, _ = st.columns([1, 2, 1])
     
     with col_central:
@@ -20,44 +14,23 @@ def tela_login(cookie_manager, minutos_validade):
         """, unsafe_allow_html=True)
         
         with st.form("formulario_autenticacao_sincrona", clear_on_submit=False):
-            email = st.text_input(
-                "E-mail institucional:", 
-                placeholder="exemplo@unijorge.edu.br",
-                key="login_email_input"
-            )
-            
-            senha = st.text_input(
-                "Senha de acesso:", 
-                type="password", 
-                placeholder="••••••••",
-                key="login_senha_input"
-            )
-            
+            email = st.text_input("E-mail institucional:", placeholder="exemplo@unijorge.edu.br", key="login_email_input")
+            senha = st.text_input("Senha de acesso:", type="password", placeholder="••••••••", key="login_senha_input")
             st.markdown("<br>", unsafe_allow_html=True)
-            
-            btn_entrar = st.form_submit_button(
-                "Entrar no Sistema", 
-                type="primary", 
-                use_container_width=True
-            )
+            btn_entrar = st.form_submit_button("Entrar no Sistema", type="primary", use_container_width=True)
             
             if btn_entrar:
                 if not email.strip() or not senha:
                     st.error("Por favor, preencha todos os campos de login.")
                 else:
                     usuario = login_usuario(email, senha)
-                    
                     if usuario:
-                        # 1. Autentica o usuário na sessão
                         st.session_state.usuario_logado = usuario
-                        
-                        # 🚀 2. MOTOR DE REDIRECIONAMENTO DE INSTÂNCIA (QR CODE / LINKS DIRETOS)
                         redirecionamento = st.session_state.get("redirecionamento_pendente")
                         
                         if redirecionamento:
                             tipo_sala = redirecionamento["sala"]
                             sala_id = redirecionamento["id"]
-                            
                             if tipo_sala == "batalha":
                                 st.session_state.batalha_ativa_id = sala_id
                                 st.session_state.pagina = "batalha_rodada"
@@ -67,14 +40,10 @@ def tela_login(cookie_manager, minutos_validade):
                             elif tipo_sala == "prova":
                                 st.session_state.prova_ativa_id = sala_id
                                 st.session_state.pagina = "prova_responder"
-                                
-                            # Limpa o cache pendente para evitar loops de roteamento
                             del st.session_state["redirecionamento_pendente"]
                         else:
-                            # Fluxo padrão de navegação sem link externo externo
-                            st.session_state.pagina = "dashboard"
+                            st.session_state.pagina = "home"
                         
-                        # 3. Geração e persistência do Cookie de Sessão
                         data_expiracao = datetime.datetime.now() + datetime.timedelta(minutes=int(minutos_validade))
                         try:
                             cookie_manager.set(
@@ -87,7 +56,6 @@ def tela_login(cookie_manager, minutos_validade):
                         except Exception as e:
                             print(f"⚠️ Erro ao registrar cookie no navegador: {e}")
                             st.warning("Login efetuado, mas a retenção de sessão pode falhar neste navegador.")
-                        
                         st.rerun()
                     else:
                         st.error("E-mail ou senha incorretos. Por favor, verifique suas credenciais.")
