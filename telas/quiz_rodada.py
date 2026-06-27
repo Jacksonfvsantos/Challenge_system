@@ -74,10 +74,9 @@ def salvar_resposta_aluno(quiz_id, pergunta_id, usuario_id, alternativa_id, corr
     except Exception:
         return False
 
-# 🔄 SENTINELA PASSIVO PARA O ALUNO (Sem comandos de escrita automática no banco)
+# 🔄 SENTINELA DE ATUALIZAÇÃO DA INTERFACE DO ALUNO
 @st.fragment(run_every=2.0)
 def executar_sincronia_aluno(quiz_id, etapa_atual, pergunta_atual_id):
-    """Apenas escuta o banco de dados. Se houver mudança do professor, atualiza o app."""
     quiz_recente = buscar_dados_quiz(quiz_id)
     if not quiz_recente:
         return
@@ -89,6 +88,33 @@ def executar_sincronia_aluno(quiz_id, etapa_atual, pergunta_atual_id):
     local_pergunta = str(pergunta_atual_id or "").strip()
 
     if (db_etapa != local_etapa) or (db_pergunta != local_pergunta):
+        st.rerun(scope="app")
+
+# ⏱️ COMPONENTE DO CRONÔMETRO VISUAL DINÂMICO
+@st.fragment(run_every=1.0)
+def renderizar_cronometro_visual(quiz, tempo_limite, tipo_usuario, respostas_enviadas, total_alunos):
+    """Atualiza visualmente os segundos na tela a cada 1.0s de forma isolada."""
+    ultimo_update_str = quiz.get("updated_at") or quiz.get("data_resposta")
+    if ultimo_update_str:
+        try:
+            ultimo_update_str = ultimo_update_str.replace("Z", "+00:00")
+            segundos_decorridos = (datetime.now(timezone.utc) - datetime.fromisoformat(ultimo_update_str)).total_seconds()
+            tempo_restante = max(int(tempo_limite - segundos_decorridos), 0)
+        except Exception:
+            tempo_restante = tempo_limite
+    else:
+        tempo_restante = tempo_limite
+
+    # Exibe a métrica correspondente baseada em quem está olhando a tela
+    if tipo_usuario in ("professor", "admin"):
+        c1, c2 = st.columns(2)
+        c1.metric(label="⏱️ Tempo Restante", value=f"{tempo_restante}s")
+        c2.metric(label="📥 Respostas Recebidas", value=f"{respostas_enviadas} de {total_alunos}")
+    else:
+        st.metric(label="⏱️ Tempo Restante para Responder", value=f"{tempo_restante} segundos")
+
+    # Se o tempo zerar dentro do fragmento, força o script principal a validar o encerramento
+    if tempo_restante <= 0:
         st.rerun(scope="app")
 
 def tela_quiz_rodada():
@@ -122,7 +148,7 @@ def tela_quiz_rodada():
             st.rerun()
         return
 
-    # 🚪 SALA DE ESPERA (LIVRE DE ENGENHARIA DE ESCRITA)
+    # 🚪 SALA DE ESPERA
     if not p_atual_id:
         if tipo in ("professor", "admin"):
             st.subheader("👨‍🏫 Painel de Moderação")
@@ -145,39 +171,36 @@ def tela_quiz_rodada():
     alternativas = buscar_alternativas(pergunta_ativa["id"])
     tempo_limite = int(pergunta_ativa.get("tempo_limite_segundos", 30))
 
-    # Cálculo preciso do Cronômetro Regressivo
-    ultimo_update_str = quiz.get("updated_at") or quiz.get("data_resposta")
-    if ultimo_update_str:
-        try:
-            ultimo_update_str = ultimo_update_str.replace("Z", "+00:00")
-            segundos_decorridos = (datetime.now(timezone.utc) - datetime.fromisoformat(ultimo_update_str)).total_seconds()
-            tempo_restante = max(int(tempo_limite - segundos_decorridos), 0)
-        except Exception:
-            tempo_restante = tempo_limite
-    else:
-        tempo_restante = tempo_limite
-
     respostas_enviadas, total_alunos = contar_respostas_e_participantes(quiz_id, pergunta_ativa["id"])
 
-    # 🚨 MOTOR KAHOOT CENTRALIZADO (Executado de forma limpa sem fragmentos concorrentes)
+    # 🚨 MOTOR DE VERIFICAÇÃO EM TEMPO DE EXECUÇÃO (Sem sleep para não dar lag)
     if etapa == "pergunta":
+        ultimo_update_str = quiz.get("updated_at") or quiz.get("data_resposta")
+        if ultimo_update_str:
+            try:
+                ultimo_update_str = ultimo_update_str.replace("Z", "+00:00")
+                decorrido = (datetime.now(timezone.utc) - datetime.fromisoformat(ultimo_update_str)).total_seconds()
+            except Exception:
+                decorrido = 0
+        else:
+            decorrido = 0
+
         todos_responderam = respostas_enviadas >= total_alunos and total_alunos > 0
-        if tempo_restante <= 0 or todos_responderam:
+        if (decorrido >= tempo_limite) or todos_responderam:
             supabase.table("quizzes").update({"etapa_rodada": "gabarito"}).eq("id", quiz_id).execute()
             st.rerun()
 
-    # Ativa escuta passiva de rotas apenas para o Aluno
     if tipo == "aluno":
         executar_sincronia_aluno(quiz_id, etapa, p_atual_id)
 
     st.subheader(f"Questão {pergunta_ativa['ordem']}: {pergunta_ativa.get('enunciado') or pergunta_ativa.get('texto')}")
 
+    # ⏱️ Renderiza o cronômetro dinâmico isolado se a rodada estiver aberta
+    if etapa == "pergunta":
+        renderizar_cronometro_visual(quiz, tempo_limite, tipo, respostas_enviadas, total_alunos)
+
     # ------------------ VISÃO DO PROFESSOR ------------------
     if tipo in ("professor", "admin"):
-        c1, c2 = st.columns(2)
-        c1.metric(label="⏱️ Tempo Restante", value=f"{tempo_restante}s")
-        c2.metric(label="📥 Respostas Recebidas", value=f"{respostas_enviadas} de {total_alunos}")
-        
         col1, col2 = st.columns(2)
         with col1:
             if etapa == "pergunta":
@@ -211,17 +234,10 @@ def tela_quiz_rodada():
         for alt in alternativas:
             prefixo = "✅" if alt["correta"] else "❌"
             st.markdown(f"### {prefixo} {alt['texto']}")
-            
-        # Força o painel do professor a atualizar o segundo atual visualmente
-        if etapa == "pergunta":
-            time.sleep(1.0)
-            st.rerun()
 
     # ------------------ VISÃO DO ALUNO ------------------
     else:
         if etapa == "pergunta":
-            st.metric(label="⏱️ Tempo Restante para Responder", value=f"{tempo_restante} segundos")
-            
             progresso_respostas = min(respostas_enviadas / total_alunos, 1.0)
             st.progress(progresso_respostas, text=f"📥 {respostas_enviadas}/{total_alunos} alunos já responderam...")
 
@@ -243,11 +259,6 @@ def tela_quiz_rodada():
                         if sucesso:
                             st.toast("Resposta registrada!", icon="✅")
                             st.rerun()
-                            
-            # Força a aba do aluno a reexecutar o segundo atual para atualizar o cronometro
-            time.sleep(1.0)
-            st.rerun()
-            
         else:
             st.markdown("### 🔒 Rodada Encerrada!")
             st.markdown("---")
