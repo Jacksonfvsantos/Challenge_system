@@ -3,7 +3,6 @@ import time
 from services.mini_prova_service import buscar_mini_prova, computar_resultado_avaliacao
 
 def tela_responder_mini_prova():
-    # Validações de segurança de escopo
     prova_id = st.session_state.get("prova_ativa_id")
     caderno = st.session_state.get("caderno_questoes_ativo")
     usuario = st.session_state.get("usuario_logado")
@@ -22,7 +21,6 @@ def tela_responder_mini_prova():
 
     TEMPO_TOTAL_SEGUNDOS = int(prova["duracao_minutos"] * 60)
 
-    # Inicializa o marco temporal do início do teste
     if st.session_state.get("timestamp_inicio_prova") is None:
         st.session_state.timestamp_inicio_prova = time.time()
     if "questao_index_atual" not in st.session_state:
@@ -30,11 +28,9 @@ def tela_responder_mini_prova():
     if "respostas_aluno_atual" not in st.session_state:
         st.session_state.respostas_aluno_atual = {}
 
-    # Calcula tempo restante real
     tempo_passado = time.time() - st.session_state.timestamp_inicio_prova
     tempo_restante = max(0, TEMPO_TOTAL_SEGUNDOS - int(tempo_passado))
 
-    # TELA DE TEMPO ESGOTADO (Submissão forçada com o que foi respondido)
     if tempo_restante <= 0:
         st.markdown("""
         <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; text-align: center;">
@@ -53,7 +49,6 @@ def tela_responder_mini_prova():
             st.rerun()
         return
 
-    # COMPONENTE VISUAL DO CRONÔMETRO DE TOPO FIXO
     minutos = tempo_restante // 60
     segundos = tempo_restante % 60
     cor_tempo = "#e53e3e" if tempo_restante <= 30 else "#1b3a5c"
@@ -67,7 +62,6 @@ def tela_responder_mini_prova():
     </div>
     """, unsafe_allow_html=True)
 
-    # CONTROLADOR DE PROGRESSO DA PROVA
     total_questoes = len(caderno)
     questao_idx = st.session_state.questao_index_atual
     progresso_percentual = (questao_idx + 1) / total_questoes
@@ -75,18 +69,19 @@ def tela_responder_mini_prova():
     st.caption(f"**Questão {questao_idx + 1} de {total_questoes}**")
     st.progress(progresso_percentual)
 
-    # RENDERIZAÇÃO DA QUESTÃO DO CADERNO ATIVO
     questao = caderno[questao_idx]
-    
-    # Mapeamento dinâmico vindo do caderno relacional estruturado pelo novo service
     opcoes_alternativas = questao.get("alternativas", [])
-    if questao.get("alternativa_a"): opcoes_alternativas.append(questao["alternativa_a"])
-    if questao.get("alternativa_b"): opcoes_alternativas.append(questao["alternativa_b"])
-    if questao.get("alternativa_c"): opcoes_alternativas.append(questao["alternativa_c"])
-    if questao.get("alternativa_d"): opcoes_alternativas.append(questao["alternativa_d"])
-    if questao.get("alternativa_e"): opcoes_alternativas.append(questao["alternativa_e"])
+    if questao.get("alternativa_a"): 
+        opcoes_alternativas.append(questao["alternativa_a"])
+    if questao.get("alternativa_b"): 
+        opcoes_alternativas.append(questao["alternativa_b"])
+    if questao.get("alternativa_c"): 
+        opcoes_alternativas.append(questao["alternativa_c"])
+    if questao.get("alternativa_d"): 
+        opcoes_alternativas.append(questao["alternativa_d"])
+    if questao.get("alternativa_e"): 
+        opcoes_alternativas.append(questao["alternativa_e"])
 
-    # Recupera se o aluno já tinha marcado alguma opção nesta questão (Navegação segura)
     resposta_salva = st.session_state.respostas_aluno_atual.get(questao_idx)
     index_opcao_salva = opcoes_alternativas.index(resposta_salva) if resposta_salva in opcoes_alternativas else None
 
@@ -101,7 +96,6 @@ def tela_responder_mini_prova():
             key=f"render_q_{questao_idx}"
         )
 
-    # BARRA DE DIRECIONAMENTO E FLUXO (BOTÕES)
     st.write("")
     col_ant, col_prox = st.columns(2)
 
@@ -123,7 +117,6 @@ def tela_responder_mini_prova():
                     st.session_state.questao_index_atual += 1
                     st.rerun()
         else:
-            # Última Questão: Finalizar e Corrigir Automaticamente pelo Service
             if st.button("🏁 Finalizar e Entregar Prova", use_container_width=True, type="primary"):
                 if escolha is None:
                     st.warning("Selecione uma alternativa para poder concluir a avaliação.")
@@ -141,6 +134,5 @@ def tela_responder_mini_prova():
                         st.session_state.pagina = "resultado_mini_prova"
                         st.rerun()
 
-    # Thread de atualização de 1 segundo para manter o cronômetro síncrono
     time.sleep(1)
     st.rerun()

@@ -14,25 +14,22 @@ def tela_desempenho_mini_provas():
         st.error("Sessão de usuário inválida.")
         return
 
-    # ============================================================================
-    # 👑 VISÃO DO PROFESSOR: MONITORAMENTO DE ALUNOS MATRICULADOS
-    # ============================================================================
     if tipo_usuario == "professor" or tipo_usuario == "docente":
         cabecalho("📊 Desempenho dos Alunos", "Monitore o rendimento das turmas e analise notas por avaliação")
 
-        # 1. Carrega todas as mini-provas criadas por este professor
         try:
-            res_provas = supabase.table("mini_provas")\
-                .select("id, titulo")\
-                .eq("criado_por", usuario_id)\
-                .order("data_criacao", desc=True)\
+            res_provas = (
+                supabase.table("mini_provas")
+                .select("id, titulo")
+                .eq("criado_por", usuario_id)
+                .order("data_criacao", desc=True)
                 .execute()
+            )
             lista_provas = res_provas.data or []
         except Exception as e:
             st.error(f"Erro ao carregar mini-provas: {e}")
             lista_provas = []
 
-        # Cria as opções do Selectbox incluindo a opção de Rendimento Geral
         opcoes_selecao = ["📊 [Geral] Rendimento Consolidado de Todas as Provas"]
         dict_provas = {}
         for p in lista_provas:
@@ -41,21 +38,22 @@ def tela_desempenho_mini_provas():
 
         prova_selecionada = st.selectbox("Selecione a Mini-prova para auditar:", opcoes_selecao)
 
-        # 2. Busca e filtra os dados com base na seleção (Global vs Específica)
         try:
             if prova_selecionada == "📊 [Geral] Rendimento Consolidado de Todas as Provas":
-                # Busca o histórico completo de todas as provas para calcular o rendimento geral
-                res_historico = supabase.table("historico_provas")\
-                    .select("nota, pontuacao, data_realizacao, usuarios(nome, email)")\
+                res_historico = (
+                    supabase.table("historico_provas")
+                    .select("nota, pontuacao, data_realizacao, usuarios(nome, email)")
                     .execute()
+                )
                 logs_brutos = res_historico.data or []
             else:
-                # Busca apenas da prova selecionada
                 prova_id_alvo = dict_provas[prova_selecionada]
-                res_historico = supabase.table("historico_provas")\
-                    .select("nota, pontuacao, data_realizacao, usuarios(nome, email)")\
-                    .eq("mini_prova_id", prova_id_alvo)\
+                res_historico = (
+                    supabase.table("historico_provas")
+                    .select("nota, pontuacao, data_realizacao, usuarios(nome, email)")
+                    .eq("mini_prova_id", prova_id_alvo)
                     .execute()
+                )
                 logs_brutos = res_historico.data or []
         except Exception as e:
             st.error(f"Erro ao buscar dados do banco: {e}")
@@ -69,11 +67,9 @@ def tela_desempenho_mini_provas():
                 st.rerun()
             return
 
-        # 3. Processamento das métricas e agrupamento se for Visão Geral
         dados_tabela = []
         
         if prova_selecionada == "📊 [Geral] Rendimento Consolidado de Todas as Provas":
-            # Agrupa por aluno para tirar a média real de todas as participações
             agrupado = {}
             for item in logs_brutos:
                 dados_aluno = item.get("usuarios", {}) or {}
@@ -108,7 +104,6 @@ def tela_desempenho_mini_provas():
             maior_nota_painel = max(todas_medias) if todas_medias else 0.0
             titulo_indicadores = "🎯 Indicadores Consolidados de Todo o Semestre"
         else:
-            # Visão de uma prova específica mapeada
             for item in logs_brutos:
                 dados_aluno = item.get("usuarios", {}) or {}
                 data_iso = item.get("data_realizacao", "")
@@ -128,7 +123,6 @@ def tela_desempenho_mini_provas():
             maior_nota_painel = max(todas_notas) if todas_notas else 0.0
             titulo_indicadores = f"🎯 Indicadores Gerais — {prova_selecionada}"
 
-        # Exibe os blocos de métricas superiores
         st.markdown(f"### {titulo_indicadores}")
         col_m1, col_m2, col_m3 = st.columns(3)
         col_m1.metric("👥 Alunos Avaliados", f"{total_avaliados}")
@@ -136,8 +130,6 @@ def tela_desempenho_mini_provas():
         col_m3.metric("🔥 Maior Nota Registrada", f"{maior_nota_painel:.1f}")
 
         st.divider()
-
-        # 4. 🎛️ PAINEL PEDIDO: FILTROS DE ORDENAÇÃO DINÂMICA DA TABELA
         st.markdown("### 📋 Listagem Nominal de Rendimento")
         
         col_ord1, col_ord2 = st.columns(2)
@@ -146,11 +138,9 @@ def tela_desempenho_mini_provas():
         with col_ord2:
             direto_ordem = st.selectbox("Direção da ordenação:", ["Decrescente (Maior para Menor)", "Crescente (Menor para Maior)"])
 
-        # Executa a ordenação com base nas escolhas do professor
         reverso = True if "Decrescente" in direto_ordem else False
         dados_tabela = sorted(dados_tabela, key=lambda x: x[coluna_alvo], reverse=reverso)
 
-        # Formata os dados numéricos antes de renderizar a tabela na tela
         dados_formatados_exibicao = []
         for linha in dados_tabela:
             dados_formatados_exibicao.append({
@@ -163,17 +153,16 @@ def tela_desempenho_mini_provas():
 
         st.table(dados_formatados_exibicao)
 
-    # ============================================================================
-    # 👥 VISÃO DO ALUNO: INDICADORES INDIVIDUAIS DE DESEMPENHO
-    # ============================================================================
     else:
         cabecalho("📊 Meu Desempenho Acadêmico", "Acompanhe sua evolução e estatísticas gerais de mini-provas")
 
         try:
-            res = supabase.table("historico_provas")\
-                .select("nota, pontuacao, data_realizacao")\
-                .eq("usuario_id", usuario_id)\
+            res = (
+                supabase.table("historico_provas")
+                .select("nota, pontuacao, data_realizacao")
+                .eq("usuario_id", usuario_id)
                 .execute()
+            )
             logs = res.data or []
         except Exception as e:
             st.error(f"Erro ao conectar com a base de dados de performance: {e}")
@@ -215,7 +204,6 @@ def tela_desempenho_mini_provas():
         else:
             st.warning("⚠️ Atenção necessária! Suas notas atuais estão abaixo da linha de corte recomendada. Utilize o painel de histórico para revisar os enunciados errados.")
 
-    # Botão de retorno global
     st.divider()
     if st.button("⬅️ Voltar para as Mini Provas", use_container_width=True, type="secondary"):
         st.session_state.pagina = "mini_provas"

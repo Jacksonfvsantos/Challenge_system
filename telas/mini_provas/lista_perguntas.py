@@ -4,11 +4,7 @@ from utils.estilo import aplicar_estilo, cabecalho
 
 def tela_lista_perguntas():
     aplicar_estilo()
-    
-    cabecalho(
-        "Questões Cadastradas",
-        "Visualize, audite ou remova as perguntas armazenadas no banco unificado"
-    )
+    cabecalho("Questões Cadastradas", "Visualize, audite ou remova as perguntas armazenadas no banco unificado")
 
     perguntas = listar_perguntas()
 

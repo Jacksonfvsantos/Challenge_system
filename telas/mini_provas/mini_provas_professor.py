@@ -5,7 +5,6 @@ import datetime
 from database.conexao import supabase
 from utils.estilo import aplicar_estilo, cabecalho
 
-# Bibliotecas para extração de texto com fallback seguro
 try:
     from pypdf import PdfReader
 except ImportError:
@@ -16,9 +15,7 @@ try:
 except ImportError:
     Document = None
 
-
 def extrair_texto_arquivo(arquivo_subido, extensao):
-    """Extrai o texto bruto do PDF ou Word submetido."""
     texto_bruto = ""
     try:
         if extensao == "pdf":
@@ -39,14 +36,8 @@ def extrair_texto_arquivo(arquivo_subido, extensao):
         st.error(f"Erro ao processar a leitura do arquivo: {e}")
     return texto_bruto
 
-
 def parsing_questoes_regex(texto):
-    """
-    Algoritmo adaptado para capturar exames densos com os padrões 'Exercício X' ou 'Questão X'.
-    Mapeia automaticamente o gabarito baseado na linha 'Resposta correta: X'.
-    """
     padrao_questao = r'(?:Exercício|Questão|\n)\s*(\d+)[\s\.\-\)]*'
-    
     matches = list(re.finditer(padrao_questao, texto, re.IGNORECASE))
     questoes_mapeadas = []
 
@@ -94,27 +85,23 @@ def parsing_questoes_regex(texto):
 
     return questoes_mapeadas
 
-
 def tela_mini_provas_professor():
     aplicar_estilo()
     
     usuario = st.session_state.get("usuario_logado", {})
     usuario_id = usuario.get("id")
-    
     cabecalho("Painel do Docente: Gestão de Mini Provas", "Cadastre novos exames e gerencie avaliações")
 
     if not usuario_id:
         st.error("Sessão de usuário inválida ou expirada.")
         return
 
-    # 📋 ABAS DISPONÍVEIS
     aba_escopo, aba_manual, aba_importacao = st.tabs([
         "📝 1. Configurar Escopo da Prova", 
         "✍️ 2. Criar Questões do Zero (Manual)", 
         "📂 3. Importar Caderno via PDF/Word"
     ])
 
-    # 📑 ABA 1: METADADOS DA PROVA
     with aba_escopo:
         st.subheader("Configurações Básicas")
         with st.form("form_cadastro_mini_prova", clear_on_submit=True):
@@ -124,7 +111,6 @@ def tela_mini_provas_professor():
             st.markdown("**⏱️ Configurações de Tempo e Prazos:**")
             duracao = st.number_input("Tempo para o aluno responder após iniciar (Minutos):", min_value=1, max_value=180, value=30, step=5)
             
-            # ⏳ CAMPOS PEDIDOS: O professor escolhe a data e hora exata limite de expiração
             col_data, col_hora = st.columns(2)
             with col_data:
                 data_limite = st.date_input("Disponível até o dia:", datetime.date.today())
@@ -139,9 +125,7 @@ def tela_mini_provas_professor():
                     st.error("Por favor, informe o título da mini prova.")
                 else:
                     try:
-                        # Une os inputs de data e hora em um objeto datetime completo fuso-horário ciente
                         expiracao_dt = datetime.datetime.combine(data_limite, hora_limite)
-                        
                         payload_prova = {
                             "titulo": titulo.strip(),
                             "descricao": descricao.strip() if descricao else None,
@@ -149,7 +133,7 @@ def tela_mini_provas_professor():
                             "duracao_minutos": int(duracao),
                             "status": status_prova,
                             "criado_por": usuario_id,
-                            "data_expiracao": expiracao_dt.isoformat()  # Salva a timestamp ISO na coluna timestamptz
+                            "data_expiracao": expiracao_dt.isoformat()
                         }
                         res = supabase.table("mini_provas").insert(payload_prova).execute()
                         if res.data:
@@ -157,7 +141,6 @@ def tela_mini_provas_professor():
                     except Exception as e:
                         st.error(f"Erro ao salvar mini prova no banco: {e}")
 
-    # Carrega as provas do professor para vinculação nas abas seguintes
     try:
         res_provas = supabase.table("mini_provas").select("id, titulo").eq("criado_por", usuario_id).execute()
         lista_provas = res_provas.data or []
@@ -170,7 +153,6 @@ def tela_mini_provas_professor():
 
     dict_provas = {p["titulo"]: p["id"] for p in lista_provas}
 
-    # 📑 ABA 2: CADASTRO MANUAL DO ZERO
     with aba_manual:
         st.subheader("Cadastro Manual de Questões")
         prova_selecionada_m = st.selectbox("Vincular à qual Mini Prova?", list(dict_provas.keys()), key="sb_manual_p")
@@ -178,18 +160,14 @@ def tela_mini_provas_professor():
 
         with st.form("form_questao_manual", clear_on_submit=True):
             enunciado_m = st.text_area("Enunciado da Questão:")
-            
-            st.markdown("**Alternativas de Múltipla Escolha:**")
             alt_a = st.text_input("Alternativa A:")
             alt_b = st.text_input("Alternativa B:")
             alt_c = st.text_input("Alternativa C:")
             alt_d = st.text_input("Alternativa D:")
             alt_e = st.text_input("Alternativa E:")
-            
             gabarito_m = st.selectbox("Qual é a alternativa CORRETA?", ["A", "B", "C", "D", "E"])
             
             btn_salvar_manual = st.form_submit_button("📥 Gravar Questão no Banco", use_container_width=True)
-            
             if btn_salvar_manual:
                 if not enunciado_m or not alt_a or not alt_b:
                     st.error("O enunciado e pelo menos as alternativas A e B são obrigatórias.")
@@ -210,7 +188,6 @@ def tela_mini_provas_professor():
                                 })
                         supabase.table("alternativas").insert(lote).execute()
                         
-                        # Atualiza dinamicamente o número de questões na tabela mini_provas
                         prova_atual = supabase.table("mini_provas").select("quantidade_questoes").eq("id", prova_id_m).execute()
                         nova_qtd = (prova_atual.data[0]["quantidade_questoes"] or 0) + 1
                         supabase.table("mini_provas").update({"quantidade_questoes": nova_qtd}).eq("id", prova_id_m).execute()
@@ -218,21 +195,18 @@ def tela_mini_provas_professor():
                     except Exception as e:
                         st.error(f"Erro ao salvar questão: {e}")
 
-    # 📑 ABA 3: IMPORTAÇÃO INTELIGENTE VIA FILE
     with aba_importacao:
         st.subheader("Upload e Mapeamento Automatizado")
         prova_selecionada_i = st.selectbox("Vincular à qual Mini Prova?", list(dict_provas.keys()), key="sb_import_p")
         prova_id_i = dict_provas[prova_selecionada_i]
         
         arquivo_anexo = st.file_uploader("Suba o arquivo das questões (PDF ou .docx):", type=["pdf", "docx"])
-        
         if arquivo_anexo is not None:
             extensao = arquivo_anexo.name.split(".")[-1].lower()
             texto_extraido = extrair_texto_arquivo(arquivo_anexo, extensao)
             
             if texto_extraido:
                 questoes_processadas = parsing_questoes_regex(texto_extraido)
-                
                 if questoes_processadas:
                     st.success(f"🎯 Excelente! O sistema identificou com sucesso {len(questoes_processadas)} questões com gabaritos mapeados!")
                     st.session_state.pool_questoes_importadas = questoes_processadas
@@ -245,7 +219,6 @@ def tela_mini_provas_professor():
                                 st.write(f"*{letra})* {texto_alt} {marca}")
                     
                     st.divider()
-                    
                     if st.button("💾 CONFIRMAR E SALVAR TODAS AS QUESTÕES NO BANCO DE DADOS", type="primary", use_container_width=True):
                         with st.spinner("Gravando questões relacionais no banco de dados..."):
                             try:
@@ -268,7 +241,6 @@ def tela_mini_provas_professor():
                                         supabase.table("alternativas").insert(lote_alt).execute()
                                     successes += 1
                                 
-                                # Atualiza o número total real de questões inseridas pelo lote do arquivo
                                 prova_atual = supabase.table("mini_provas").select("quantidade_questoes").eq("id", prova_id_i).execute()
                                 qtd_antiga = prova_atual.data[0]["quantidade_questoes"] or 0
                                 supabase.table("mini_provas").update({"quantidade_questoes": qtd_antiga + successes}).eq("id", prova_id_i).execute()

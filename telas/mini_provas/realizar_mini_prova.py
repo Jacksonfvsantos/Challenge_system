@@ -5,7 +5,6 @@ from services.mini_prova_service import buscar_mini_prova, gerar_caderno_questoe
 def tela_realizar_mini_prova():
     aplicar_estilo()
     
-    # Valida se há uma prova selecionada no estado global
     prova_id = st.session_state.get("prova_ativa_id")
     if not prova_id:
         st.warning("⚠️ Nenhuma mini prova foi selecionada para execução.")
@@ -35,19 +34,16 @@ def tela_realizar_mini_prova():
 
     if st.button("🚀 Iniciar e Começar Cronômetro", use_container_width=True, type="primary"):
         with st.spinner("Sorteando caderno de questões exclusivo..."):
-            # Sorteia as questões com base nas dificuldades cadastradas pelo professor
             caderno = gerar_caderno_questoes_dinamico(prova_id)
             
             if not caderno:
                 st.error("Erro: O banco de dados não possui questões cadastradas para esta disciplina/assunto.")
             else:
-                # Inicializa as variáveis de sessão para a execução do teste
                 st.session_state.caderno_questoes_ativo = caderno
                 st.session_state.respostas_aluno_atual = {}
                 st.session_state.questao_index_atual = 0
-                st.session_state.timestamp_inicio_prova = None  # Será definido ao carregar a tela de responder
+                st.session_state.timestamp_inicio_prova = None
                 
-                # Desvia para a tela de resolução
                 st.session_state.pagina = "prova_responder"
                 st.rerun()
 

@@ -4,11 +4,7 @@ from utils.estilo import aplicar_estilo, cabecalho
 
 def tela_cadastro_perguntas():
     aplicar_estilo()
-    
-    cabecalho(
-        "Cadastro de Questões", 
-        "Alimente o banco de dados de mini-provas criando novas perguntas de múltipla escolha"
-    )
+    cabecalho("Cadastro de Questões", "Alimente o banco de dados de mini-provas criando novas perguntas de múltipla escolha")
 
     campos = ["cp_disp", "cp_ass", "cp_enun", "cp_alt_a", "cp_alt_b", "cp_alt_c", "cp_alt_d", "cp_alt_e"]
     for campo in campos:

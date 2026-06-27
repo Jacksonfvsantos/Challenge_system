@@ -17,7 +17,6 @@ def tela_resultado_mini_prova():
 
     cabecalho("📊 Desempenho e Gabarito Processado", "Confira abaixo os seus indicadores nesta avaliação")
 
-    # 📈 Painel Superior de Métricas Reais (Conectado ao DDL de historico_provas)
     col1, col2, col3 = st.columns(3)
     col1.metric("🎯 Nota Final", f"{resultado.get('nota', 0.0)} / 10.0")
     col2.metric("⭐ XP Adquirido", f"+{resultado.get('pontos', 0.0)} pts")
@@ -25,7 +24,6 @@ def tela_resultado_mini_prova():
 
     st.divider()
     
-    # 📋 Exibição do Gabarito Detalhado (Se a sessão contiver o caderno ativo do teste atual)
     if caderno and respostas_aluno:
         st.subheader("🔍 Revisão Questão por Questão")
         st.caption("Veja abaixo os enunciados, a alternativa que você selecionou e o gabarito oficial.")
@@ -34,7 +32,6 @@ def tela_resultado_mini_prova():
             resp_aluno = respostas_aluno.get(idx)
             gabarito_oficial = questao.get("gabarito_texto")
             
-            # Define o status de acerto para estilização do bloco
             foi_correto = (str(resp_aluno).strip() == str(gabarito_oficial).strip())
             cor_container = "#e6f4ea" if foi_correto else "#fce8e6"
             cor_borda = "#137333" if foi_correto else "#c5221f"
@@ -46,7 +43,6 @@ def tela_resultado_mini_prova():
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # Renderiza a lista de opções marcando visualmente os status
                 st.markdown("<br>", unsafe_allow_html=True)
                 for alt_texto in questao.get("alternativas", []):
                     if alt_texto == gabarito_oficial:
@@ -57,13 +53,11 @@ def tela_resultado_mini_prova():
                         st.markdown(f"⚪ {alt_texto}")
                 st.write("")
     else:
-        # Fallback caso ele esteja acessocando uma prova antiga vindo da tela de histórico
         st.info("ℹ️ Para revisar o caderno de perguntas completo, realize uma nova tentativa da mini-prova. Seu log de notas permanece auditado com sucesso na base!")
 
     if resultado.get("sucesso") and not caderno:
         st.success("✅ Avaliação registrada e sincronizada com sucesso na sua carteira de pontuações!")
 
-    # 🧹 Limpeza cirúrgica das variáveis temporárias de execução para liberar novos testes
     st.divider()
     if st.button("✨ Concluir e Retornar ao Painel Principal", use_container_width=True, type="primary"):
         st.session_state.pop("prova_ativa_id", None)

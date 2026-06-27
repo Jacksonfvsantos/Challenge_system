@@ -7,30 +7,28 @@ def tela_pontuacao_mini_provas():
     
     usuario_logado = st.session_state.get("usuario_logado", {})
     usuario_id = usuario_logado.get("id")
-    
     cabecalho("Minha Pontuação", "Veja seu desempenho nas mini-provas")
 
     if not usuario_id:
         st.error("Sessão expirada. Realize o login novamente.")
         return
 
-    # 🔍 1. BUSCA HISTÓRICO COMPLETO DE MINI PROVAS DE TODOS OS ALUNOS
     try:
-        res_historico = supabase.table("historico_provas")\
-            .select("usuario_id, nota, usuarios(nome, tipo_usuario)")\
+        res_historico = (
+            supabase.table("historico_provas")
+            .select("usuario_id, nota, usuarios(nome, tipo_usuario)")
             .execute()
+        )
         dados_historico = res_historico.data or []
     except Exception as e:
         st.error(f"Erro ao carregar ranking do banco de dados: {e}")
         return
 
-    # 📊 2. PROCESSA E SOMA AS NOTAS POR ALUNO (Ignorando contas de professores se houver)
     pontuacao_por_usuario = {}
     nomes_usuarios = {}
 
     for item in dados_historico:
         u_info = item.get("usuarios", {}) or {}
-        # Garante que só alunos entrem na somatória competitiva do ranking
         if str(u_info.get("tipo_usuario", "aluno")).lower() == "professor":
             continue
             
@@ -41,10 +39,7 @@ def tela_pontuacao_mini_provas():
         pontuacao_por_usuario[uid] = pontuacao_por_usuario.get(uid, 0.0) + nota
         nomes_usuarios[uid] = nome
 
-    # 🏅 3. ORDENA O RANKING DE FORMA DECRESCENTE
     ranking_ordenado = sorted(pontuacao_por_usuario.items(), key=lambda x: x[1], reverse=True)
-
-    # Encontra a posição e os pontos do aluno logado na estrutura
     pontos_proprios = pontuacao_por_usuario.get(usuario_id, 0.0)
     
     posicao_propria = 0
@@ -53,11 +48,9 @@ def tela_pontuacao_mini_provas():
             posicao_propria = idx + 1
             break
             
-    # Se o aluno nunca fez nenhuma prova, ele fica em último com zero pontos
     if posicao_propria == 0:
         posicao_propria = len(ranking_ordenado) + 1
 
-    # 🎛️ 4. EXIBE AS MÉTRICAS DO ALUNO LOGADO (Como na imagem image_f40524.png)
     col1, col2 = st.columns(2)
     col1.metric("Pontuação Total (Soma das Notas)", f"{pontos_proprios:.1f} pts")
     col2.metric("Posição no Ranking", f"{posicao_propria}º")
@@ -65,7 +58,6 @@ def tela_pontuacao_mini_provas():
     st.divider()
     st.markdown("### Ranking Geral")
 
-    # 🏆 5. RENDERIZA OS CARDS DINÂMICOS DOS ALUNOS CADASTRADOS
     if not ranking_ordenado:
         st.info("Nenhum registro de pontuação computado até o momento.")
     else:
@@ -73,7 +65,6 @@ def tela_pontuacao_mini_provas():
             posicao = idx + 1
             nome_competidor = nomes_usuarios[uid]
             
-            # Destaca visualmente a linha se for o próprio usuário logado
             if uid == usuario_id:
                 st.markdown(
                     f"""

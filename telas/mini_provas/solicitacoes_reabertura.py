@@ -17,8 +17,6 @@ def tela_solicitacoes_reabertura():
                     st.error("Solicitação recusada")
 
     st.divider()
-
     if st.button("Voltar", use_container_width=True):
-        # Roteia de volta ao painel de gerenciamento do docente
         st.session_state.pagina = "batalha_gerenciar"
         st.rerun()

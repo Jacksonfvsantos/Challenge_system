@@ -1,8 +1,6 @@
 import streamlit as st
 
-
 def tela_notificacoes_mini_provas():
-
     st.title("Notificações")
 
     notificacoes = [
@@ -12,11 +10,9 @@ def tela_notificacoes_mini_provas():
     ]
 
     for notificacao in notificacoes:
-
         st.info(notificacao)
 
     st.divider()
-
     if st.button("Voltar"):
         st.session_state.pagina = "mini_provas"
         st.rerun()
