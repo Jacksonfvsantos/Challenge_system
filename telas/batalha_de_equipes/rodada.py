@@ -42,7 +42,7 @@ def obter_time_do_usuario(usuario_id):
 
 def calcular_placar_atual(batalha_id, time_a_id, time_b_id):
     try:
-        res = supabase.table("batalha_respostas").select("time_id, reply_correta").eq("batalha_id", batalha_id).execute()
+        res = supabase.table("batalha_respostas").select("time_id, resposta_correta").eq("batalha_id", batalha_id).execute()
         pa, pb = 0, 0
         if res.data:
             for r in res.data:
@@ -70,7 +70,7 @@ def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_time_a, no
     </div>
     """, unsafe_allow_html=True)
 
-def tela_quiz_rodada():
+def tela_batalha_rodada():
     aplicar_estilo()
     if st.session_state.get("forcar_refresh_global", False):
         st.session_state["forcar_refresh_global"] = False
