@@ -21,7 +21,8 @@ def tela_batalha_gerenciar():
         try:
             res_ativas = supabase.table("batalhas").select("*").eq("finalizada", False).order("created_at", descending=True).execute()
             lista_ativas = res_ativas.data or []
-        except Exception: lista_ativas = []
+        except Exception: 
+            lista_ativas = []
 
         if not lista_ativas:
             st.info("Não há nenhuma batalha ativa listed.")
@@ -44,14 +45,14 @@ def tela_batalha_gerenciar():
                                 time.sleep(0.5)
                                 st.rerun()
                     
-                    # 🚀 INTEGRAÇÃO: Gaveta com QR Code e link direto para os alunos
                     with st.expander("📢 Mapeamento de Links & QR Code para Alunos", expanded=False):
                         exibir_painel_compartilhamento(tipo_sala="batalha", sala_id=bat['id'])
 
         try:
             banco_questoes = supabase.table("questoes").select("id, enunciado").execute().data or []
             banco_times = supabase.table("times").select("id, nome").execute().data or []
-        except Exception: banco_questoes, banco_times = [], []
+        except Exception: 
+            banco_questoes, banco_times = [], []
 
         st.markdown("<br><hr><br>", unsafe_allow_html=True)
         with st.container():

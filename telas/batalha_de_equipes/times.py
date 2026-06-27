@@ -22,13 +22,8 @@ def tela_batalha_times():
         "Crie uma nova equipa ou junte-se a um grupo ativo para libertar o seu acesso à Arena Ao Vivo"
     )
     
-    # ------------------------------------------------------------------------
-    # PAINEL EXCLUSIVO: ALUNO (CRIAR OU PARTICIPAR DE TIMES)
-    # ------------------------------------------------------------------------
     if tipo_usuario == "aluno":
         st.markdown("### 🛠️ Suas Opções de Alocação")
-        
-        # Verifica em tempo real se o estudante já possui um time vinculado
         possui_time = aluno_tem_time(usuario_id)
         
         if possui_time:
@@ -83,9 +78,6 @@ def tela_batalha_times():
         st.markdown("<br><br>", unsafe_allow_html=True)
         st.divider()
 
-    # ------------------------------------------------------------------------
-    # PAINEL GLOBAL: MURAL VISUAL DE TIMES E INTEGRANTES (VISÍVEL A TODOS)
-    # ------------------------------------------------------------------------
     st.markdown("### 📊 Mural das Equipes Registadas")
     st.caption("Confira abaixo a composição atual de cada time do ecossistema:")
     
@@ -94,25 +86,21 @@ def tela_batalha_times():
     if not todos_times:
         st.info("Nenhuma equipa registada no sistema até ao momento.")
     else:
-        # Renderiza os times em formato de Grid de Cards de 2 colunas
         for i in range(0, len(todos_times), 2):
             cols_grid = st.columns(2)
             
-            # Card do Time 1 da Linha
             with cols_grid[0]:
                 t1 = todos_times[i]
                 with st.container(border=True):
                     st.markdown(f"#### 🏢 {t1['nome']}")
                     membros_t1 = listar_membros_time(t1["id"])
                     
-                    # CORRIGIDO: Remoção do operador walrus para compatibilidade estrita
                     if not membros_t1:
                         st.caption("Empty 👥 — Equipa sem integrantes alocados.")
                     else:
                         for m in membros_t1:
                             st.markdown(f"• **{m['nome']}** ({m['email']})")
             
-            # Card do Time 2 da Linha (se houver)
             if i + 1 < len(todos_times):
                 with cols_grid[1]:
                     t2 = todos_times[i + 1]
@@ -120,14 +108,12 @@ def tela_batalha_times():
                         st.markdown(f"#### 🏢 {t2['nome']}")
                         membros_t2 = listar_membros_time(t2["id"])
                         
-                        # CORRIGIDO: Remoção do operador walrus e ajuste do loop interno
                         if not membros_t2:
                             st.caption("Empty 👥 — Equipa sem integrantes alocados.")
                         else:
                             for m in membros_t2:
                                 st.markdown(f"• **{m['nome']}** ({m['email']})")
 
-    # Botão universal de retorno
     st.markdown("<br><br>", unsafe_allow_html=True)
     if st.button("⬅️ Voltar para a Arena de Batalhas", use_container_width=True, key="btn_back_times_to_arena"):
         st.session_state.pagina = "batalha_de_equipes"

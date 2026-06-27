@@ -1,9 +1,7 @@
 import streamlit as st
 from utils.estilo import aplicar_estilo, cabecalho
 
-
 def tela_batalha_regras():
-
     aplicar_estilo()
     cabecalho("Regras e Condutas", "Leia com atencao antes de participar")
 
@@ -47,7 +45,6 @@ def tela_batalha_regras():
         """)
 
     with st.expander("Ideologias", expanded=False):
-
         col1, col2 = st.columns(2)
 
         with col1:

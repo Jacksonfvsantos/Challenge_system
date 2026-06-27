@@ -5,23 +5,20 @@ from database.conexao import supabase
 from utils.estilo import aplicar_estilo, cabecalho
 from services.batalha_service import encerrar_partida_sincrona, deletar_batalha
 
-# --- FUNÇÕES DE SUPORTE AO BACKEND DAS BATALHAS ---
-
 def listar_batalhas_por_modalidade(modalidade):
-    """Busca do Supabase as batalhas ativas filtradas por síncrona ou assíncrona."""
     try:
-        res = supabase.table("batalhas")\
-            .select("*, times:time_da_vez_id(nome)")\
-            .eq("modalidade", modalidade)\
-            .eq("finalizada", False)\
-            .order("created_at")\
+        res = (
+            supabase.table("batalhas")
+            .select("*, times:time_da_vez_id(nome)")
+            .eq("modalidade", modalidade)
+            .eq("finalizada", False)
+            .order("created_at")
             .execute()
+        )
         return res.data or []
     except Exception as e:
         print(f"❌ Erro ao listar batalhas ({modalidade}): {e}")
         return []
-
-# --- INTERFACE VISUAL PRINCIPAL ---
 
 def tela_batalha_de_equipes():
     aplicar_estilo()
@@ -34,9 +31,6 @@ def tela_batalha_de_equipes():
         "Participe de rodadas síncronas de Bate-Rebate ou resolva desafios complexos com prazo estendido"
     )
 
-    # ------------------------------------------------------------------------
-    # PAINEL SUPERIOR: DIRETRIZES E CENTRAL DE REGRAS
-    # ------------------------------------------------------------------------
     col_Painel, col_Manual = st.columns([2, 1])
     
     with col_Painel:
@@ -55,22 +49,15 @@ def tela_batalha_de_equipes():
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # ------------------------------------------------------------------------
-    # SEPARAÇÃO ARQUITETURAL: ABAS DE MODALIDADE DE JOGO
-    # ------------------------------------------------------------------------
     aba_sincrona, aba_assincrona = st.tabs([
         "⚡ Arena Ao Vivo (Bate-Rebate)", 
         "⏳ Desafios com Prazo (Assíncrono)"
     ])
 
-    # ========================================================================
-    # MODE 1: ECOSSISTEMA SÍNCRONO (AO VIVO)
-    # ========================================================================
     with aba_sincrona:
         st.markdown("### 🎙️ Partidas em Tempo Real")
         st.caption("Estas competições exigem sincronia. O professor dita o ritmo da liberação das questões.")
         
-        # Atalho para o Aluno gerenciar o seu time
         if tipo_usuario == "aluno":
             with st.container(border=True):
                 st.markdown("🏢 **Precisa criar, gerenciar ou sair da sua equipe?**")
@@ -105,7 +92,6 @@ def tela_batalha_de_equipes():
                             st.session_state.pagina = "batalha_rodada"
                             st.rerun()
 
-                        # 🔥 ADICIONADO: Controles de ciclo de vida rápidos visíveis apenas para Professores
                         if tipo_usuario in ("professor", "admin"):
                             if st.button("🛑 Encerrar", key=f"card_stop_{bs['id']}", type="secondary", use_container_width=True):
                                 if encerrar_partida_sincrona(bs['id']):
@@ -123,9 +109,6 @@ def tela_batalha_de_equipes():
                                 else:
                                     st.error("Erro ao remover do banco.")
 
-    # ========================================================================
-    # MODE 2: ECOSSISTEMA ASSÍNCRONO (PRAZOS)
-    # ========================================================================
     with aba_assincrona:
         st.markdown("### 📅 Desafios e Projetos Semanais")
         st.caption("Analise os problemas de engenharia e submeta as soluções da sua equipe dentro da janela de entrega.")
@@ -178,9 +161,6 @@ def tela_batalha_de_equipes():
                             st.session_state.pagina = "batalha_rodada"
                             st.rerun()
 
-    # ------------------------------------------------------------------------
-    # PAINEL DE CONTROLE EXCLUSIVO (PROFESSOR / ADMIN)
-    # ------------------------------------------------------------------------
     if tipo_usuario in ("professor", "admin"):
         st.markdown("<br><br>", unsafe_allow_html=True)
         st.divider()
