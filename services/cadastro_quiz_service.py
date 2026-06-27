@@ -105,11 +105,11 @@ def gerar_questoes_quiz_com_ia(quiz_id: str, tema: str, quantidade: int, api_key
         sucessos = 0
         for p in perguntas_geradas:
             res = cadastrar_pergunta_completa(
-                quiz_id=quiz_id,
-                enunciado=p["enunciado"],
-                tempo_limite=p["tempo_limite"],
-                alternativas=p["alternativas"],
-                alternativa_correta_idx=p["alternativa_correta_idx"]
+                quiz_id,
+                p["enunciado"],
+                p["tempo_limite"],
+                p["alternativas"],
+                p["alternativa_correta_idx"]
             )
             if res["sucesso"]:
                 sucessos += 1
