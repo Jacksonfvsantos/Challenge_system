@@ -73,37 +73,31 @@ def salvar_resposta_aluno(quiz_id, pergunta_id, usuario_id, alternativa_id, corr
     except Exception:
         return False
 
-# 🔄 PLACAR E TEMPO CENTRALIZADOS (FRAGMENTO COMPARTILHADO)
+# 🔄 PLACAR E TEMPO CENTRALIZADOS
 @st.fragment(run_every=1.0)
 def renderizar_painel_sincrono_compartilhado(quiz_id, pergunta_id, tipo_usuario, etapa_atual):
-    """Lê o tempo e as respostas direto do banco a cada segundo de forma passiva."""
+    """Lê o tempo e as respostas direto do banco a cada segundo."""
     quiz_recente = buscar_dados_quiz(quiz_id)
     if not quiz_recente:
         return
 
-    # Mapeamento de rotas caso o professor mude de tela
     db_etapa = str(quiz_recente.get("etapa_rodada", "pergunta")).strip().lower()
     db_pergunta = str(quiz_recente.get("pergunta_atual_id") or "").strip()
     
     if (db_etapa != str(etapa_atual).lower()) or (db_pergunta != str(pergunta_id).strip()):
         st.rerun(scope="app")
 
-    # ⏱️ Recarrega a coluna de tempo do banco (Garante que ambos vejam o mesmo número)
-    # Vamos assumir temporariamente a coluna 'tempo_restante_banco' ou injetar dinamicamente.
-    # Para não precisar criar colunas novas no seu banco, usaremos a contagem baseada em cache de sessão ou metadados
     tempo_restante = quiz_recente.get("tempo_restante_segundos")
     if tempo_restante is None:
-        tempo_restante = 30 # Fallback padrão
+        tempo_restante = 30
 
     respostas_enviadas, total_alunos = contar_respostas_e_participantes(quiz_id, pergunta_id)
 
-    # Renderização visual idêntica para manter os layouts limpos
     if tipo_usuario in ("professor", "admin"):
         c1, c2 = st.columns(2)
         c1.metric(label="⏱️ Tempo Restante", value=f"{tempo_restante}s")
         c2.metric(label="📥 Respostas Recebidas", value=f"{respostas_enviadas} de {total_alunos}")
         
-        # 🚨 APENAS O PROFESSOR atualiza e decrementa o tempo no banco para evitar concorrência
         if db_etapa == "pergunta":
             novo_tempo = max(int(tempo_restante) - 1, 0)
             todos_responderam = respostas_enviadas >= total_alunos and total_alunos > 0
@@ -115,8 +109,9 @@ def renderizar_painel_sincrono_compartilhado(quiz_id, pergunta_id, tipo_usuario,
                 supabase.table("quizzes").update({"tempo_restante_segundos": novo_tempo}).eq("id", quiz_id).execute()
     else:
         st.metric(label="⏱️ Tempo Restante para Responder", value=f"{tempo_restante} segundos")
-        # Se o aluno notar que o banco zerou, força a UI dele a mudar
-        if int(tempo_restante) <= 0:
+        if int(tempo_restante) <= 0 and db_etapa == "pergunta":
+            # Força o banco a virar para gabarito caso o aluno note o zero primeiro
+            supabase.table("quizzes").update({"etapa_rodada": "gabarito", "tempo_restante_segundos": 0}).eq("id", quiz_id).execute()
             st.rerun(scope="app")
 
 def tela_quiz_rodada():
@@ -139,6 +134,7 @@ def tela_quiz_rodada():
 
     p_atual_id = quiz.get("pergunta_atual_id")
     etapa = quiz.get("etapa_rodada", "pergunta")
+    tempo_banco = int(quiz.get("tempo_restante_segundos") if quiz.get("tempo_restante_segundos") is not None else 30)
 
     st.title(f"🎮 {quiz.get('titulo')}")
     perguntas = buscar_perguntas_do_quiz(quiz_id)
@@ -170,23 +166,19 @@ def tela_quiz_rodada():
         else:
             st.subheader("⏳ Sala de Espera")
             st.info("Conectado com sucesso! Aguarde o professor dar início à partida.")
-            
-            # Aluno aguarda o início de forma passiva por fragmento temporário
             time.sleep(2.0)
             st.rerun()
         return
 
     pergunta_ativa = next((p for p in perguntas if p["id"] == p_atual_id), perguntas[0])
     alternativas = buscar_alternativas(pergunta_ativa["id"])
-    tempo_limite = int(pergunta_ativa.get("tempo_limite_segundos", 30))
 
     st.subheader(f"Questão {pergunta_ativa['ordem']}: {pergunta_ativa.get('enunciado') or pergunta_ativa.get('texto')}")
 
-    # ⏱️ CHAMADA DO COMPONENTE CENTRALIZADO COMPARTILHADO
-    if etapa == "pergunta":
+    # Painel Síncrono Compartilhado
+    if etapa == "pergunta" and tempo_banco > 0:
         renderizar_painel_sincrono_compartilhado(quiz_id, pergunta_ativa["id"], tipo, etapa)
     else:
-        # Se for a etapa do gabarito, usamos um fragmento passivo de 2s apenas para o aluno esperar o avanço
         if tipo == "aluno":
             renderizar_painel_sincrono_compartilhado(quiz_id, pergunta_ativa["id"], tipo, etapa)
 
@@ -194,7 +186,7 @@ def tela_quiz_rodada():
     if tipo in ("professor", "admin"):
         col1, col2 = st.columns(2)
         with col1:
-            if etapa == "pergunta":
+            if etapa == "pergunta" and tempo_banco > 0:
                 if st.button("👁️ Forçar Encerramento Manual", type="secondary", use_container_width=True, key="btn_lock_and_reveal"):
                     supabase.table("quizzes").update({"etapa_rodada": "gabarito", "tempo_restante_segundos": 0}).eq("id", quiz_id).execute()
                     st.rerun()
@@ -225,14 +217,15 @@ def tela_quiz_rodada():
                 st.rerun()
 
         st.markdown("---")
-        st.write("📋 **Gabarito de Referência (Oculto para Alunos):**")
+        st.write("📋 **Gabarito de Referência:**")
         for alt in alternativas:
             prefixo = "✅" if alt["correta"] else "❌"
             st.markdown(f"### {prefixo} {alt['texto']}")
 
     # ------------------ VISÃO DO ALUNO ------------------
     else:
-        if etapa == "pergunta":
+        # ✅ BLINDAGEM: Se a etapa mudou OU o tempo zerou, trava e exibe o gabarito
+        if etapa == "pergunta" and tempo_banco > 0:
             respostas_enviadas, total_alunos = contar_respostas_e_participantes(quiz_id, pergunta_ativa["id"])
             progresso_respostas = min(respostas_enviadas / total_alunos, 1.0)
             st.progress(progresso_respostas, text=f"📥 {respostas_enviadas}/{total_alunos} alunos já responderam...")
