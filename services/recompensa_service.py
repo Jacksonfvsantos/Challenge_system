@@ -1,4 +1,6 @@
 from database.conexao import supabase
+from database.conexao import supabase
+from services.notificacao_service import criar_notificacao
 
 def listar_recompensas():
     try:
@@ -78,10 +80,21 @@ def listar_solicitacoes_pendentes():
 
 def alterar_status_solicitacao(solicitacao_id, novo_status):
     try:
-        res = supabase.table("historico_recompensas")\
-            .update({"status": novo_status, "updated_at": "now()"}) \
-            .eq("id", solicitacao_id) \
-            .execute()
+        solicitacao = supabase.table("historico_recompensas").select("aluno_id, recompensas(titulo)").eq("id", solicitacao_id).single().execute()
+        
+        if not solicitacao.data:
+            return False
+            
+        aluno_id = solicitacao.data["aluno_id"]
+        item = solicitacao.data["recompensas"]["titulo"]
+
+        res = supabase.table("historico_recompensas").update({"status": novo_status}).eq("id", solicitacao_id).execute()
+        
+        if res.data:
+            msg = f"Sua solicitação do item '{item}' foi {novo_status}!"
+
+            criar_notificacao(usuario_id=aluno_id, titulo="Atualização de Resgate", mensagem=msg)
+            
         return len(res.data) > 0
     except Exception as e:
         print(f"❌ Erro [alterar_status_solicitacao]: {e}")

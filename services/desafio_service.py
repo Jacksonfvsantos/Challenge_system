@@ -1,5 +1,7 @@
 import streamlit as st
 from database.conexao import supabase
+from database.conexao import supabase
+from services.notificacao_service import criar_notificacao
 
 def listar_desafios():
     try:
@@ -18,18 +20,22 @@ def listar_desafios():
             print(f"Erro crítico ao listar desafios: {erro_critico}")
             return []
 
-def criar_desafio(titulo, descricao, criador_id, data_limite=None, nivel_dificuldade="Medio"):
+def criar_desafio(titulo, descricao, criador_id, data_limite, nivel):
     try:
         dados = {
             "titulo": str(titulo),
             "descricao": str(descricao),
-            "criador_id": str(criador_id).strip(),
-            "nivel_dificuldade": str(nivel_dificuldade)
+            "criador_id": str(criador_id),
+            "nivel_dificuldade": str(nivel),
+            "data_limite": str(data_limite)
         }
-        if data_limite:
-            dados["data_limite"] = str(data_limite)
-            
-        resultado = supabase.table("desafios").insert(dados).execute()
-        return {"sucesso": True, "dados": resultado.data}
+        res = supabase.table("desafios").insert(dados).execute()
+        
+        if res.data:
+            alunos = supabase.table("usuarios").select("id").eq("tipo_usuario", "aluno").execute()
+            for aluno in alunos.data:
+                criar_notificacao(aluno["id"], "Novo Desafio!", f"O desafio '{titulo}' foi publicado.")
+                
+        return {"sucesso": True, "dados": res.data}
     except Exception as e:
-        return {"sucesso": False, "mensagem": f"Erro ao criar desafio: {str(e)}"}
+        return {"sucesso": False, "mensagem": f"Erro: {str(e)}"}
