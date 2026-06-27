@@ -2,7 +2,7 @@ import streamlit as st
 import time
 from utils.estilo import aplicar_estilo, cabecalho
 from database.conexao import supabase
-from services.cadastro_quiz_service import cadastrar_pergunta_completa
+from services.cadastro_quiz_service import cadastrar_pergunta_completa, gerar_questoes_quiz_com_ia
 
 def puxar_perguntas_cadastradas(quiz_id):
     try:
@@ -15,7 +15,7 @@ def tela_cadastro_perguntas_quiz():
     aplicar_estilo()
     cabecalho(
         "📝 Caderno de Questões do Quiz",
-        "Alimente suas salas síncronas com perguntas manuais ou via upload de arquivos de forma ágil"
+        "Alimente suas salas síncronas com perguntas manuais ou gere avaliações com inteligência artificial"
     )
 
     try:
@@ -37,7 +37,7 @@ def tela_cadastro_perguntas_quiz():
     st.caption(f"📊 Este quiz possui atualmente **{len(perguntas_atuais)}** pergunta(s) cadastrada(s).")
     st.markdown("---")
 
-    aba_manual, aba_import = st.tabs(["✍️ Cadastro Manual (Estilo Kahoot)", "📂 Importar via PDF / Word"])
+    aba_manual, aba_ia = st.tabs(["✍| Cadastro Manual (Estilo Kahoot)", "🤖 Gerador de Simulados com IA"])
 
     with aba_manual:
         st.subheader("Nova Questão Síncrona")
@@ -71,18 +71,31 @@ def tela_cadastro_perguntas_quiz():
                         else:
                             st.error(res["mensagem"])
 
-    with aba_import:
-        st.subheader("Processamento Inteligente de Documentos")
-        st.caption("Faça upload de uma lista de exercícios. Nosso motor lerá o arquivo e extrairá os enunciados e blocos de opções automaticamente.")
-        arquivo_enviado = st.file_uploader("Escolha o arquivo (PDF ou .docx)", type=["pdf", "docx"])
-        if arquivo_enviado is not None:
-            st.warning("⚠️ O motor de processamento por IA estruturada lerá o arquivo simulando o gabarito oficial.")
-            if st.button("🧠 Iniciar Extração e Mapear Questões", type="primary", use_container_width=True):
-                with st.spinner("Analisando estrutura gramatical do arquivo..."):
-                    time.sleep(1.5)
-                    st.info("Mecanismo de parsing pronto para acoplamento do LLM Extractor.")
+    with aba_ia:
+        st.subheader("Geração de Questões Avançada (Gemini 2.5)")
+        st.caption("Insira o tópico desejado e a quantidade de perguntas. A inteligência artificial formulará as questões estruturadas com gabaritos oficiais.")
+        
+        tema_ia = st.text_input("Tópico ou Conteúdo Programático:", placeholder="Ex: Arquitetura de Microprocessadores RISC vs CISC")
+        qtd_ia = st.number_input("Quantidade de questões para gerar:", min_value=1, max_value=10, value=3, step=1)
+        
+        api_key = st.secrets.get("GEMINI_API_KEY")
+        
+        if st.button("🤖 Formular e Injetar Questões com IA", type="primary", use_container_width=True):
+            if not tema_ia.strip():
+                st.error("Por favor, digite um tema válido para guiar a IA.")
+            elif not api_key:
+                st.error("Chave 'GEMINI_API_KEY' não configurada nos Secrets do Streamlit.")
+            else:
+                with st.spinner("O Gemini está formulando as questões técnicas e computando gabaritos..."):
+                    resultado = gerar_questoes_quiz_com_ia(quiz_id, tema_ia, int(qtd_ia), api_key)
+                    if resultado["sucesso"]:
+                        st.success(resultado["mensagem"])
+                        time.sleep(0.5)
+                        st.rerun()
+                    else:
+                        st.error(resultado["mensagem"])
 
     if perguntas_atuais:
-        with st.expander("👁️ Visualizar Perguntas Salvas neste Quiz", expanded=False):
+        with st.expander("👁| Visualizar Perguntas Salvas neste Quiz", expanded=False):
             for p in perguntas_atuais:
                 st.markdown(f"**Q{p['ordem']}. {p['enunciado']}** *({p['tempo_limite_segundos']}s)*")
