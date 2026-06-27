@@ -1,16 +1,10 @@
 import streamlit as st
 
 def mostrar_menu(cookie_manager):
-    """
-    Renderiza a barra lateral com a identificação do usuário no topo,
-    menu de navegação vertical e o botão de logout na base.
-    """
-    # 1. EXIBIÇÃO DO PERFIL DO USUÁRIO NO TOPO DA BARRA LATERAL (CONTRASTE MELHORADO)
     usuario = st.session_state.get("usuario_logado", {})
     nome_usuario = usuario.get("nome", "Usuário")
     perfil_usuario = str(usuario.get("tipo_usuario", "aluno")).upper()
     
-    # Define as cores do badge dinamicamente para aumentar o destaque visual
     cor_badge_fundo = "#1e3a8a" if perfil_usuario == "PROFESSOR" else "#065f46"
     cor_badge_texto = "#93c5fd" if perfil_usuario == "PROFESSOR" else "#a7f3d0"
     badge_emoji = "👨‍🏫" if perfil_usuario == "PROFESSOR" else "👨‍🎓"
@@ -39,7 +33,6 @@ def mostrar_menu(cookie_manager):
     </div>
     """, unsafe_allow_html=True)
     
-    # 2. BOTÕES DE NAVEGAÇÃO DO CORE CORPORATIVO
     if st.sidebar.button("🏠 Início / Dashboard", use_container_width=True):
         st.session_state.pagina = "home"
         st.rerun()
@@ -52,7 +45,6 @@ def mostrar_menu(cookie_manager):
         st.session_state.pagina = "votacao"
         st.rerun()
 
-    # 3. BOTÕES DE RECURSOS SÍNCRONOS E GAMIFICAÇÃO
     st.sidebar.divider()
     
     if st.sidebar.button("🎮 Quiz ao Vivo (Sala)", use_container_width=True):
@@ -71,7 +63,6 @@ def mostrar_menu(cookie_manager):
         st.session_state.pagina = "recompensas"
         st.rerun()
 
-    # 4. CRITÉRIOS DE AUDITORIA E LEADERBOARD
     st.sidebar.divider()
     
     if st.sidebar.button("📊 Placar Global de Líderes", use_container_width=True):
@@ -82,7 +73,6 @@ def mostrar_menu(cookie_manager):
         st.session_state.pagina = "regras_plataforma"
         st.rerun()
 
-    # 5. SAÍDA SEGURA DA SESSÃO (MANTIDA NO FINAL)
     st.sidebar.markdown("<br><br>", unsafe_allow_html=True)
     if st.sidebar.button("🚪 Sair do Sistema", type="primary", use_container_width=True, key="btn_sidebar_logout"):
         try:
