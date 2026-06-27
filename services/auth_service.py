@@ -1,17 +1,10 @@
 import hashlib
 import re
 from database.conexao import supabase
-
-CHAVE_SECRETA_PROFESSOR = "PROFE-UNIJORGE-2026"
-DOMINIO_ALUNO = "@unjorge.edu.br"
-DOMINIO_PROFESSOR = "@unijorge.pro.br"
+from services.notificacao_service import registrar_log_seguranca
 
 def criptografar_senha(senha):
     return hashlib.sha256(senha.encode()).hexdigest()
-
-def e_mail_valido(email):
-    padrao = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
-    return bool(re.match(padrao, email))
 
 def senha_valida(senha):
     if len(senha) < 8:
@@ -28,9 +21,6 @@ def senha_valida(senha):
 def login_usuario(email, senha):
     email_sanitizado = str(email).strip().lower()
     
-    if not e_mail_valido(email_sanitizado):
-        return None
-
     resposta = (
         supabase
         .table("usuarios")
@@ -41,33 +31,32 @@ def login_usuario(email, senha):
     )
 
     if resposta.data:
-        return resposta.data[0]
+        usuario = resposta.data[0]
+        registrar_log_seguranca(
+            usuario_id=usuario["id"],
+            acao="LOGIN_SUCESSO",
+            tabela_alvo="usuarios",
+            detalhes={"email": email_sanitizado}
+        )
+        return usuario
 
+    verificar_usuario = supabase.table("usuarios").select("id").eq("email", email_sanitizado).execute()
+    if verificar_usuario.data:
+        registrar_log_seguranca(
+            usuario_id=verificar_usuario.data[0]["id"],
+            acao="LOGIN_FALHA_SENHA_INCORRETA",
+            tabela_alvo="usuarios",
+            detalhes={"email": email_sanitizado}
+        )
     return None
 
-def cadastrar_usuario(nome, email, tipo_usuario, senha, codigo_ativacao=None):
+def cadastrar_usuario(nome, email, tipo_usuario, senha):
     try:
-        email_sanitizado = str(email).strip().lower()
-        
-        if not e_mail_valido(email_sanitizado):
-            return "Formato de e-mail inválido"
-
         validar = senha_valida(senha)
         if validar != "ok":
             return validar
 
-        tipo_sanitizado = str(tipo_usuario).strip().lower()
-
-        if tipo_sanitizado == "aluno":
-            if not email_sanitizado.endswith(DOMINIO_ALUNO):
-                return f"Para o perfil Aluno, utilize o e-mail institucional contendo {DOMINIO_ALUNO}"
-
-        elif tipo_sanitizado == "professor":
-            if not email_sanitizado.endswith(DOMINIO_PROFESSOR):
-                return f"Para o perfil Professor, utilize o e-mail institucional contendo {DOMINIO_PROFESSOR}"
-            
-            if not codigo_ativacao or codigo_ativacao.strip() != CHAVE_SECRETA_PROFESSOR:
-                return "Código de ativação docente inválido ou ausente"
+        email_sanitizado = str(email).strip().lower()
 
         verificar = (
             supabase
@@ -80,12 +69,21 @@ def cadastrar_usuario(nome, email, tipo_usuario, senha, codigo_ativacao=None):
         if verificar.data:
             return "E-mail já cadastrado"
 
-        supabase.table("usuarios").insert({
+        res_cadastro = supabase.table("usuarios").insert({
             "nome": nome.strip(),
             "email": email_sanitizado,
-            "tipo_usuario": tipo_sanitizado,
+            "tipo_usuario": tipo_usuario,
             "senha": criptografar_senha(senha)
         }).execute()
+
+        if res_cadastro.data:
+            novo_usuario_id = res_cadastro.data[0]["id"]
+            registrar_log_seguranca(
+                usuario_id=novo_usuario_id,
+                acao="CADASTRO_NOVO_USUARIO",
+                tabela_alvo="usuarios",
+                detalhes={"email": email_sanitizado, "tipo_usuario": tipo_usuario}
+            )
 
         return "ok"
 
