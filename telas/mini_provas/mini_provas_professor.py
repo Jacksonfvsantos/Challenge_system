@@ -1,9 +1,15 @@
 import streamlit as st
-import re
-import io
 import datetime
+import io
+import json
 from database.conexao import supabase
 from utils.estilo import aplicar_estilo, cabecalho
+
+try:
+    from google import genai
+    from google.genai import types
+except ImportError:
+    genai = None
 
 try:
     from pypdf import PdfReader
@@ -36,54 +42,72 @@ def extrair_texto_arquivo(arquivo_subido, extensao):
         st.error(f"Erro ao processar a leitura do arquivo: {e}")
     return texto_bruto
 
-def parsing_questoes_regex(texto):
-    padrao_questao = r'(?:Exercício|Questão|\n)\s*(\d+)[\s\.\-\)]*'
-    matches = list(re.finditer(padrao_questao, texto, re.IGNORECASE))
-    questoes_mapeadas = []
-
-    for i, match in enumerate(matches):
-        inicio_bloco = match.start()
-        fim_bloco = matches[i + 1].start() if i + 1 < len(matches) else len(texto)
+def extrair_questoes_com_gemini(texto_prova):
+    if genai is None:
+        st.error("❌ SDK 'google-genai' não está instalado.")
+        return []
         
-        bloco_completo = texto[inicio_bloco:fim_bloco].strip()
-        if not bloco_completo:
-            continue
+    api_key = st.secrets.get("GEMINI_API_KEY")
+    if not api_key:
+        st.error("🛑 Chave 'GEMINI_API_KEY' não configurada nos Secrets do Streamlit.")
+        return []
 
-        linhas = bloco_completo.split('\n')
-        enunciado_linhas = []
-        alternativas = {}
-        gabarito_detectado = "A"
+    try:
+        client = genai.Client(api_key=api_key)
+        
+        prompt_sistema = (
+            "Você é um assistente de engenharia de software acadêmica. Analise o texto de uma prova "
+            "e extraia todas as questões de múltipla escolha. Identifique o enunciado de forma limpa, "
+            "mapeie as alternativas de A até E (se houver menos, mapeie as existentes) e determine qual é a "
+            "alternativa correta (gabarito) com base no texto ou na resolução lógica do problema."
+        )
 
-        for linha in linhas:
-            linha_str = linha.strip()
-            if not linha_str:
-                continue
+        esquema_saida = types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "questoes": types.Schema(
+                    type=types.Type.ARRAY,
+                    items=types.Schema(
+                        type=types.Type.OBJECT,
+                        properties={
+                            "enunciado": types.Schema(type=types.Type.STRING),
+                            "gabarito": types.Schema(type=types.Type.STRING, enum=["A", "B", "C", "D", "E"]),
+                            "alternativas": types.Schema(
+                                type=types.Type.OBJECT,
+                                properties={
+                                    "A": types.Schema(type=types.Type.STRING),
+                                    "B": types.Schema(type=types.Type.STRING),
+                                    "C": types.Schema(type=types.Type.STRING),
+                                    "D": types.Schema(type=types.Type.STRING),
+                                    "E": types.Schema(type=types.Type.STRING),
+                                }
+                            )
+                        },
+                        required=["enunciado", "gabarito", "alternativas"]
+                    )
+                )
+            },
+            required=["questoes"]
+        )
 
-            match_gab = re.search(r'(?:Resposta\s+correta|Gabarito|Resposta):\s*([A-Ea-e])', str(linha_str), re.IGNORECASE)
-            if match_gab:
-                gabarito_detectado = match_gab.group(1).upper()
-                continue
+        config = types.GenerateContentConfig(
+            system_instruction=prompt_sistema,
+            response_mime_type="application/json",
+            response_schema=esquema_saida,
+            temperature=0.2
+        )
 
-            match_alt = re.match(r'^([A-Ea-e])[\s\.\-\)]+(.*)', linha_str)
-            if match_alt:
-                letra = match_alt.group(1).upper()
-                conteudo_alt = match_alt.group(2).strip()
-                alternativas[letra] = conteudo_alt
-            else:
-                if not alternativas and not linha_str.lower().startswith("exercício") and not linha_str.lower().startswith("questão"):
-                    enunciado_linhas.append(linha_str)
-
-        enunciado_completo = " ".join(enunciado_linhas).strip()
-        enunciado_completo = re.sub(r'^\d+[\s\.\-\)]*', '', enunciado_completo).strip()
-
-        if enunciado_completo and len(alternativas) >= 2:
-            questoes_mapeadas.append({
-                "enunciado": enunciado_completo,
-                "alternativas": alternativas,
-                "gabarito": gabarito_detectado
-            })
-
-    return questoes_mapeadas
+        resposta = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=texto_prova,
+            config=config
+        )
+        
+        dados_json = json.loads(resposta.text)
+        return dados_json.get("questoes", [])
+    except Exception as e:
+        st.error(f"Falha na inferência da IA (Gemini): {e}")
+        return []
 
 def tela_mini_provas_professor():
     aplicar_estilo()
@@ -99,7 +123,7 @@ def tela_mini_provas_professor():
     aba_escopo, aba_manual, aba_importacao = st.tabs([
         "📝 1. Configurar Escopo da Prova", 
         "✍️ 2. Criar Questões do Zero (Manual)", 
-        "📂 3. Importar Caderno via PDF/Word"
+        "🤖 3. Importar Caderno via IA (Gemini)"
     ])
 
     with aba_escopo:
@@ -107,8 +131,6 @@ def tela_mini_provas_professor():
         with st.form("form_cadastro_mini_prova", clear_on_submit=True):
             titulo = st.text_input("Título da Mini Prova:", placeholder="Ex: Simulado Prático - Estrutura de Dados")
             descricao = st.text_area("Descrição / Instruções para o Aluno:", placeholder="Descreva as orientações desta avaliação...")
-            
-            st.markdown("**⏱️ Configurações de Tempo e Prazos:**")
             duracao = st.number_input("Tempo para o aluno responder após iniciar (Minutos):", min_value=1, max_value=180, value=30, step=5)
             
             col_data, col_hora = st.columns(2)
@@ -118,8 +140,8 @@ def tela_mini_provas_professor():
                 hora_limite = st.time_input("Disponível até o horário:", datetime.time(23, 59))
             
             status_prova = st.selectbox("Status de Disponibilidade Inicial:", ["Disponível", "Indisponível"])
-            
             btn_salvar_prova = st.form_submit_button("🚀 Criar Definição da Prova", use_container_width=True)
+            
             if btn_salvar_prova:
                 if not titulo:
                     st.error("Por favor, informe o título da mini prova.")
@@ -137,7 +159,7 @@ def tela_mini_provas_professor():
                         }
                         res = supabase.table("mini_provas").insert(payload_prova).execute()
                         if res.data:
-                            st.success(f"✅ Mini Prova '{titulo}' registrada! Ficará ativa até {expiracao_dt.strftime('%d/%m/%Y às %H:%M')}.")
+                            st.success(f"✅ Mini Prova '{titulo}' registrada!")
                     except Exception as e:
                         st.error(f"Erro ao salvar mini prova no banco: {e}")
 
@@ -196,7 +218,7 @@ def tela_mini_provas_professor():
                         st.error(f"Erro ao salvar questão: {e}")
 
     with aba_importacao:
-        st.subheader("Upload e Mapeamento Automatizado")
+        st.subheader("Mapeamento Cognitivo Automatizado por IA")
         prova_selecionada_i = st.selectbox("Vincular à qual Mini Prova?", list(dict_provas.keys()), key="sb_import_p")
         prova_id_i = dict_provas[prova_selecionada_i]
         
@@ -205,54 +227,60 @@ def tela_mini_provas_professor():
             extensao = arquivo_anexo.name.split(".")[-1].lower()
             texto_extraido = extrair_texto_arquivo(arquivo_anexo, extensao)
             
-            if texto_extraido:
-                questoes_processadas = parsing_questoes_regex(texto_extraido)
-                if questoes_processadas:
-                    st.success(f"🎯 Excelente! O sistema identificou com sucesso {len(questoes_processadas)} questões com gabaritos mapeados!")
-                    st.session_state.pool_questoes_importadas = questoes_processadas
+            if texto_extraido and st.button("🤖 Processar Caderno com Gemini IA", type="primary", use_container_width=True):
+                with st.spinner("O Gemini está interpretando o arquivo e resolvendo as questões..."):
+                    questoes_processadas = extrair_questoes_com_gemini(texto_extraido)
                     
-                    for idx, q_map in enumerate(questoes_processadas):
-                        with st.expander(f"📋 Exercício {idx + 1} — Gabarito Detectado: [{q_map['gabarito']}]", expanded=False):
-                            st.write(f"**Enunciado:** {q_map['enunciado']}")
-                            for letra, texto_alt in q_map["alternativas"].items():
-                                marca = "🟢 (Gabarito Oficial)" if letra == q_map["gabarito"] else ""
-                                st.write(f"*{letra})* {texto_alt} {marca}")
-                    
-                    st.divider()
-                    if st.button("💾 CONFIRMAR E SALVAR TODAS AS QUESTÕES NO BANCO DE DADOS", type="primary", use_container_width=True):
-                        with st.spinner("Gravando questões relacionais no banco de dados..."):
-                            try:
-                                successes = 0
-                                for q_pool in st.session_state.pool_questoes_importadas:
-                                    res_q = supabase.table("questoes").insert({"mini_prova_id": prova_id_i, "enunciado": q_pool["enunciado"]}).execute()
-                                    q_id = res_q.data[0]["id"]
-                                    
-                                    lote_alt = []
-                                    for idx, letra in enumerate(["A", "B", "C", "D", "E"]):
-                                        texto_alt = q_pool["alternativas"].get(letra, "")
-                                        if texto_alt:
-                                            lote_alt.append({
-                                                "questao_id": q_id,
-                                                "texto": texto_alt,
-                                                "ordem": idx + 1,
-                                                "correta": (letra == q_pool["gabarito"])
-                                            })
-                                    if lote_alt:
-                                        supabase.table("alternativas").insert(lote_alt).execute()
-                                    successes += 1
-                                
-                                prova_atual = supabase.table("mini_provas").select("quantidade_questoes").eq("id", prova_id_i).execute()
-                                qtd_antiga = prova_atual.data[0]["quantidade_questoes"] or 0
-                                supabase.table("mini_provas").update({"quantidade_questoes": qtd_antiga + successes}).eq("id", prova_id_i).execute()
-                                    
-                                st.success(f"🔥 Pronto! {successes} questões foram processadas e salvas com seus respectivos gabaritos!")
-                                st.session_state.pop("pool_questoes_importadas", None)
-                            except Exception as e:
-                                st.error(f"Erro na inserção em massa no Supabase: {e}")
-                else:
-                    st.warning("⚠️ O texto foi extraído, mas nenhum padrão de Exercício/Questão foi reconhecido.")
-                    with st.expander("Ver texto bruto extraído", expanded=True):
-                        st.text(texto_extraido)
+                    if questoes_processadas:
+                        st.success(f"🎯 Excelente! O Gemini identificou e estruturou {len(questoes_processadas)} questões com gabarito!")
+                        st.session_state.pool_questoes_importadas = questoes_processadas
+                        st.rerun()
+                    else:
+                        st.warning("⚠️ Não foi possível estruturar nenhuma questão desse arquivo. Verifique o conteúdo.")
+
+        if "pool_questoes_importadas" in st.session_state:
+            questoes_pool = st.session_state.pool_questoes_importadas
+            
+            for idx, q_map in enumerate(questoes_pool):
+                with st.expander(f"📋 Questão Mapeada {idx + 1} — Gabarito Sugerido: [{q_map['gabarito']}]", expanded=False):
+                    st.write(f"**Enunciado:** {q_map['enunciado']}")
+                    for letra, texto_alt in q_map["alternativas"].items():
+                        if texto_alt:
+                            marca = "🟢 (Gabarito Oficial)" if letra == q_map["gabarito"] else ""
+                            st.write(f"*{letra})* {texto_alt} {marca}")
+            
+            st.divider()
+            if st.button("💾 CONFIRMAR E GRAVAR TODAS AS QUESTÕES NO SUPABASE", type="primary", use_container_width=True):
+                with st.spinner("Gravando lote estruturado no banco de dados..."):
+                    try:
+                        successes = 0
+                        for q_pool in questoes_pool:
+                            res_q = supabase.table("questoes").insert({"mini_prova_id": prova_id_i, "enunciado": q_pool["enunciado"]}).execute()
+                            q_id = res_q.data[0]["id"]
+                            
+                            lote_alt = []
+                            for idx, letra in enumerate(["A", "B", "C", "D", "E"]):
+                                texto_alt = q_pool["alternativas"].get(letra, "")
+                                if texto_alt:
+                                    lote_alt.append({
+                                        "questao_id": q_id,
+                                        "texto": texto_alt,
+                                        "ordem": idx + 1,
+                                        "correta": (letra == q_pool["gabarito"])
+                                    })
+                            if lote_alt:
+                                supabase.table("alternativas").insert(lote_alt).execute()
+                            successes += 1
+                        
+                        prova_atual = supabase.table("mini_provas").select("quantidade_questoes").eq("id", prova_id_i).execute()
+                        qtd_antiga = prova_atual.data[0]["quantidade_questoes"] or 0
+                        supabase.table("mini_provas").update({"quantidade_questoes": qtd_antiga + successes}).eq("id", prova_id_i).execute()
+                            
+                        st.success(f"🔥 Pronto! {successes} questões foram injetadas com sucesso!")
+                        st.session_state.pop("pool_questoes_importadas", None)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro na inserção em massa no Supabase: {e}")
 
     st.divider()
     if st.button("⬅️ Voltar ao Painel Geral", use_container_width=True):
