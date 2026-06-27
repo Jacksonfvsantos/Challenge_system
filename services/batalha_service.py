@@ -1,8 +1,6 @@
 import datetime
 from database.conexao import supabase
 
-# --- TIMES & INTEGRANTES ---
-
 def criar_time(nome: str) -> bool:
     if not nome or not nome.strip():
         return False
@@ -78,8 +76,6 @@ def blackjack_mover_aluno(usuario_id: str, destino_time_id: str) -> bool:
 
 mover_aluno = blackjack_mover_aluno
 
-# --- CORE MOTOR DE BATALHAS & HISTÓRICO PERMANENTE ---
-
 def obter_estado_batalha(batalha_id):
     try:
         res = supabase.table("batalhas").select("*").eq("id", batalha_id).execute()
@@ -89,7 +85,6 @@ def obter_estado_batalha(batalha_id):
 
 def obter_batalhas_finalizadas():
     try:
-        # Busca direta e imutável da tabela de logs estáveis
         res = supabase.table("historico_batalhas").select("*").order("encerrado_em", descending=True).execute()
         return res.data or []
     except Exception:
@@ -158,9 +153,6 @@ def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id,
         return "erro"
 
 def encerrar_partida_sincrona(batalha_id):
-    """
-    Consolida e arquiva na tabela definitiva de histórico de forma permanente antes de desativar.
-    """
     try:
         res_b = supabase.table("batalhas").select("*").eq("id", (b_id := batalha_id)).execute()
         if not res_b.data: return False
@@ -186,11 +178,10 @@ def encerrar_partida_sincrona(batalha_id):
         elif p_b > p_a: desfecho = f"🥇 Vencedor: {nome_b} ({p_b} XP) | 🥈 Perdedor: {nome_a} ({p_a} XP)"
         else: desfecho = f"🤝 Resultado: Empate entre as equipes ({p_a} XP cada)"
 
-        # Insere registro permanente de histórico
         supabase.table("historico_batalhas").insert({
             "batalha_id": b_id, "titulo": b.get("titulo", "Arena"),
             "time_a_nome": nome_a, "time_b_nome": nome_b,
-            "pontos_time_a": p_a, "pontos_time_b": p_b,
+            "points_time_a": p_a, "points_time_b": p_b,
             "resultado_extenso": desfecho
         }).execute()
 

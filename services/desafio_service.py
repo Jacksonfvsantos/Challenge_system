@@ -1,16 +1,14 @@
 import streamlit as st
-from database.conexao import supabase # ✅ CORRIGIDO: Removidos imports redundantes para evitar falha de RLS
+from database.conexao import supabase
 
 def listar_desafios():
-    """
-    Retorna a lista de todos os desafios cadastrados.
-    Usa a coluna correta criado_em mapeada do PostgreSQL.
-    """
     try:
-        resultado = supabase.table("desafios") \
-            .select("*") \
-            .order("criado_em", descending=True) \
+        resultado = (
+            supabase.table("desafios")
+            .select("*")
+            .order("criado_em", descending=True)
             .execute()
+        )
         return resultado.data
     except Exception:
         try:
@@ -19,7 +17,6 @@ def listar_desafios():
         except Exception as erro_critico:
             print(f"Erro crítico ao listar desafios: {erro_critico}")
             return []
-
 
 def criar_desafio(titulo, descricao, criador_id, data_limite=None, nivel_dificuldade="Medio"):
     try:

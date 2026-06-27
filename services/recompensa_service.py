@@ -45,7 +45,6 @@ def deletar_recompensa(recompensa_id):
     
 def solicitar_resgate(recompensa_id, aluno_id):
     try:
-        # Verifica se já não existe uma solicitação pendente idêntica para evitar spam
         existe = supabase.table("historico_recompensas")\
             .select("id")\
             .eq("recompensa_id", recompensa_id)\
@@ -68,7 +67,6 @@ def solicitar_resgate(recompensa_id, aluno_id):
 
 def listar_solicitacoes_pendentes():
     try:
-        # Puxa os dados da solicitação trazendo junto o nome do aluno e o título da recompensa
         res = supabase.table("historico_recompensas")\
             .select("*, usuarios(nome), recompensas(titulo, custo_pontos)")\
             .eq("status", "pendente")\
@@ -81,8 +79,8 @@ def listar_solicitacoes_pendentes():
 def alterar_status_solicitacao(solicitacao_id, novo_status):
     try:
         res = supabase.table("historico_recompensas")\
-            .update({"status": novo_status, "updated_at": "now()"})\
-            .eq("id", solicitacao_id)\
+            .update({"status": novo_status, "updated_at": "now()"}) \
+            .eq("id", solicitacao_id) \
             .execute()
         return len(res.data) > 0
     except Exception as e:

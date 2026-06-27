@@ -1,19 +1,14 @@
 from database.conexao import supabase
 
 def obter_dashboard_pontuacao_aluno(usuario_id: str):
-    """Calcula os agregados de pontuação de um estudante específico."""
     try:
-        # 1. Busca pontuação acumulada em Quizzes
         res_quiz = supabase.table("participantes_quiz").select("pontuacao").eq("usuario_id", usuario_id).execute()
         pontos_quiz = sum(int(q.get("pontuacao", 0)) for q in res_quiz.data) if res_quiz.data else 0
-
-        # 2. Demais pontuações consolidadas do sistema
+        
         pontos_desafios = 0 
         pontos_provas = 0
-
         total = pontos_quiz + pontos_desafios + pontos_provas
 
-        # Histórico estruturado para o gráfico de linhas
         historico_evolucao = [
             {"Data": "01/05/2026", "Pontos": int(total * 0.3)},
             {"Data": "15/05/2026", "Pontos": int(total * 0.6)},
@@ -31,12 +26,9 @@ def obter_dashboard_pontuacao_aluno(usuario_id: str):
     except Exception as e:
         return {"sucesso": False, "mensagem": f"Erro ao consolidar pontuações: {str(e)}"}
 
-
 def obter_ranking_geral_alunos():
-    """Busca e ordena a pontuação de todos os alunos cadastrados para o professor."""
     try:
         res = supabase.table("participantes_quiz").select("pontuacao, usuarios(nome, email)").execute()
-        
         if not res.data:
             return []
 
