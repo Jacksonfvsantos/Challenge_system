@@ -74,7 +74,7 @@ def salvar_resposta_aluno(quiz_id, pergunta_id, usuario_id, alternativa_id, corr
     except Exception:
         return False
 
-# 🔄 SENTINELA DE ATUALIZAÇÃO DA INTERFACE DO ALUNO
+# 🔄 SENTINELA DE MUDANÇA DE ETAPA PARA O ALUNO
 @st.fragment(run_every=2.0)
 def executar_sincronia_aluno(quiz_id, etapa_atual, pergunta_atual_id):
     quiz_recente = buscar_dados_quiz(quiz_id)
@@ -90,11 +90,15 @@ def executar_sincronia_aluno(quiz_id, etapa_atual, pergunta_atual_id):
     if (db_etapa != local_etapa) or (db_pergunta != local_pergunta):
         st.rerun(scope="app")
 
-# ⏱️ COMPONENTE DO CRONÔMETRO VISUAL DINÂMICO
+# ⏱️ ENGINE REAL-TIME DE TEMPO E PLACAR DE RESPOSTAS
 @st.fragment(run_every=1.0)
-def renderizar_cronometro_visual(quiz, tempo_limite, tipo_usuario, respostas_enviadas, total_alunos):
-    """Atualiza visualmente os segundos na tela a cada 1.0s de forma isolada."""
-    ultimo_update_str = quiz.get("updated_at") or quiz.get("data_resposta")
+def renderizar_cronometro_e_respostas(quiz_id, quiz_dados, pergunta_id, tempo_limite, tipo_usuario):
+    """Atualiza o tempo restante e o placar de respostas lendo o banco a cada segundo."""
+    # 1. Re-consulta rápida das respostas enviadas para atualizar em tempo real
+    respostas_enviadas, total_alunos = contar_respostas_e_participantes(quiz_id, pergunta_id)
+    
+    # 2. Re-calcula o tempo restante baseado no relógio atual
+    ultimo_update_str = quiz_dados.get("updated_at") or quiz_dados.get("data_resposta")
     if ultimo_update_str:
         try:
             ultimo_update_str = ultimo_update_str.replace("Z", "+00:00")
@@ -105,7 +109,7 @@ def renderizar_cronometro_visual(quiz, tempo_limite, tipo_usuario, respostas_env
     else:
         tempo_restante = tempo_limite
 
-    # Exibe a métrica correspondente baseada em quem está olhando a tela
+    # 3. Renderiza os componentes visuais de forma reativa
     if tipo_usuario in ("professor", "admin"):
         c1, c2 = st.columns(2)
         c1.metric(label="⏱️ Tempo Restante", value=f"{tempo_restante}s")
@@ -113,8 +117,10 @@ def renderizar_cronometro_visual(quiz, tempo_limite, tipo_usuario, respostas_env
     else:
         st.metric(label="⏱️ Tempo Restante para Responder", value=f"{tempo_restante} segundos")
 
-    # Se o tempo zerar dentro do fragmento, força o script principal a validar o encerramento
-    if tempo_restante <= 0:
+    # 4. Motor Kahoot: Valida as duas regras de encerramento automático
+    todos_responderam = respostas_enviadas >= total_alunos and total_alunos > 0
+    if tempo_restante <= 0 or todos_responderam:
+        supabase.table("quizzes").update({"etapa_rodada": "gabarito"}).eq("id", quiz_id).execute()
         st.rerun(scope="app")
 
 def tela_quiz_rodada():
@@ -171,33 +177,14 @@ def tela_quiz_rodada():
     alternativas = buscar_alternativas(pergunta_ativa["id"])
     tempo_limite = int(pergunta_ativa.get("tempo_limite_segundos", 30))
 
-    respostas_enviadas, total_alunos = contar_respostas_e_participantes(quiz_id, pergunta_ativa["id"])
-
-    # 🚨 MOTOR DE VERIFICAÇÃO EM TEMPO DE EXECUÇÃO (Sem sleep para não dar lag)
-    if etapa == "pergunta":
-        ultimo_update_str = quiz.get("updated_at") or quiz.get("data_resposta")
-        if ultimo_update_str:
-            try:
-                ultimo_update_str = ultimo_update_str.replace("Z", "+00:00")
-                decorrido = (datetime.now(timezone.utc) - datetime.fromisoformat(ultimo_update_str)).total_seconds()
-            except Exception:
-                decorrido = 0
-        else:
-            decorrido = 0
-
-        todos_responderam = respostas_enviadas >= total_alunos and total_alunos > 0
-        if (decorrido >= tempo_limite) or todos_responderam:
-            supabase.table("quizzes").update({"etapa_rodada": "gabarito"}).eq("id", quiz_id).execute()
-            st.rerun()
-
     if tipo == "aluno":
         executar_sincronia_aluno(quiz_id, etapa, p_atual_id)
 
     st.subheader(f"Questão {pergunta_ativa['ordem']}: {pergunta_ativa.get('enunciado') or pergunta_ativa.get('texto')}")
 
-    # ⏱️ Renderiza o cronômetro dinâmico isolado se a rodada estiver aberta
+    # ⏱️ Chamada unificada do painel dinâmico (Roda para professor e aluno)
     if etapa == "pergunta":
-        renderizar_cronometro_visual(quiz, tempo_limite, tipo, respostas_enviadas, total_alunos)
+        renderizar_cronometro_e_respostas(quiz_id, quiz, pergunta_ativa["id"], tempo_limite, tipo)
 
     # ------------------ VISÃO DO PROFESSOR ------------------
     if tipo in ("professor", "admin"):
@@ -238,9 +225,6 @@ def tela_quiz_rodada():
     # ------------------ VISÃO DO ALUNO ------------------
     else:
         if etapa == "pergunta":
-            progresso_respostas = min(respostas_enviadas / total_alunos, 1.0)
-            st.progress(progresso_respostas, text=f"📥 {respostas_enviadas}/{total_alunos} alunos já responderam...")
-
             ja_respondeu = False
             try:
                 res_verificacao = supabase.table("respostas_quiz").select("id").eq("pergunta_id", pergunta_ativa["id"]).eq("usuario_id", user_id).execute()
