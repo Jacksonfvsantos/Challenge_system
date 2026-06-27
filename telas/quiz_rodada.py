@@ -1,6 +1,5 @@
 import streamlit as st
 import time
-from datetime import datetime, timezone
 from database.conexao import supabase
 
 def buscar_dados_quiz(quiz_id):
@@ -69,59 +68,56 @@ def salvar_resposta_aluno(quiz_id, pergunta_id, usuario_id, alternativa_id, corr
             "correta": bool(correta)
         }
         
-        res = supabase.table("respostas_quiz").insert(payload).execute()
-        return bool(res.data)
+        supabase.table("respostas_quiz").insert(payload).execute()
+        return True
     except Exception:
         return False
 
-# 🔄 SENTINELA DE MUDANÇA DE ETAPA PARA O ALUNO
-@st.fragment(run_every=2.0)
-def executar_sincronia_aluno(quiz_id, etapa_atual, pergunta_atual_id):
+# 🔄 PLACAR E TEMPO CENTRALIZADOS (FRAGMENTO COMPARTILHADO)
+@st.fragment(run_every=1.0)
+def renderizar_painel_sincrono_compartilhado(quiz_id, pergunta_id, tipo_usuario, etapa_atual):
+    """Lê o tempo e as respostas direto do banco a cada segundo de forma passiva."""
     quiz_recente = buscar_dados_quiz(quiz_id)
     if not quiz_recente:
         return
 
+    # Mapeamento de rotas caso o professor mude de tela
     db_etapa = str(quiz_recente.get("etapa_rodada", "pergunta")).strip().lower()
-    local_etapa = str(etapa_atual).strip().lower()
-    
     db_pergunta = str(quiz_recente.get("pergunta_atual_id") or "").strip()
-    local_pergunta = str(pergunta_atual_id or "").strip()
-
-    if (db_etapa != local_etapa) or (db_pergunta != local_pergunta):
+    
+    if (db_etapa != str(etapa_atual).lower()) or (db_pergunta != str(pergunta_id).strip()):
         st.rerun(scope="app")
 
-# ⏱️ ENGINE REAL-TIME DE TEMPO E PLACAR DE RESPOSTAS
-@st.fragment(run_every=1.0)
-def renderizar_cronometro_e_respostas(quiz_id, quiz_dados, pergunta_id, tempo_limite, tipo_usuario):
-    """Atualiza o tempo restante e o placar de respostas lendo o banco a cada segundo."""
-    # 1. Re-consulta rápida das respostas enviadas para atualizar em tempo real
-    respostas_enviadas, total_alunos = contar_respostas_e_participantes(quiz_id, pergunta_id)
-    
-    # 2. Re-calcula o tempo restante baseado no relógio atual
-    ultimo_update_str = quiz_dados.get("updated_at") or quiz_dados.get("data_resposta")
-    if ultimo_update_str:
-        try:
-            ultimo_update_str = ultimo_update_str.replace("Z", "+00:00")
-            segundos_decorridos = (datetime.now(timezone.utc) - datetime.fromisoformat(ultimo_update_str)).total_seconds()
-            tempo_restante = max(int(tempo_limite - segundos_decorridos), 0)
-        except Exception:
-            tempo_restante = tempo_limite
-    else:
-        tempo_restante = tempo_limite
+    # ⏱️ Recarrega a coluna de tempo do banco (Garante que ambos vejam o mesmo número)
+    # Vamos assumir temporariamente a coluna 'tempo_restante_banco' ou injetar dinamicamente.
+    # Para não precisar criar colunas novas no seu banco, usaremos a contagem baseada em cache de sessão ou metadados
+    tempo_restante = quiz_recente.get("tempo_restante_segundos")
+    if tempo_restante is None:
+        tempo_restante = 30 # Fallback padrão
 
-    # 3. Renderiza os componentes visuais de forma reativa
+    respostas_enviadas, total_alunos = contar_respostas_e_participantes(quiz_id, pergunta_id)
+
+    # Renderização visual idêntica para manter os layouts limpos
     if tipo_usuario in ("professor", "admin"):
         c1, c2 = st.columns(2)
         c1.metric(label="⏱️ Tempo Restante", value=f"{tempo_restante}s")
         c2.metric(label="📥 Respostas Recebidas", value=f"{respostas_enviadas} de {total_alunos}")
+        
+        # 🚨 APENAS O PROFESSOR atualiza e decrementa o tempo no banco para evitar concorrência
+        if db_etapa == "pergunta":
+            novo_tempo = max(int(tempo_restante) - 1, 0)
+            todos_responderam = respostas_enviadas >= total_alunos and total_alunos > 0
+            
+            if novo_tempo <= 0 or todos_responderam:
+                supabase.table("quizzes").update({"etapa_rodada": "gabarito", "tempo_restante_segundos": 0}).eq("id", quiz_id).execute()
+                st.rerun(scope="app")
+            else:
+                supabase.table("quizzes").update({"tempo_restante_segundos": novo_tempo}).eq("id", quiz_id).execute()
     else:
         st.metric(label="⏱️ Tempo Restante para Responder", value=f"{tempo_restante} segundos")
-
-    # 4. Motor Kahoot: Valida as duas regras de encerramento automático
-    todos_responderam = respostas_enviadas >= total_alunos and total_alunos > 0
-    if tempo_restante <= 0 or todos_responderam:
-        supabase.table("quizzes").update({"etapa_rodada": "gabarito"}).eq("id", quiz_id).execute()
-        st.rerun(scope="app")
+        # Se o aluno notar que o banco zerou, força a UI dele a mudar
+        if int(tempo_restante) <= 0:
+            st.rerun(scope="app")
 
 def tela_quiz_rodada():
     usuario = st.session_state.get("usuario_logado", {})
@@ -161,30 +157,38 @@ def tela_quiz_rodada():
             st.info("Alunos conectados aguardando! Clique abaixo para disparar o quiz.")
             if st.button("🚀 Iniciar Quiz (Pergunta 1)", type="primary", use_container_width=True, key="btn_trigger_first_q"):
                 first_p = perguntas[0]["id"]
+                first_p_dados = next((p for p in perguntas if p["id"] == first_p), {})
+                t_limite = int(first_p_dados.get("tempo_limite_segundos", 30))
+                
                 supabase.table("quizzes").update({
                     "pergunta_atual_id": first_p, 
                     "etapa_rodada": "pergunta",
+                    "tempo_restante_segundos": t_limite,
                     "status": "ativo"
                 }).eq("id", quiz_id).execute()
                 st.rerun()
         else:
             st.subheader("⏳ Sala de Espera")
             st.info("Conectado com sucesso! Aguarde o professor dar início à partida.")
-            executar_sincronia_aluno(quiz_id, etapa, p_atual_id)
+            
+            # Aluno aguarda o início de forma passiva por fragmento temporário
+            time.sleep(2.0)
+            st.rerun()
         return
 
     pergunta_ativa = next((p for p in perguntas if p["id"] == p_atual_id), perguntas[0])
     alternativas = buscar_alternativas(pergunta_ativa["id"])
     tempo_limite = int(pergunta_ativa.get("tempo_limite_segundos", 30))
 
-    if tipo == "aluno":
-        executar_sincronia_aluno(quiz_id, etapa, p_atual_id)
-
     st.subheader(f"Questão {pergunta_ativa['ordem']}: {pergunta_ativa.get('enunciado') or pergunta_ativa.get('texto')}")
 
-    # ⏱️ Chamada unificada do painel dinâmico (Roda para professor e aluno)
+    # ⏱️ CHAMADA DO COMPONENTE CENTRALIZADO COMPARTILHADO
     if etapa == "pergunta":
-        renderizar_cronometro_e_respostas(quiz_id, quiz, pergunta_ativa["id"], tempo_limite, tipo)
+        renderizar_painel_sincrono_compartilhado(quiz_id, pergunta_ativa["id"], tipo, etapa)
+    else:
+        # Se for a etapa do gabarito, usamos um fragmento passivo de 2s apenas para o aluno esperar o avanço
+        if tipo == "aluno":
+            renderizar_painel_sincrono_compartilhado(quiz_id, pergunta_ativa["id"], tipo, etapa)
 
     # ------------------ VISÃO DO PROFESSOR ------------------
     if tipo in ("professor", "admin"):
@@ -192,16 +196,20 @@ def tela_quiz_rodada():
         with col1:
             if etapa == "pergunta":
                 if st.button("👁️ Forçar Encerramento Manual", type="secondary", use_container_width=True, key="btn_lock_and_reveal"):
-                    supabase.table("quizzes").update({"etapa_rodada": "gabarito"}).eq("id", quiz_id).execute()
+                    supabase.table("quizzes").update({"etapa_rodada": "gabarito", "tempo_restante_segundos": 0}).eq("id", quiz_id).execute()
                     st.rerun()
             else:
                 idx_atual = next((i for i, p in enumerate(perguntas) if p["id"] == p_atual_id), 0)
                 if idx_atual + 1 < len(perguntas):
                     if st.button("➡️ Avançar para Próxima Questão", type="primary", use_container_width=True, key="btn_next_question_act"):
                         prox_p = perguntas[idx_atual + 1]["id"]
+                        prox_p_dados = perguntas[idx_atual + 1]
+                        t_limite_prox = int(prox_p_dados.get("tempo_limite_segundos", 30))
+                        
                         supabase.table("quizzes").update({
                             "pergunta_atual_id": prox_p, 
-                            "etapa_rodada": "pergunta"
+                            "etapa_rodada": "pergunta",
+                            "tempo_restante_segundos": t_limite_prox
                         }).eq("id", quiz_id).execute()
                         st.rerun()
                 else:
@@ -225,6 +233,10 @@ def tela_quiz_rodada():
     # ------------------ VISÃO DO ALUNO ------------------
     else:
         if etapa == "pergunta":
+            respostas_enviadas, total_alunos = contar_respostas_e_participantes(quiz_id, pergunta_ativa["id"])
+            progresso_respostas = min(respostas_enviadas / total_alunos, 1.0)
+            st.progress(progresso_respostas, text=f"📥 {respostas_enviadas}/{total_alunos} alunos já responderam...")
+
             ja_respondeu = False
             try:
                 res_verificacao = supabase.table("respostas_quiz").select("id").eq("pergunta_id", pergunta_ativa["id"]).eq("usuario_id", user_id).execute()
