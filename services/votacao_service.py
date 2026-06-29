@@ -1,5 +1,11 @@
 import streamlit as st
+import json
 from database.conexao import supabase
+try:
+    from google import genai
+    from google.genai import types
+except ImportError:
+    genai = None
 
 def buscar_voto_usuario(usuario_id, desafio_id):
     try:
@@ -47,3 +53,17 @@ def listar_votos():
     except Exception as e:
         print(f"Erro ao listar votos: {e}")
         return []
+    
+def analisar_comentario_ia(comentario, api_key):
+    if not genai: return 100
+    
+    client = genai.Client(api_key=api_key)
+    prompt = f"Analise este comentário de um aluno sobre um projeto acadêmico: '{comentario}'. " \
+             "Dê uma nota de 0 a 100 sobre o quanto o comentário parece genuíno e técnico. " \
+             "Retorne apenas o número."
+    
+    resposta = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+    try:
+        return int(resposta.text.strip())
+    except:
+        return 50
