@@ -3,12 +3,12 @@ import datetime
 import time
 from database.conexao import supabase
 from utils.estilo import aplicar_estilo, cabecalho
-from utils.importador import extrair_texto_pdf, extrair_texto_docx, parsear_questoes_com_ia
 from utils.compartilhamento import exibir_painel_compartilhamento
 from services.batalha_service import (
     cadastrar_nova_batalha, cadastrar_questao_rapida,
     encerrar_partida_sincrona, deletar_batalha, obter_batalhas_finalizadas
 )
+from services.ia_processador_service import extrair_texto_de_arquivo, gerar_questoes_ia
 
 def tela_batalha_gerenciar():
     aplicar_estilo()
@@ -25,7 +25,7 @@ def tela_batalha_gerenciar():
             lista_ativas = []
 
         if not lista_ativas:
-            st.info("Não há nenhuma batalha ativa listed.")
+            st.info("Não há nenhuma batalha ativa listada.")
         else:
             for bat in lista_ativas:
                 with st.container(border=True):
@@ -103,23 +103,38 @@ def tela_batalha_gerenciar():
 
     with aba_ia:
         st.markdown("### 🤖 Importador Inteligência Artificial (Gemini 2.5)")
-        arq = st.file_uploader("Suba a prova (PDF ou DOCX):", type=["pdf", "docx"])
-        if arq and st.button("🔥 Iniciar Extração e Inserção Relacional", type="primary", use_container_width=True):
-            with st.spinner("Interpretando com IA..."):
-                texto = extrair_texto_pdf(arq) if arq.name.endswith(".pdf") else extrair_texto_docx(arq)
-                questoes_geradas = parsear_questoes_com_ia(texto)
+        arq = st.file_uploader("Suba a prova (PDF ou DOCX):", type=["pdf", "docx"], key="arq_batalha")
+        prompt = st.text_input("Instruções extras (Opcional):")
+        
+        if arq and st.button("🔥 Extrair e Injetar Questões", type="primary", use_container_width=True):
+            with st.spinner("Interpretando documento com IA..."):
+                extensao = arq.name.split('.')[-1].lower()
+                texto = extrair_texto_de_arquivo(arq.getvalue(), extensao)
+                
+                api_key = st.secrets.get("GEMINI_API_KEY")
+                questoes_geradas = gerar_questoes_ia(texto, prompt, api_key)
+                
                 if questoes_geradas:
                     sc = 0
                     for q in questoes_geradas:
                         rq = supabase.table("questoes").insert({"enunciado": q["enunciado"].strip()}).execute()
                         if rq.data:
                             qid = rq.data[0]["id"]
-                            alts = [{"questao_id": qid, "texto": a["texto"].strip(), "ordem": i+1, "correta": bool(a["correta"])} for i, a in enumerate(q["alternativas"])]
+                            alts = [
+                                {
+                                    "questao_id": qid, 
+                                    "texto": alt.strip(), 
+                                    "ordem": i+1, 
+                                    "correta": (i == q["correta_idx"])
+                                } for i, alt in enumerate(q["alternativas"])
+                            ]
                             supabase.table("alternativas").insert(alts).execute()
                             sc += 1
-                    st.success(f"Sucesso! {sc} questões inseridas no banco.")
-                    time.sleep(0.5)
+                    st.success(f"Sucesso! {sc} questões mapeadas e inseridas no banco global.")
+                    time.sleep(1)
                     st.rerun()
+                else:
+                    st.warning("⚠️ Não foi possível extrair questões estruturadas deste arquivo.")
 
     if st.button("⬅️ Sair e Voltar para a Arena", use_container_width=True):
         st.session_state.pagina = "batalha_de_equipes"
