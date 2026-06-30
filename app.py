@@ -234,8 +234,20 @@ elif pagina == "desempenho_mini_provas":
     tela_desempenho_mini_provas()
 
 elif pagina == "batalha_de_equipes":
-    tela = carregar_telas_batalha()
-    tela()
+
+    tela_batalha_de_equipes()
+
+elif pagina == "batalha_times":
+    tela_batalha_times()
+
+elif pagina == "batalha_integrantes":
+    tela_batalha_integrantes()
+
+elif pagina == "batalha_gerenciar":
+    tela_gerenciar_batalhas()
+
+elif pagina == "batalha_rodada":
+    tela_batalha_rodada()
 
 elif pagina == "batalha_times":
     tela_batalha_times()
