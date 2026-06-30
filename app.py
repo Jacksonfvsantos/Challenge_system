@@ -82,17 +82,17 @@ def tela_cadastro_perguntas(): pass
 def tela_lista_perguntas(): pass
 
 try:
+    from telas.batalha_de_equipes.gerenciar_batalhas import tela_gerenciar_batalhas
+    from telas.batalha_de_equipes.rodada import tela_batalha_rodada
     from telas.batalha_de_equipes.batalha_de_equipes import tela_batalha_de_equipes
     from telas.batalha_de_equipes.times import tela_batalha_times
     from telas.batalha_de_equipes.integrantes import tela_batalha_integrantes
-    from telas.batalha_de_equipes.gerenciar_batalhas import tela_gerenciar_batalhas
-    from telas.batalha_de_equipes.rodada import tela_batalha_rodada
-except ImportError as e:
-    def tela_batalha_de_equipes(): st.error(f"Erro ao carregar arena: {e}")
-    def tela_batalha_times(): st.error(f"Erro ao carregar times: {e}")
-    def tela_batalha_integrantes(): st.error(f"Erro ao carregar integrantes: {e}")
-    def tela_gerenciar_batalhas(): st.error(f"Erro ao carregar gestão: {e}")
-    def tela_batalha_rodada(): st.error(f"Erro ao carregar rodada: {e}")
+except ImportError as erro_import:
+    def tela_batalha_de_equipes(): st.error(f"Erro ao carregar arena: {erro_import}")
+    def tela_batalha_times(): st.error(f"Erro ao carregar times: {erro_import}")
+    def tela_batalha_integrantes(): st.error(f"Erro ao carregar integrantes: {erro_import}")
+    def tela_gerenciar_batalhas(): st.error(f"Erro ao carregar gestão: {erro_import}")
+    def tela_batalha_rodada(): st.error(f"Erro ao carregar rodada: {erro_import}")
         
     def tela_batalha_times(): pass
     def tela_batalha_integrantes(): pass
