@@ -1,8 +1,13 @@
 import streamlit as st
 import datetime
-from database.conexao import supabase
 from utils.estilo import aplicar_estilo, cabecalho
 from services.ia_processador_service import extrair_texto_de_arquivo, gerar_questoes_ia
+from services.mini_prova_service import (
+    criar_escopo_mini_prova, 
+    listar_provas_professor,
+    salvar_questao_com_alternativas, 
+    salvar_questoes_lote_ia
+)
 
 def tela_mini_provas_professor():
     aplicar_estilo()
@@ -12,7 +17,7 @@ def tela_mini_provas_professor():
     cabecalho("Painel do Docente: Gestão de Mini Provas", "Cadastre novos exames e gerencie avaliações")
 
     if not usuario_id:
-        st.error("Sessão de usuário inválida ou expirada.")
+        st.error("Sessão de utilizador inválida ou expirada.")
         return
 
     aba_escopo, aba_manual, aba_importacao = st.tabs([
@@ -28,70 +33,54 @@ def tela_mini_provas_professor():
             data_limite = st.date_input("Disponível até:", datetime.date.today())
             
             if st.form_submit_button("🚀 Criar Definição da Prova"):
-                payload = {
-                    "titulo": titulo.strip(),
-                    "quantidade_questoes": 0,
-                    "duracao_minutos": int(duracao),
-                    "criado_por": usuario_id,
-                    "data_expiracao": data_limite.isoformat()
-                }
-                if supabase.table("mini_provas").insert(payload).execute().data:
-                    st.success("Mini Prova registrada!")
+                res = criar_escopo_mini_prova(titulo, duracao, usuario_id, data_limite.isoformat())
+                if res["sucesso"]:
+                    st.success("Mini Prova registada com sucesso!")
                     st.rerun()
+                else:
+                    st.error(res["mensagem"])
 
-    res_provas = supabase.table("mini_provas").select("id, titulo").eq("criado_por", usuario_id).execute()
-    lista_provas = res_provas.data or []
+    # Carrega provas usando o serviço em vez do Supabase direto
+    lista_provas = listar_provas_professor(usuario_id)
     if not lista_provas:
-        st.info("Crie uma Mini Prova na Aba 1.")
+        st.info("Crie o escopo de uma Mini Prova na Aba 1 para continuar.")
         return
 
     dict_provas = {p["titulo"]: p["id"] for p in lista_provas}
-    prova_id = dict_provas[st.selectbox("Vincular à Mini Prova:", list(dict_provas.keys()))]
+    prova_id = dict_provas[st.selectbox("Vincular questões à Mini Prova:", list(dict_provas.keys()))]
 
     with aba_manual:
         with st.form("form_manual", clear_on_submit=True):
             enunciado = st.text_area("Enunciado:")
-            alt_a = st.text_input("A:")
-            alt_b = st.text_input("B:")
-            alt_c = st.text_input("C:")
-            alt_d = st.text_input("D:")
-            correta = st.selectbox("Correta:", ["A", "B", "C", "D"])
+            alt_a = st.text_input("Alternativa A:")
+            alt_b = st.text_input("Alternativa B:")
+            alt_c = st.text_input("Alternativa C:")
+            alt_d = st.text_input("Alternativa D:")
+            correta = st.selectbox("Alternativa Correta:", ["A", "B", "C", "D"])
             
-            if st.form_submit_button("📥 Gravar"):
-                res_q = supabase.table("questoes").insert({"mini_prova_id": prova_id, "enunciado": enunciado}).execute()
-                q_id = res_q.data[0]["id"]
-                lote = [
-                    {"questao_id": q_id, "texto": alt_a, "correta": (correta == "A")},
-                    {"questao_id": q_id, "texto": alt_b, "correta": (correta == "B")},
-                    {"questao_id": q_id, "texto": alt_c, "correta": (correta == "C")},
-                    {"questao_id": q_id, "texto": alt_d, "correta": (correta == "D")}
-                ]
-                supabase.table("alternativas").insert(lote).execute()
-                st.success("Salvo!")
+            if st.form_submit_button("📥 Gravar Questão"):
+                res = salvar_questao_com_alternativas(prova_id, enunciado, [alt_a, alt_b, alt_c, alt_d], correta)
+                if res["sucesso"]:
+                    st.success(res["mensagem"])
+                else:
+                    st.error(f"Erro: {res['mensagem']}")
 
     with aba_importacao:
         arquivo = st.file_uploader("Upload de Caderno (PDF/DOCX):", type=["pdf", "docx"])
         prompt = st.text_input("Instruções extras para a IA:")
         
-        if arquivo and st.button("🤖 Processar com IA", type="primary"):
-            with st.spinner("IA extraindo e formulando..."):
+        if arquivo and st.button("🤖 Processar e Injetar com IA", type="primary"):
+            with st.spinner("A IA está a extrair e formular as questões..."):
                 texto = extrair_texto_de_arquivo(arquivo.getvalue(), arquivo.name.split('.')[-1])
-                questoes = gerar_questoes_ia(texto, prompt, st.secrets.get("GEMINI_API_KEY"))
+                questoes_geradas = gerar_questoes_ia(texto, prompt, st.secrets.get("GEMINI_API_KEY"))
                 
-                for q in questoes:
-                    res_q = supabase.table("questoes").insert({
-                        "mini_prova_id": prova_id, 
-                        "enunciado": q["enunciado"]
-                    }).execute()
-                    q_id = res_q.data[0]["id"]
-                    
-                    lote = [{"questao_id": q_id, "texto": alt, "correta": (i == q["correta_idx"])} 
-                            for i, alt in enumerate(q["alternativas"])]
-                    supabase.table("alternativas").insert(lote).execute()
-                
-                st.success(f"Injetadas {len(questoes)} questões!")
-                st.rerun()
+                res = salvar_questoes_lote_ia(prova_id, questoes_geradas)
+                if res["sucesso"]:
+                    st.success(res["mensagem"])
+                    st.rerun()
+                else:
+                    st.error(f"Falha na importação: {res['mensagem']}")
 
-    if st.button("⬅️ Voltar"):
+    if st.button("⬅️ Voltar ao Painel", use_container_width=True):
         st.session_state.pagina = "mini_provas"
         st.rerun()

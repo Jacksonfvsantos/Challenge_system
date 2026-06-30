@@ -1,4 +1,3 @@
-import streamlit as st
 import random
 from database.conexao import supabase
 
@@ -105,3 +104,66 @@ def computar_resultado_avaliacao(aluno_id, prova_id, respostas_aluno: dict, cade
         }
     except Exception as e:
         return {"sucesso": False, "mensagem": f"Erro crítico na correção automática: {e}"}
+
+# =========================================================================
+# NOVAS FUNÇÕES: ISOLAMENTO DE BANCO DE DADOS (SEPARAÇÃO DE CAMADAS)
+# =========================================================================
+
+def criar_escopo_mini_prova(titulo, duracao_minutos, criado_por, data_expiracao):
+    try:
+        payload = {
+            "titulo": titulo.strip(),
+            "quantidade_questoes": 0,
+            "duracao_minutos": int(duracao_minutos),
+            "criado_por": criado_por,
+            "data_expiracao": data_expiracao
+        }
+        res = supabase.table("mini_provas").insert(payload).execute()
+        return {"sucesso": True, "dados": res.data} if res.data else {"sucesso": False, "mensagem": "Falha ao gravar no banco."}
+    except Exception as e:
+        return {"sucesso": False, "mensagem": str(e)}
+
+def listar_provas_professor(usuario_id):
+    try:
+        res = supabase.table("mini_provas").select("id, titulo").eq("criado_por", usuario_id).execute()
+        return res.data or []
+    except Exception:
+        return []
+
+def salvar_questao_com_alternativas(prova_id, enunciado, alternativas, correta_letra):
+    try:
+        res_q = supabase.table("questoes").insert({"mini_prova_id": prova_id, "enunciado": enunciado}).execute()
+        if not res_q.data: 
+            return {"sucesso": False, "mensagem": "Erro ao criar questão"}
+        
+        q_id = res_q.data[0]["id"]
+        lote = []
+        letras = ["A", "B", "C", "D"]
+        for i, alt in enumerate(alternativas):
+            lote.append({"questao_id": q_id, "texto": alt, "correta": (correta_letra == letras[i])})
+            
+        supabase.table("alternativas").insert(lote).execute()
+        return {"sucesso": True, "mensagem": "Questão e alternativas salvas com sucesso!"}
+    except Exception as e:
+        return {"sucesso": False, "mensagem": str(e)}
+
+def salvar_questoes_lote_ia(prova_id, questoes_geradas):
+    try:
+        if not questoes_geradas:
+            return {"sucesso": False, "mensagem": "Nenhuma questão gerada para salvar."}
+            
+        for q in questoes_geradas:
+            res_q = supabase.table("questoes").insert({
+                "mini_prova_id": prova_id, 
+                "enunciado": q["enunciado"]
+            }).execute()
+            
+            if res_q.data:
+                q_id = res_q.data[0]["id"]
+                lote = [{"questao_id": q_id, "texto": alt, "correta": (i == q["correta_idx"])} 
+                        for i, alt in enumerate(q["alternativas"])]
+                supabase.table("alternativas").insert(lote).execute()
+                
+        return {"sucesso": True, "mensagem": f"{len(questoes_geradas)} questões injetadas!"}
+    except Exception as e:
+        return {"sucesso": False, "mensagem": str(e)}
