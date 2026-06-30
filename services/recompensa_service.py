@@ -1,5 +1,4 @@
 from database.conexao import supabase
-from database.conexao import supabase
 from services.notificacao_service import criar_notificacao
 
 def listar_recompensas():
@@ -44,24 +43,19 @@ def deletar_recompensa(recompensa_id):
     except Exception as e:
         print(f"❌ Erro [deletar_recompensa]: {e}")
         return False
-    
-def solicitar_resgate(recompensa_id, aluno_id):
-    try:
-        existe = supabase.table("historico_recompensas")\
-            .select("id")\
-            .eq("recompensa_id", recompensa_id)\
-            .eq("aluno_id", aluno_id)\
-            .eq("status", "pendente")\
-            .execute()
-            
-        if existe.data:
-            return {"sucesso": False, "mensagem": "Você já possui uma solicitação pendente para esta recompensa."}
 
+def solicitar_resgate(aluno_id, recompensa_id, custo):
+    try:
         res = supabase.table("historico_recompensas").insert({
-            "recompensa_id": recompensa_id,
             "aluno_id": aluno_id,
-            "status": 'pendente'
+            "recompensa_id": recompensa_id,
+            "pontos_gastos": int(custo),
+            "status": "pendente"
         }).execute()
+        
+        if not res.data:
+            return {"sucesso": False, "mensagem": "Falha ao registrar solicitação."}
+            
         return {"sucesso": True, "mensagem": "Solicitação enviada! Aguarde a aprovação do professor."}
     except Exception as e:
         print(f"❌ Erro [solicitar_resgate]: {e}")
@@ -91,11 +85,10 @@ def alterar_status_solicitacao(solicitacao_id, novo_status):
         res = supabase.table("historico_recompensas").update({"status": novo_status}).eq("id", solicitacao_id).execute()
         
         if res.data:
-            msg = f"Sua solicitação do item '{item}' foi {novo_status}!"
-
-            criar_notificacao(usuario_id=aluno_id, titulo="Atualização de Resgate", mensagem=msg)
-            
-        return len(res.data) > 0
+            msg = f"Sua solicitação do item '{item}' foi {novo_status}."
+            criar_notificacao(aluno_id, "Atualização de Resgate", msg)
+            return True
+        return False
     except Exception as e:
         print(f"❌ Erro [alterar_status_solicitacao]: {e}")
         return False

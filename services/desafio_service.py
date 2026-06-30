@@ -1,6 +1,5 @@
 import streamlit as st
 from database.conexao import supabase
-from database.conexao import supabase
 from services.notificacao_service import criar_notificacao
 
 def listar_desafios():
