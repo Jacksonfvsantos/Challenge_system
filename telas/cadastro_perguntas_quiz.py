@@ -31,26 +31,26 @@ def tela_cadastro_perguntas_quiz():
         return
 
     opcoes_quiz = {q["titulo"]: q["id"] for q in lista_quizzes}
-    quiz_selecionado_titulo = st.selectbox("Selecione o Quiz que deseja gerenciar:", list(opcoes_quiz.keys()))
+    quiz_selecionado_titulo = st.selectbox("Selecione o Quiz que deseja gerenciar:", list(opcoes_quiz.keys()), key="select_quiz_gerenciar")
     quiz_id = opcoes_quiz[quiz_selecionado_titulo]
 
     perguntas_atuais = puxar_perguntas_cadastradas(quiz_id)
     st.caption(f"📊 Este quiz possui atualmente **{len(perguntas_atuais)}** pergunta(s) cadastrada(s).")
-    st.markdown("---")
+    st.divider()
 
-    aba_manual, aba_ia = st.tabs(["✍️ Cadastro Manual (Estilo Kahoot)", "🤖 Gerador de Simulados com IA"])
+    aba_manual, aba_ia = st.tabs(["✍️ Cadastro Manual", "🤖 Importador IA (PDF/DOCX)"])
 
     with aba_manual:
         st.subheader("Nova Questão Síncrona")
         with st.form("form_nova_pergunta_manual", clear_on_submit=True):
-            enunciado = st.text_area("Enunciado da Pergunta", placeholder="Ex: Qual o operador usado em C para extrair o endereço de uma variável?")
+            enunciado = st.text_area("Enunciado da Pergunta", placeholder="Digite o enunciado...")
             tempo_limite = st.slider("Tempo Limite para Resposta (Segundos)", min_value=10, max_value=120, value=30, step=5)
             
             st.markdown("##### Alternativas de Resposta")
-            alt_a = st.text_input("Alternativa A", placeholder="Ex: *")
-            alt_b = st.text_input("Alternativa B", placeholder="Ex: &")
-            alt_c = st.text_input("Alternativa C", placeholder="Ex: ->")
-            alt_d = st.text_input("Alternativa D", placeholder="Ex: %")
+            alt_a = st.text_input("Alternativa A")
+            alt_b = st.text_input("Alternativa B")
+            alt_c = st.text_input("Alternativa C")
+            alt_d = st.text_input("Alternativa D")
             
             mapeamento_letras = {"Alternativa A": 0, "Alternativa B": 1, "Alternativa C": 2, "Alternativa D": 3}
             correta_letra = st.radio("Qual é a alternativa CORRETA?", list(mapeamento_letras.keys()), horizontal=True)
@@ -74,10 +74,10 @@ def tela_cadastro_perguntas_quiz():
 
     with aba_ia:
         st.subheader("🤖 Importador Automático (PDF/DOCX)")
-        arquivo = st.file_uploader("Arquivo de referência:", type=["pdf", "docx"], key="ia_quiz")
-        prompt = st.text_input("Instruções (Ex: 'Filtre apenas perguntas de software'):")
+        arquivo = st.file_uploader("Arquivo de referência:", type=["pdf", "docx"], key="ia_quiz_upload")
+        prompt = st.text_input("Instruções de geração (Ex: foque em cálculos):", key="ia_quiz_prompt")
         
-        if arquivo and st.button("Processar Documento", type="primary", use_container_width=True):
+        if arquivo and st.button("Processar Documento com IA", type="primary", use_container_width=True, key="btn_ia_quiz_process"):
             with st.spinner("A IA está analisando o documento..."):
                 extensao = arquivo.name.split('.')[-1].lower()
                 texto = extrair_texto_de_arquivo(arquivo.getvalue(), extensao)
