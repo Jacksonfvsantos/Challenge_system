@@ -11,7 +11,7 @@ def tela_cadastro_questoes_batalha(batalha_id):
     
     with aba_ia:
         arquivo = st.file_uploader("Upload PDF/DOCX", type=["pdf", "docx"], key="ia_batalha")
-        prompt = st.text_input("Instruções extras para a IA:", "Crie questões focadas na batalha.")
+        prompt = st.text_input("Instruções extras para a IA:")
         
         if arquivo and st.button("Processar com IA", type="primary"):
             with st.spinner("Extraindo e processando questões..."):
