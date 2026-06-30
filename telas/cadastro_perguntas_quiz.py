@@ -14,6 +14,11 @@ def puxar_perguntas_cadastradas(quiz_id):
 
 def tela_cadastro_perguntas_quiz():
     aplicar_estilo()
+    col_nav, col_vazio = st.columns([1, 5])
+    with col_nav:
+        if st.button("⬅️ Voltar"):
+            st.session_state.pagina = "quiz_ao_vivo"
+            st.rerun()
     cabecalho(
         "📝 Caderno de Questões do Quiz",
         "Alimente suas salas síncronas com perguntas manuais ou extraídas via inteligência artificial"
