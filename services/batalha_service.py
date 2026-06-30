@@ -213,3 +213,10 @@ def buscar_detalhes_prova_ou_batalha(batalha_id):
         return res.data
     except Exception:
         return None
+    
+def listar_times():
+    try:
+        res = supabase.table("times").select("id, nome").execute()
+        return res.data or []
+    except Exception:
+        return []
