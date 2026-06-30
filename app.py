@@ -87,12 +87,12 @@ try:
     from telas.batalha_de_equipes.integrantes         import tela_batalha_integrantes
     from telas.batalha_de_equipes.gerenciar_batalhas import tela_gerenciar_batalhas # Nome correto da função
     from telas.batalha_de_equipes.rodada              import tela_batalha_rodada
+    from telas.batalha_de_equipes.gerenciar_batalhas import tela_gerenciar_batalhas
+    from telas.batalha_de_equipes.rodada import tela_batalha_de_equipes
 except ImportError as e:
     def tela_batalha_de_equipes(): st.error(f"Erro ao carregar arena: {e}")
     def tela_batalha_times(): st.error("Erro ao carregar times.")
-    def tela_batalha_integrantes(): st.error("Erro ao carregar integrantes.")
     def tela_gerenciar_batalhas(): st.error("Erro ao carregar gestão de batalhas.")
-    def tela_batalha_rodada(): st.error("Erro ao carregar rodada.")
         
     def tela_batalha_times(): pass
     def tela_batalha_integrantes(): pass
