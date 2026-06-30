@@ -107,13 +107,18 @@ def computar_resultado_avaliacao(aluno_id, prova_id, respostas_aluno: dict, cade
 
 def deletar_mini_prova(prova_id):
     try:
-        supabase.table("questoes_mini_prova").delete().eq("prova_id", prova_id).execute()
+        questoes = supabase.table("questoes").select("id").eq("mini_prova_id", prova_id).execute()
+        if questoes.data:
+            q_ids = [q["id"] for q in questoes.data]
+            supabase.table("alternativas").delete().in_("questao_id", q_ids).execute()
+            supabase.table("questoes").delete().eq("mini_prova_id", prova_id).execute()
+            
         res = supabase.table("mini_provas").delete().eq("id", prova_id).execute()
         return {"sucesso": True}
     except Exception as e:
         return {"sucesso": False, "mensagem": str(e)}
 
-def criar_escopo_mini_prova(titulo, duracao, usuario_id, data_limite, disciplina=None, xp=0, instrucoes=""):
+def criar_escopo_mini_prova(titulo, duracao, usuario_id, data_limite, disciplina, xp, instrucoes):
     try:
         res = supabase.table("mini_provas").insert({
             "titulo": titulo,
@@ -130,7 +135,7 @@ def criar_escopo_mini_prova(titulo, duracao, usuario_id, data_limite, disciplina
 
 def listar_provas_professor(usuario_id):
     try:
-        res = supabase.table("mini_provas").select("id, titulo").eq("criado_por", usuario_id).execute()
+        res = supabase.table("mini_provas").select("id, titulo, disciplina").eq("criado_por", usuario_id).execute()
         return res.data or []
     except Exception:
         return []
