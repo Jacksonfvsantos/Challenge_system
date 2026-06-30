@@ -69,3 +69,25 @@ def cabecalho(titulo, subtitulo=""):
             {f'<p style="color: #a5f3fc; margin: 5px 0 0 0; font-size: 14px;">{subtitulo}</p>' if subtitulo else ''}
         </div>
     """, unsafe_allow_html=True)
+
+def renderizar_card(titulo, descricao, cor_borda="#00b4d8", footer=""):
+    """
+    Renderiza um card padronizado para todo o sistema.
+    """
+    st.markdown(f"""
+    <div style="
+        background: #ffffff; 
+        border: 1px solid #e2e8f0; 
+        border-left: 4px solid {cor_borda}; 
+        border-radius: 8px; 
+        padding: 16px; 
+        margin-bottom: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    ">
+        <strong style="color: #1b3a5c; font-size: 16px;">{titulo}</strong>
+        <p style="color: #4a5568; font-size: 14px; margin-top: 8px;">{descricao}</p>
+        <div style="margin-top: 10px; font-size: 12px; color: #718096;">
+            {footer}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)

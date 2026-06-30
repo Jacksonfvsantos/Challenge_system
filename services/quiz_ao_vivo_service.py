@@ -12,11 +12,11 @@ def criar_quiz(titulo, usuario_id, disciplina, tema):
         res = supabase.table("quizzes").insert({
             "titulo": titulo.strip(),
             "criado_por": usuario_id,
-            "disciplina": disciplina.strip() if disciplina else None,
-            "tema": tema.strip() if tema else None,
+            "disciplina": disciplina.strip(),
+            "tema": tema.strip(),
             "status": "criado"
         }).execute()
-        return {"sucesso": True, "mensagem": "Sala de Quiz ativada!"} if res.data else {"sucesso": False, "mensagem": "Erro ao criar."}
+        return {"sucesso": True, "mensagem": "Sala criada!"} if res.data else {"sucesso": False, "mensagem": "Erro."}
     except Exception as e:
         return {"sucesso": False, "mensagem": str(e)}
 
@@ -24,26 +24,7 @@ def deletar_quiz(quiz_id):
     try:
         supabase.table("respostas_quiz").delete().eq("quiz_id", quiz_id).execute()
         supabase.table("participantes_quiz").delete().eq("quiz_id", quiz_id).execute()
-        res_p = supabase.table("perguntas_quiz").select("id").eq("quiz_id", quiz_id).execute()
-        if res_p.data:
-            p_ids = [p["id"] for p in res_p.data]
-            supabase.table("alternativas_quiz").delete().in_("pergunta_id", p_ids).execute()
-            supabase.table("perguntas_quiz").delete().eq("quiz_id", quiz_id).execute()
         supabase.table("quizzes").delete().eq("id", quiz_id).execute()
         return True
     except Exception:
         return False
-
-def alterar_status_quiz(quiz_id, novo_status):
-    try:
-        res = supabase.table("quizzes").update({"status": novo_status}).eq("id", quiz_id).execute()
-        return bool(res.data)
-    except Exception:
-        return False
-
-def puxar_perguntas_cadastradas(quiz_id):
-    try:
-        res = supabase.table("perguntas_quiz").select("*").eq("quiz_id", quiz_id).order("ordem").execute()
-        return res.data or []
-    except Exception:
-        return []
