@@ -36,7 +36,7 @@ def tela_gerenciar_batalhas():
                                 iniciar_partida_sincrona(b['id'], b.get('time_a_id'))
                                 st.rerun()
                         
-                        elif b.get('status') == 'em_andamento':
+                        elif b.get('status') == 'em andamento':
                             if st.button("Encerrar Batalha", key=f"end_{b['id']}"):
                                 encerrar_partida_sincrona(b['id'])
                                 st.rerun()
