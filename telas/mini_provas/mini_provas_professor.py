@@ -30,10 +30,10 @@ def tela_mini_provas_professor():
             disciplina = st.text_input("Disciplina")
             duracao = st.number_input("Duração (min)", value=30)
             xp = st.number_input("Pontuação XP", value=100)
-            data_limite = st.date_input("Disponível até", datetime.date.today())
+            data_expiracao = st.date_input("Disponível até", datetime.date.today())
             instrucoes = st.text_area("Instruções")
             if st.form_submit_button("🚀 Criar Prova"):
-                res = criar_escopo_mini_prova(titulo, duracao, usuario_id, data_limite.isoformat(), disciplina, xp, instrucoes)
+                res = criar_escopo_mini_prova(titulo, duracao, usuario_id, data_expiracao.isoformat(), disciplina, xp, instrucoes)
                 if res["sucesso"]: st.rerun()
                 else: st.error(res["mensagem"])
 
