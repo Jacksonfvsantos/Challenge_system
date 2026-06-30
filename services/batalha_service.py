@@ -90,31 +90,26 @@ def obter_batalhas_finalizadas():
     except Exception:
         return []
 
-def cadastrar_nova_batalha(titulo, descricao, modalidade, data_limite=None, lista_questoes_ids=None, time_a_id=None, time_b_id=None):
+def cadastrar_nova_batalha(titulo, descricao, time_a_id, modalidade="sincrona"):
     try:
         payload = {
             "titulo": titulo.strip(),
             "descricao": descricao.strip() if descricao else None,
             "modalidade": modalidade,
-            "finalizada": False,
-            "pergunta_atual_ordem": 1,
-            "status": "em_andamento" if modalidade == "assincrona" else "agendada",
-            "status_sincrono": "aguardando_resposta" if modalidade == "sincrona" else None,
+            "status": "agendada",
             "time_a_id": time_a_id,
-            "time_b_id": time_b_id
+            "finalizada": False,
+            "pergunta_atual_ordem": 1
         }
+        
         res_batalha = supabase.table("batalhas").insert(payload).execute()
+        
         if not res_batalha.data:
-            return {"sucesso": False, "mensagem": "Falha ao instanciar batalha."}
+            return {"sucesso": False, "mensagem": "Falha ao instanciar batalha no banco de dados."}
             
-        b_id = res_batalha.data[0]["id"]
-        if lista_questoes_ids:
-            linhas = [{"batalha_id": b_id, "questao_id": q_id, "ordem": i+1} for i, q_id in enumerate(lista_questoes_ids)]
-            supabase.table("batalha_perguntas").insert(linhas).execute()
-            
-        return {"sucesso": True, "mensagem": "🚀 Competição publicada e QR Code gerado com sucesso!"}
+        return {"sucesso": True, "mensagem": "🚀 Competição publicada com sucesso!"}
     except Exception as e:
-        return {"sucesso": False, "mensagem": str(e)}
+        return {"sucesso": False, "mensagem": f"Erro de banco: {str(e)}"}
 
 def cadastrar_questao_rapida(enunciado, alternativas_texto, indice_correta):
     try:
