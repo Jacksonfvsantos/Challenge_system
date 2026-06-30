@@ -199,3 +199,17 @@ def deletar_batalha(batalha_id):
         return True
     except Exception:
         return False
+
+def listar_batalhas_ativas():
+    try:
+        res = supabase.table("batalhas").select("*, times:time_da_vez_id(nome)").eq("finalizada", False).order("created_at").execute()
+        return res.data or []
+    except Exception:
+        return []
+
+def buscar_detalhes_prova_ou_batalha(batalha_id):
+    try:
+        res = supabase.table("batalhas").select("*").eq("id", batalha_id).single().execute()
+        return res.data
+    except Exception:
+        return None
