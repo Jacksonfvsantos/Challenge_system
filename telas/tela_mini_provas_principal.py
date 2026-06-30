@@ -1,21 +1,19 @@
 import streamlit as st
 import datetime
 from services.mini_prova_service import listar_mini_provas
-from utils.estilo import aplicar_estilo, cabecalho
+from utils.estilo import aplicar_estilo, cabecalho, formatar_titulo_aba
 
 def tela_mini_provas():
     aplicar_estilo()
-    usuario = st.session_state.get("usuario_logado", {})
-    tipo = str(usuario.get("tipo_usuario", "aluno")).lower()
-    
-    cabecalho("Mini-provas", "Realize as provas disponíveis e modularizadas")
+    cabecalho("Mini-provas", "Realize as avaliações modulares")
 
-    if tipo == "professor":
-        if st.button("➕ Criar Nova Mini Prova ou Fazer Upload", type="primary", use_container_width=True):
-            st.session_state.pagina = "mini_provas_professor"
-            st.rerun()
+    usuario = st.session_state.get("usuario_logado", {})
+    if str(usuario.get("tipo_usuario")).lower() == "professor":
+        if st.button("➕ Nova Mini-Prova", type="primary"): 
+            st.session_state.pagina = "mini_provas_professor"; st.rerun()
         st.divider()
 
+    formatar_titulo_aba("Provas Ativas")
     mini_provas = listar_mini_provas()
     provas_ativas = [p for p in mini_provas if p.get("status") == "Disponível"]
 
@@ -24,7 +22,6 @@ def tela_mini_provas():
         st.info("Nenhuma mini prova em andamento.")
     
     for prova in provas_ativas:
-        # Mantendo o layout de card limpo e funcional
         with st.container(border=True):
             st.markdown(f"""
             <strong style="color:#0d1b2a; font-size:16px;">{prova.get('titulo', 'Sem Título')}</strong><br>
@@ -34,7 +31,6 @@ def tela_mini_provas():
             </span>
             """, unsafe_allow_html=True)
             
-            # Botão de Ação real (Streamlit) posicionado abaixo do conteúdo
             if st.button(f"Iniciar {prova.get('titulo', 'Prova')}", key=f"run_{prova['id']}", type="primary", use_container_width=True):
                 st.session_state.prova_ativa_id = prova["id"]
                 st.session_state.pagina = "realizar_mini_prova"

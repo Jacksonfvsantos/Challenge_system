@@ -1,14 +1,11 @@
 import streamlit as st
 import datetime
 from database.conexao import supabase
-from utils.estilo import aplicar_estilo, cabecalho
+from utils.estilo import aplicar_estilo, cabecalho, formatar_titulo_aba, formatar_legenda_instrucao
 from services.ia_processador_service import extrair_texto_de_arquivo, gerar_questoes_ia
 from services.mini_prova_service import (
-    criar_escopo_mini_prova, 
-    listar_provas_professor, 
-    deletar_mini_prova, 
-    salvar_questao_com_alternativas, 
-    salvar_questoes_lote_ia
+    criar_escopo_mini_prova, listar_provas_professor, deletar_mini_prova, 
+    salvar_questao_com_alternativas, salvar_questoes_lote_ia
 )
 
 def tela_mini_provas_professor():
@@ -16,41 +13,38 @@ def tela_mini_provas_professor():
     usuario = st.session_state.get("usuario_logado", {})
     usuario_id = usuario.get("id")
     
-    cabecalho("Painel Docente", "Gestão de Mini Provas")
+    cabecalho("Gestão Docente", "Configuração e controle de exames modulares")
 
-    if not usuario_id:
-        st.error("Sessão inválida.")
-        return
-
-    aba_escopo, aba_manual, aba_importacao = st.tabs(["📝 1. Configurar Escopo", "✍️ 2. Cadastro Manual", "🤖 3. Importador IA (PDF/DOCX)"])
+    aba_escopo, aba_manual, aba_importacao = st.tabs(["📝 Configurar Escopo", "✍️ Cadastro Manual", "🤖 Importação IA"])
 
     with aba_escopo:
+        formatar_titulo_aba("Definir Nova Mini-Prova")
+        formatar_legenda_instrucao("Preencha os dados básicos para iniciar o cadastro da avaliação.")
         with st.form("form_escopo", clear_on_submit=True):
-            titulo = st.text_input("Título da Prova")
+            titulo = st.text_input("Título")
             disciplina = st.text_input("Disciplina")
             duracao = st.number_input("Duração (min)", value=30)
             xp = st.number_input("Pontuação XP", value=100)
             data_expiracao = st.date_input("Disponível até", datetime.date.today())
             instrucoes = st.text_area("Instruções")
-            if st.form_submit_button("🚀 Criar Prova"):
+            if st.form_submit_button("Salvar Escopo da Prova"):
                 res = criar_escopo_mini_prova(titulo, duracao, usuario_id, data_expiracao.isoformat(), disciplina, xp, instrucoes)
                 if res["sucesso"]: st.rerun()
                 else: st.error(res["mensagem"])
 
     st.divider()
-    st.subheader("🗑️ Provas Cadastradas")
+    formatar_titulo_aba("Provas Existentes")
     provas = listar_provas_professor(usuario_id)
     
     if not provas:
-        st.info("Nenhuma prova criada.")
+        st.info("Nenhuma mini-prova localizada.")
     else:
         for p in provas:
             col1, col2 = st.columns([5, 1])
             col1.write(f"**{p['titulo']}**")
             if col2.button("🗑️", key=f"del_{p['id']}"):
-                res = deletar_mini_prova(p['id'])
-                if res["sucesso"]: st.rerun()
-                else: st.error("Erro ao deletar.")
+                deletar_mini_prova(p['id'])
+                st.rerun()
 
         if provas:
             prova_id = st.selectbox("Selecione a prova para vincular:", options=[p['id'] for p in provas], format_func=lambda x: next(p['titulo'] for p in provas if p['id'] == x))

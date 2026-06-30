@@ -85,3 +85,20 @@ def renderizar_card(titulo, descricao, cor_borda="#00b4d8", footer="", acao=None
     
     if acao:
         acao()
+
+def formatar_titulo_aba(titulo):
+    """Padroniza títulos de abas e seções."""
+    st.markdown(f"### 🎯 {titulo}")
+
+def formatar_legenda_instrucao(texto):
+    """Padroniza textos explicativos curtos."""
+    st.markdown(f"<p style='color: #64748b; font-size: 14px; margin-bottom: 20px;'>{texto}</p>", unsafe_allow_html=True)
+
+def container_alerta_padrao(titulo, mensagem):
+    """Padroniza containers de aviso/diretrizes."""
+    st.markdown(f"""
+    <div style="background:#f8fafc; padding:15px; border-radius:8px; border-left: 4px solid #3b82f6; margin-bottom: 20px;">
+        <strong style="color:#1e293b;">{titulo}</strong>
+        <p style="margin: 5px 0 0 0; color:#475569; font-size: 14px;">{mensagem}</p>
+    </div>
+    """, unsafe_allow_html=True)
