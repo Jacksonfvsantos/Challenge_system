@@ -22,7 +22,7 @@ def tela_mini_provas_professor():
         st.error("Sessão inválida.")
         return
 
-    aba_escopo, aba_manual, aba_importacao = st.tabs(["📝 1. Configurar Escopo", "✍️ 2. Cadastro Manual", "🤖 3. Importação IA"])
+    aba_escopo, aba_manual, aba_importacao = st.tabs(["📝 1. Configurar Escopo", "✍️ 2. Cadastro Manual", "🤖 3. Importador IA (PDF/DOCX)"])
 
     with aba_escopo:
         with st.form("form_escopo", clear_on_submit=True):
@@ -66,7 +66,7 @@ def tela_mini_provas_professor():
 
             with aba_importacao:
                 arquivo = st.file_uploader("Upload de Caderno (PDF/DOCX)", type=["pdf", "docx"])
-                prompt_custom = st.text_input("Instruções adicionais para a IA (opcional):", "Extraia questões de múltipla escolha com 4 alternativas.")
+                prompt_custom = st.text_input("Instruções adicionais para a IA (opcional):")
                 
                 if arquivo and st.button("🤖 Processar e Injetar Questões"):
                     with st.spinner("Processando arquivo e gerando questões com IA..."):
