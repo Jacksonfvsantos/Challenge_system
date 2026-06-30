@@ -105,21 +105,26 @@ def computar_resultado_avaliacao(aluno_id, prova_id, respostas_aluno: dict, cade
     except Exception as e:
         return {"sucesso": False, "mensagem": f"Erro crítico na correção automática: {e}"}
 
-# =========================================================================
-# NOVAS FUNÇÕES: ISOLAMENTO DE BANCO DE DADOS (SEPARAÇÃO DE CAMADAS)
-# =========================================================================
-
-def criar_escopo_mini_prova(titulo, duracao_minutos, criado_por, data_expiracao):
+def deletar_mini_prova(prova_id):
     try:
-        payload = {
-            "titulo": titulo.strip(),
-            "quantidade_questoes": 0,
-            "duracao_minutos": int(duracao_minutos),
-            "criado_por": criado_por,
-            "data_expiracao": data_expiracao
-        }
-        res = supabase.table("mini_provas").insert(payload).execute()
-        return {"sucesso": True, "dados": res.data} if res.data else {"sucesso": False, "mensagem": "Falha ao gravar no banco."}
+        supabase.table("questoes_mini_prova").delete().eq("prova_id", prova_id).execute()
+        res = supabase.table("mini_provas").delete().eq("id", prova_id).execute()
+        return {"sucesso": True}
+    except Exception as e:
+        return {"sucesso": False, "mensagem": str(e)}
+
+def criar_escopo_mini_prova(titulo, duracao, usuario_id, data_limite, disciplina=None, xp=0, instrucoes=""):
+    try:
+        res = supabase.table("mini_provas").insert({
+            "titulo": titulo,
+            "duracao_minutos": duracao,
+            "criado_por": usuario_id,
+            "data_limite": data_limite,
+            "disciplina": disciplina,
+            "pontos_xp": xp,
+            "instrucoes": instrucoes
+        }).execute()
+        return {"sucesso": True}
     except Exception as e:
         return {"sucesso": False, "mensagem": str(e)}
 

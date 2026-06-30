@@ -6,7 +6,8 @@ from services.mini_prova_service import (
     criar_escopo_mini_prova, 
     listar_provas_professor,
     salvar_questao_com_alternativas, 
-    salvar_questoes_lote_ia
+    salvar_questoes_lote_ia,
+    deletar_mini_prova # Certifique-se de importar esta função
 )
 
 def tela_mini_provas_professor():
@@ -30,37 +31,43 @@ def tela_mini_provas_professor():
         with st.form("form_cadastro_mini_prova", clear_on_submit=True):
             titulo = st.text_input("Título da Mini Prova:")
             disciplina = st.text_input("Componente Curricular (Disciplina):")
-            
             col1, col2 = st.columns(2)
             duracao = col1.number_input("Duração (Minutos):", min_value=1, value=30)
             xp = col2.number_input("Pontuação (XP):", min_value=0, value=100)
-            
             data_limite = st.date_input("Disponível até:", datetime.date.today())
             instrucoes = st.text_area("Instruções Adicionais para o Aluno:")
             
             if st.form_submit_button("🚀 Criar Definição da Prova"):
-                res = criar_escopo_mini_prova(
-                    titulo=titulo, 
-                    duracao=duracao, 
-                    usuario_id=usuario_id, 
-                    data_limite=data_limite.isoformat(),
-                    disciplina=disciplina,
-                    xp=xp,
-                    instrucoes=instrucoes
-                )
+                res = criar_escopo_mini_prova(titulo, duracao, usuario_id, data_limite.isoformat(), disciplina, xp, instrucoes)
                 if res["sucesso"]:
-                    st.success("Mini Prova registada com sucesso!")
+                    st.success("Mini Prova registada!")
                     st.rerun()
                 else:
                     st.error(res["mensagem"])
 
+    # --- NOVA FUNCIONALIDADE: LISTAGEM E LIXEIRA ---
+    st.divider()
+    st.subheader("🗑️ Provas Cadastradas")
     lista_provas = listar_provas_professor(usuario_id)
+    
     if not lista_provas:
-        st.info("Crie o escopo de uma Mini Prova na Aba 1 para continuar.")
-        return
+        st.info("Nenhuma prova criada no momento.")
+    else:
+        for prova in lista_provas:
+            col_nome, col_del = st.columns([5, 1])
+            col_nome.write(f"**{prova['titulo']}** ({prova.get('disciplina', 'Sem disciplina')})")
+            if col_del.button("🗑️", key=f"del_{prova['id']}"):
+                res_del = deletar_mini_prova(prova['id'])
+                if res_del["sucesso"]:
+                    st.toast(f"Prova '{prova['titulo']}' removida.")
+                    st.rerun()
+                else:
+                    st.error(f"Erro: {res_del['mensagem']}")
 
-    dict_provas = {p["titulo"]: p["id"] for p in lista_provas}
-    prova_id = dict_provas[st.selectbox("Vincular questões à Mini Prova:", list(dict_provas.keys()))]
+    # --- SELEÇÃO PARA AS ABAS DE CADASTRO ---
+    if lista_provas:
+        dict_provas = {p["titulo"]: p["id"] for p in lista_provas}
+        prova_id = dict_provas[st.selectbox("Selecione a prova para vincular questões:", list(dict_provas.keys()))]
 
     with aba_manual:
         with st.form("form_manual", clear_on_submit=True):
