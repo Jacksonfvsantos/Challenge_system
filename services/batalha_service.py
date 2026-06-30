@@ -270,3 +270,44 @@ def cadastrar_nova_batalha(titulo, descricao, time_a_id, time_b_id=None, modalid
         return {"sucesso": True, "data": res.data}
     except Exception as e:
         return {"sucesso": False, "mensagem": str(e)}
+    
+def obter_pergunta_atual(batalha_id, ordem):
+    try:
+        res_link = supabase.table("batalha_perguntas").select("questao_id").eq("batalha_id", batalha_id).eq("ordem", ordem).single().execute()
+        
+        if not res_link.data:
+            return None
+            
+        q_id = res_link.data["questao_id"]
+        
+        res_q = supabase.table("questoes").select("*").eq("id", q_id).single().execute()
+        
+        res_alt = supabase.table("alternativas").select("*").eq("questao_id", q_id).order("ordem").execute()
+        
+        pergunta = res_q.data
+        pergunta["alternativas"] = res_alt.data
+        return pergunta
+    except Exception as e:
+        print(f"Erro ao buscar pergunta atual: {e}")
+        return None
+    
+def obter_time_do_usuario(usuario_id):
+    try:
+        res = supabase.table("time_membros").select("time_id").eq("usuario_id", usuario_id).execute()
+        return [item["time_id"] for item in res.data] if res.data else [None]
+    except: return [None]
+
+def calcular_placar_atual(batalha_id, t_a, t_b):
+    try:
+        res = supabase.table("batalha_respostas").select("time_id, resposta_correta").eq("batalha_id", batalha_id).eq("resposta_correta", True).execute()
+        pa = sum(1 for r in res.data if str(r["time_id"]) == str(t_a))
+        pb = sum(1 for r in res.data if str(r["time_id"]) == str(t_b))
+        return pa, pb
+    except: return 0, 0
+
+def obter_nomes_dos_times(t_a, t_b):
+    try:
+        res = supabase.table("times").select("id, nome").in_("id", [t_a, t_b]).execute()
+        mapa = {str(x["id"]): x["nome"] for x in res.data}
+        return mapa.get(str(t_a), "Time A"), mapa.get(str(t_b), "Time B")
+    except: return "Time A", "Time B"
