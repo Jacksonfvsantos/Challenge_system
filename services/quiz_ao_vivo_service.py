@@ -4,7 +4,8 @@ def listar_quizzes():
     try:
         res = supabase.table("quizzes").select("*, usuarios(nome)").order("data_criacao", desc=True).execute()
         return res.data or []
-    except Exception:
+    except Exception as e:
+        print(f"❌ Erro ao listar quizzes: {e}")
         return []
 
 def criar_quiz(titulo, usuario_id, disciplina, tema):
@@ -16,13 +17,12 @@ def criar_quiz(titulo, usuario_id, disciplina, tema):
             "tema": tema.strip() if tema else None,
             "status": "criado"
         }).execute()
-        return {"sucesso": True, "mensagem": "Sala de Quiz ativada!"} if res.data else {"sucesso": False, "mensagem": "Erro ao criar."}
+        return {"sucesso": True, "mensagem": "Sala de Quiz ativada com sucesso!"} if res.data else {"sucesso": False, "mensagem": "Erro ao criar registro."}
     except Exception as e:
         return {"sucesso": False, "mensagem": str(e)}
 
 def deletar_quiz(quiz_id):
     try:
-        # Limpeza relacional em cascata
         supabase.table("respostas_quiz").delete().eq("quiz_id", quiz_id).execute()
         supabase.table("participantes_quiz").delete().eq("quiz_id", quiz_id).execute()
         
@@ -34,12 +34,6 @@ def deletar_quiz(quiz_id):
             
         supabase.table("quizzes").delete().eq("id", quiz_id).execute()
         return True
-    except Exception:
-        return False
-
-def atualizar_status_quiz(quiz_id, novo_status):
-    try:
-        res = supabase.table("quizzes").update({"status": novo_status}).eq("id", quiz_id).execute()
-        return bool(res.data)
-    except Exception:
+    except Exception as e:
+        print(f"❌ Erro ao deletar quiz: {e}")
         return False
