@@ -85,16 +85,18 @@ try:
     from telas.batalha_de_equipes.batalha_de_equipes import tela_batalha_de_equipes
     from telas.batalha_de_equipes.times              import tela_batalha_times
     from telas.batalha_de_equipes.integrantes         import tela_batalha_integrantes
-    from telas.batalha_de_equipes.gerenciar_batalhas import tela_batalha_de_equipes
+    from telas.batalha_de_equipes.gerenciar_batalhas import tela_gerenciar_batalhas # Nome correto da função
     from telas.batalha_de_equipes.rodada              import tela_batalha_rodada
 except ImportError as e:
-    mensagem_fixa = str(e)
-    def tela_batalha_de_equipes(err=mensagem_fixa): 
-        st.error(f"❌ Erro interno de importação: {err}")
+    def tela_batalha_de_equipes(): st.error(f"Erro ao carregar arena: {e}")
+    def tela_batalha_times(): st.error("Erro ao carregar times.")
+    def tela_batalha_integrantes(): st.error("Erro ao carregar integrantes.")
+    def tela_gerenciar_batalhas(): st.error("Erro ao carregar gestão de batalhas.")
+    def tela_batalha_rodada(): st.error("Erro ao carregar rodada.")
         
     def tela_batalha_times(): pass
     def tela_batalha_integrantes(): pass
-    def tela_batalha_gerenciar(): pass
+    def tela_gerenciar_batalhas(): pass
     def tela_batalha_rodada(): pass
 
 st.set_page_config(
@@ -228,7 +230,7 @@ elif pagina == "batalha_integrantes":
     tela_batalha_integrantes()
 
 elif pagina == "batalha_gerenciar":
-    tela_batalha_gerenciar()
+    tela_gerenciar_batalhas()
 
 elif pagina == "batalha_rodada":
     tela_batalha_rodada()
