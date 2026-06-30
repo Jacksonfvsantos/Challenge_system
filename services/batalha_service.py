@@ -85,7 +85,7 @@ def obter_estado_batalha(batalha_id):
 
 def obter_batalhas_finalizadas():
     try:
-        res = supabase.table("historico_batalhas").select("*").order("encerrado_em", descending=True).execute()
+        res = supabase.table("historico_batalhas").select("*").order("encerrado_em", desc=True).execute()
         return res.data or []
     except Exception:
         return []
