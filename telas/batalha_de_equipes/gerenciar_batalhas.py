@@ -22,30 +22,20 @@ def tela_gerenciar_batalhas():
 
     with aba_nova:
         formatar_titulo_aba("Abrir Novo Edital de Batalha")
-        formatar_legenda_instrucao("Preencha os dados abaixo para publicar um novo desafio síncrono.")
-        
-        times = listar_times()
-        
         with st.form("form_nova_batalha"):
             titulo = st.text_input("Título da Batalha")
             descricao = st.text_area("Descrição / Regras")
+            modalidade = st.selectbox("Modalidade:", ["sincrona", "assincrona"])
             
-            # Novo seletor de times
-            if not times:
-                st.warning("Nenhum time cadastrado no sistema.")
-                time_selecionado_id = None
-            else:
-                opcoes_times = {t["nome"]: t["id"] for t in times}
-                nome_time_selecionado = st.selectbox("Selecione a Equipe Inicial:", list(opcoes_times.keys()))
-                time_selecionado_id = opcoes_times[nome_time_selecionado]
-            
+            times = listar_times()
+            time_a = st.selectbox("Time A (Inicial):", options=[t['nome'] for t in times])
+            time_b = st.selectbox("Time B (Adversário):", options=[t['nome'] for t in times])
+        
             if st.form_submit_button("Publicar Edital"):
-                if titulo and time_selecionado_id:
-                    resultado = cadastrar_nova_batalha(titulo, descricao, time_selecionado_id)
-                    if resultado.get("sucesso"):
-                        st.success("Batalha criada com sucesso!")
-                        st.rerun()
-                    else:
-                        st.error(resultado.get("mensagem", "Erro ao criar batalha."))
-                else:
-                    st.warning("O título e a equipe inicial são obrigatórios.")
+                t_a_id = next(t['id'] for t in times if t['nome'] == time_a)
+                t_b_id = next(t['id'] for t in times if t['nome'] == time_b)
+                
+                res = cadastrar_nova_batalha(titulo, descricao, t_a_id, t_b_id, modalidade)
+                if res["sucesso"]:
+                    st.success("Batalha configurada!")
+                    st.rerun()
