@@ -119,9 +119,15 @@ def cadastrar_questao_rapida(enunciado, alternativas_texto, indice_correta):
 
 def iniciar_partida_sincrona(batalha_id, time_inicial_id):
     try:
-        supabase.table("batalhas").update({"status": "em_andamento", "time_da_vez_id": time_inicial_id, "status_sincrono": "aguardando_resposta", "pergunta_atual_ordem": 1}).eq("id", batalha_id).execute()
+        supabase.table("batalhas").update({
+            "status": "em_andamento", 
+            "time_da_vez_id": time_inicial_id, 
+            "status_sincrono": "aguardando_resposta", 
+            "pergunta_atual_ordem": 1
+        }).eq("id", batalha_id).execute()
         return True
-    except Exception:
+    except Exception as e:
+        print(f"Erro ao iniciar partida: {e}")
         return False
 
 def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id, alternativa_correta, time_adversario_id, tentativa_atual):
@@ -204,9 +210,10 @@ def deletar_batalha(batalha_id):
 
 def listar_batalhas_ativas():
     try:
-        res = supabase.table("batalhas").select("*, times:time_da_vez_id(nome)").eq("finalizada", False).order("created_at").execute()
+        res = supabase.table("batalhas").select("*, times:time_a_id(nome)").order("created_at", desc=True).execute()
         return res.data or []
-    except Exception:
+    except Exception as e:
+        print(f"Erro ao listar batalhas: {e}")
         return []
 
 def buscar_detalhes_prova_ou_batalha(batalha_id):

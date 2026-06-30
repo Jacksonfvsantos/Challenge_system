@@ -1,6 +1,6 @@
 import streamlit as st
 from utils.estilo import aplicar_estilo, cabecalho, formatar_titulo_aba, formatar_legenda_instrucao
-from services.batalha_service import listar_batalhas_ativas, cadastrar_nova_batalha, listar_times
+from services.batalha_service import encerrar_partida_sincrona, iniciar_partida_sincrona, listar_batalhas_ativas, cadastrar_nova_batalha, listar_times
 
 def tela_gerenciar_batalhas():
     aplicar_estilo()
@@ -10,16 +10,24 @@ def tela_gerenciar_batalhas():
 
     with aba_ativas:
         formatar_titulo_aba("Monitoramento de Batalhas")
-        formatar_legenda_instrucao("Acompanhe o desempenho das equipes em tempo real.")
-        lista_ativas = listar_batalhas_ativas()
-        if not lista_ativas:
-            st.info("Nenhuma batalha ativa no momento.")
-        else:
-            for b in lista_ativas:
-                with st.container(border=True):
-                    st.markdown(f"**{b['titulo']}**")
-                    if st.button("Encerrar Batalha", key=f"end_{b['id']}"): st.rerun()
+    lista_ativas = listar_batalhas_ativas()
 
+    if not lista_ativas:
+        st.info("Nenhuma batalha encontrada. Verifique se o status no banco é 'agendada'.")
+    else:
+        for b in lista_ativas:
+            with st.container(border=True):
+                st.markdown(f"**{b['titulo']}** | Status: {b.get('status', 'N/A')}")
+                
+                if b.get('status') == 'agendada':
+                    if st.button(f"Iniciar {b['titulo']}", key=f"start_{b['id']}"):
+                        if iniciar_partida_sincrona(b['id'], b['time_a_id']):
+                            st.rerun()
+                
+                elif b.get('status') == 'em_andamento':
+                    if st.button("Encerrar Batalha", key=f"end_{b['id']}"):
+                        encerrar_partida_sincrona(b['id'])
+                        st.rerun()
     with aba_nova:
         formatar_titulo_aba("Abrir Novo Edital de Batalha")
         with st.form("form_nova_batalha"):
