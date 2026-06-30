@@ -93,7 +93,8 @@ except ImportError as erro_import:
     def tela_batalha_integrantes(): st.error(f"Erro ao carregar integrantes: {erro_import}")
     def tela_gerenciar_batalhas(): st.error(f"Erro ao carregar gestão: {erro_import}")
     def tela_batalha_rodada(): st.error(f"Erro ao carregar rodada: {erro_import}")
-        
+    
+    def tela_batalha_de_equipes(): pass
     def tela_batalha_times(): pass
     def tela_batalha_integrantes(): pass
     def tela_gerenciar_batalhas(): pass
