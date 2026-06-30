@@ -14,6 +14,10 @@ def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_ta, nome_t
 
 def tela_batalha_rodada():
     aplicar_estilo()
+    if st.button("⬅️ Voltar para a Arena"):
+        st.session_state.pagina = "batalha_de_equipes"
+        st.rerun()
+        
     b_id = st.session_state.get("batalha_ativa_id")
     b = obter_estado_batalha(b_id)
     u = st.session_state.get("usuario_logado", {})

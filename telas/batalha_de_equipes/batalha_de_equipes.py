@@ -5,6 +5,10 @@ from services.batalha_service import listar_batalhas_ativas
 
 def tela_batalha_de_equipes():
     aplicar_estilo()
+    if st.button("⬅️ Voltar ao Dashboard"):
+        st.session_state.pagina = "home"
+        st.rerun()
+        
     usuario = st.session_state.get("usuario_logado", {})
     tipo_usuario = str(usuario.get("tipo_usuario", "aluno")).lower()
     
