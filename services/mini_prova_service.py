@@ -107,9 +107,9 @@ def computar_resultado_avaliacao(aluno_id, prova_id, respostas_aluno: dict, cade
 
 def deletar_mini_prova(prova_id):
     try:
-        questoes = supabase.table("questoes").select("id").eq("mini_prova_id", prova_id).execute()
-        if questoes.data:
-            q_ids = [q["id"] for q in questoes.data]
+        res_questoes = supabase.table("questoes").select("id").eq("mini_prova_id", prova_id).execute()
+        if res_questoes.data:
+            q_ids = [q["id"] for q in res_questoes.data]
             supabase.table("alternativas").delete().in_("questao_id", q_ids).execute()
             supabase.table("questoes").delete().eq("mini_prova_id", prova_id).execute()
             
