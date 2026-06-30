@@ -58,11 +58,28 @@ def tela_gerenciar_batalhas():
             time_a = st.selectbox("Time A (Inicial):", options=[t['nome'] for t in times])
             time_b = st.selectbox("Time B (Adversário):", options=[t['nome'] for t in times])
         
+            
+            
             if st.form_submit_button("Publicar Edital"):
-                t_a_id = next(t['id'] for t in times if t['nome'] == time_a)
-                t_b_id = next(t['id'] for t in times if t['nome'] == time_b)
-                
-                res = cadastrar_nova_batalha(titulo, descricao, t_a_id, t_b_id, modalidade)
-                if res["sucesso"]:
-                    st.success("Batalha configurada!")
-                    st.rerun()
+                try:
+                    t_a_id = next(t['id'] for t in times if t['nome'] == time_a)
+                    t_b_id = next(t['id'] for t in times if t['nome'] == time_b)
+    
+                    res = cadastrar_nova_batalha(
+                        titulo=titulo, 
+                        descricao=descricao, 
+                        time_a_id=t_a_id, 
+                        time_b_id=t_b_id, 
+                        modalidade=modalidade
+                    )
+                    
+                    if res["sucesso"]:
+                        st.success("Batalha configurada com sucesso!")
+                        st.rerun()
+                    else:
+                        st.error(f"Erro ao salvar: {res['mensagem']}")
+                        
+                except StopIteration:
+                    st.error("Erro: Selecione times válidos cadastrados no sistema.")
+                except Exception as e:
+                    st.error(f"Erro inesperado: {str(e)}")

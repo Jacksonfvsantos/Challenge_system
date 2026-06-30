@@ -253,3 +253,20 @@ def processar_resposta_assincrona(batalha_id, questao_id, time_id, alternativa_i
         return {"sucesso": True}
     except Exception as e:
         return {"sucesso": False, "mensagem": str(e)}
+    
+def cadastrar_nova_batalha(titulo, descricao, time_a_id, time_b_id=None, modalidade="sincrona"):
+    try:
+        payload = {
+            "titulo": titulo.strip(),
+            "descricao": descricao.strip() if descricao else None,
+            "modalidade": modalidade,
+            "status": "agendada",
+            "time_a_id": time_a_id,
+            "time_b_id": time_b_id,
+            "finalizada": False,
+            "pergunta_atual_ordem": 1
+        }
+        res = supabase.table("batalhas").insert(payload).execute()
+        return {"sucesso": True, "data": res.data}
+    except Exception as e:
+        return {"sucesso": False, "mensagem": str(e)}
