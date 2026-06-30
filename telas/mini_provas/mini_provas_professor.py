@@ -29,18 +29,31 @@ def tela_mini_provas_professor():
     with aba_escopo:
         with st.form("form_cadastro_mini_prova", clear_on_submit=True):
             titulo = st.text_input("Título da Mini Prova:")
-            duracao = st.number_input("Duração (Minutos):", min_value=1, value=30)
+            disciplina = st.text_input("Componente Curricular (Disciplina):")
+            
+            col1, col2 = st.columns(2)
+            duracao = col1.number_input("Duração (Minutos):", min_value=1, value=30)
+            xp = col2.number_input("Pontuação (XP):", min_value=0, value=100)
+            
             data_limite = st.date_input("Disponível até:", datetime.date.today())
+            instrucoes = st.text_area("Instruções Adicionais para o Aluno:")
             
             if st.form_submit_button("🚀 Criar Definição da Prova"):
-                res = criar_escopo_mini_prova(titulo, duracao, usuario_id, data_limite.isoformat())
+                res = criar_escopo_mini_prova(
+                    titulo=titulo, 
+                    duracao=duracao, 
+                    usuario_id=usuario_id, 
+                    data_limite=data_limite.isoformat(),
+                    disciplina=disciplina,
+                    xp=xp,
+                    instrucoes=instrucoes
+                )
                 if res["sucesso"]:
                     st.success("Mini Prova registada com sucesso!")
                     st.rerun()
                 else:
                     st.error(res["mensagem"])
 
-    # Carrega provas usando o serviço em vez do Supabase direto
     lista_provas = listar_provas_professor(usuario_id)
     if not lista_provas:
         st.info("Crie o escopo de uma Mini Prova na Aba 1 para continuar.")
