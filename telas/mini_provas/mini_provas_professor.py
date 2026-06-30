@@ -58,18 +58,33 @@ def tela_mini_provas_professor():
             with aba_manual:
                 with st.form("manual"):
                     enunciado = st.text_area("Enunciado")
-                    a, b, c, d = st.text_input("A"), st.text_input("B"), st.text_input("C"), st.text_input("D")
+                    a, b, c, d = st.text_input("Alternativa A"), st.text_input("Alternativa B"), st.text_input("Alternativa C"), st.text_input("Alternativa D")
                     correta = st.selectbox("Correta", ["A", "B", "C", "D"])
                     if st.form_submit_button("Salvar Questão"):
                         salvar_questao_com_alternativas(prova_id, enunciado, [a, b, c, d], correta)
                         st.success("Questão salva!")
 
             with aba_importacao:
-                arquivo = st.file_uploader("Upload", type=["pdf", "docx"])
-                if arquivo and st.button("Processar IA"):
-                    st.success("Processado!")
-                    st.rerun()
-
-    if st.button("⬅️ Voltar"):
-        st.session_state.pagina = "mini_provas"
-        st.rerun()
+                arquivo = st.file_uploader("Upload de Caderno (PDF/DOCX)", type=["pdf", "docx"])
+                prompt_custom = st.text_input("Instruções adicionais para a IA (opcional):", "Extraia questões de múltipla escolha com 4 alternativas.")
+                
+                if arquivo and st.button("🤖 Processar e Injetar Questões"):
+                    with st.spinner("Processando arquivo e gerando questões com IA..."):
+                        extensao = arquivo.name.split('.')[-1]
+                        texto = extrair_texto_de_arquivo(arquivo.getvalue(), extensao)
+    
+                        questoes = gerar_questoes_ia(
+                            texto_base=texto, 
+                            prompt_adicional=prompt_custom, 
+                            api_key=st.secrets["GEMINI_API_KEY"]
+                        )
+                        
+                        if questoes:
+                            res = salvar_questoes_lote_ia(prova_id, questoes)
+                            if res["sucesso"]:
+                                st.success(f"Sucesso! {res['mensagem']}")
+                                st.rerun()
+                            else:
+                                st.error(res["mensagem"])
+                        else:
+                            st.warning("A IA não conseguiu extrair questões válidas do documento.")
