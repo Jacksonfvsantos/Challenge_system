@@ -118,13 +118,13 @@ def deletar_mini_prova(prova_id):
     except Exception as e:
         return {"sucesso": False, "mensagem": str(e)}
 
-def criar_escopo_mini_prova(titulo, duracao, usuario_id, data_limite, disciplina, xp, instrucoes):
+def criar_escopo_mini_prova(titulo, duracao, usuario_id, data_expiracao, disciplina, xp, instrucoes):
     try:
         res = supabase.table("mini_provas").insert({
             "titulo": titulo,
             "duracao_minutos": duracao,
             "criado_por": usuario_id,
-            "data_limite": data_limite,
+            "data_expiracao": data_expiracao,
             "disciplina": disciplina,
             "pontos_xp": xp,
             "instrucoes": instrucoes
