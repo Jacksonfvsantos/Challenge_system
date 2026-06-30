@@ -90,20 +90,28 @@ def obter_batalhas_finalizadas():
     except Exception:
         return []
 
-def cadastrar_nova_batalha(titulo, descricao, time_a_id, time_b_id=None, modalidade="sincrona"):
+def cadastrar_questoes_batalha(batalha_id, lista_questoes):
+    """
+    lista_questoes: Lista de dicts com 'enunciado', 'alternativas' (lista), 'correta_idx' (int)
+    """
     try:
-        payload = {
-            "titulo": titulo.strip(),
-            "descricao": descricao.strip(),
-            "modalidade": modalidade,
-            "status": "agendada",
-            "time_a_id": time_a_id,
-            "time_b_id": time_b_id,
-            "finalizada": False,
-            "pergunta_atual_ordem": 1
-        }
-        res = supabase.table("batalhas").insert(payload).execute()
-        return {"sucesso": True, "data": res.data}
+        for i, q in enumerate(lista_questoes):
+            res_q = supabase.table("questoes").insert({
+                "enunciado": q["enunciado"].strip()
+            }).execute()
+            
+            if res_q.data:
+                q_id = res_q.data[0]["id"]
+                supabase.table("batalha_perguntas").insert({
+                    "batalha_id": batalha_id,
+                    "questao_id": q_id,
+                    "ordem": i + 1
+                }).execute()
+                
+                alternativas = [{"questao_id": q_id, "texto": txt, "ordem": idx+1, "correta": (idx == q["correta_idx"])} 
+                               for idx, txt in enumerate(q["alternativas"])]
+                supabase.table("alternativas").insert(alternativas).execute()
+        return {"sucesso": True}
     except Exception as e:
         return {"sucesso": False, "mensagem": str(e)}
 
@@ -131,12 +139,6 @@ def iniciar_partida_sincrona(batalha_id, time_inicial_id):
         return False
 
 def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id, alternativa_correta, time_adversario_id, tentativa_atual):
-    """
-    Mantém a lógica clássica do Bate-rebate:
-    1. Se acertar: ponto + troca time.
-    2. Se errar na tentativa 1: rebate (time adversário tem chance de responder).
-    3. Se errar na tentativa 2: fim da rodada.
-    """
     try:
         supabase.table("batalha_respostas").insert({
             "batalha_id": batalha_id, "questao_id": questao_id, 
@@ -144,21 +146,32 @@ def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id,
             "resposta_correta": bool(alternativa_correta), "tentativa_numero": int(tentativa_atual)
         }).execute()
 
+        batalha = obter_estado_batalha(batalha_id)
+        ordem_atual = int(batalha.get("pergunta_atual_ordem", 1))
+
         if alternativa_correta:
             supabase.table("batalhas").update({
-                "pergunta_atual_ordem": supabase.table("batalhas").select("pergunta_atual_ordem").eq("id", batalha_id).single().execute().data["pergunta_atual_ordem"] + 1,
-                "time_da_vez_id": time_adversario_id
+                "pergunta_atual_ordem": ordem_atual + 1,
+                "time_da_vez_id": time_adversario_id,
+                "status_sincrono": "aguardando_resposta"
             }).eq("id", batalha_id).execute()
             return "acertou"
         else:
             if int(tentativa_atual) == 1:
-                supabase.table("batalhas").update({"status_sincrono": "rebate_ativo", "time_da_vez_id": time_adversario_id}).eq("id", batalha_id).execute()
+                supabase.table("batalhas").update({
+                    "status_sincrono": "rebate_ativo", 
+                    "time_da_vez_id": time_adversario_id
+                }).eq("id", batalha_id).execute()
                 return "rebate"
             else:
-                supabase.table("batalhas").update({"status_sincrono": "aguardando_resposta", "time_da_vez_id": time_id}).eq("id", batalha_id).execute()
+                supabase.table("batalhas").update({
+                    "pergunta_atual_ordem": ordem_atual + 1,
+                    "status_sincrono": "aguardando_resposta",
+                    "time_da_vez_id": time_id
+                }).eq("id", batalha_id).execute()
                 return "ambos_erraram"
-    except Exception:
-        return "erro"
+    except Exception as e:
+        return f"erro: {str(e)}"
 
 def encerrar_partida_sincrona(batalha_id):
     try:
@@ -229,3 +242,14 @@ def listar_times():
         return res.data or []
     except Exception:
         return []
+    
+def processar_resposta_assincrona(batalha_id, questao_id, time_id, alternativa_id, alternativa_correta):
+    try:
+        supabase.table("batalha_respostas").insert({
+            "batalha_id": batalha_id, "questao_id": questao_id, 
+            "time_id": time_id, "alternativa_id": alternativa_id, 
+            "resposta_correta": bool(alternativa_correta), "tentativa_numero": 1
+        }).execute()
+        return {"sucesso": True}
+    except Exception as e:
+        return {"sucesso": False, "mensagem": str(e)}
