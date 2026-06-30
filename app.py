@@ -2,6 +2,7 @@ import streamlit as st
 import time
 import datetime
 import extra_streamlit_components as stx
+import traceback
 
 from utils.session import iniciar_session
 from components.navbar import mostrar_menu
@@ -88,11 +89,8 @@ try:
     from telas.batalha_de_equipes.times import tela_batalha_times
     from telas.batalha_de_equipes.integrantes import tela_batalha_integrantes
 except ImportError as erro_import:
-    def tela_batalha_de_equipes(): st.error(f"Erro ao carregar arena: {erro_import}")
-    def tela_batalha_times(): st.error(f"Erro ao carregar times: {erro_import}")
-    def tela_batalha_integrantes(): st.error(f"Erro ao carregar integrantes: {erro_import}")
-    def tela_gerenciar_batalhas(): st.error(f"Erro ao carregar gestão: {erro_import}")
-    def tela_batalha_rodada(): st.error(f"Erro ao carregar rodada: {erro_import}")
+    def tela_batalha_de_equipes(): st.error(f"Erro de importação: {traceback.format_exc()}")
+    tela_batalha_times = tela_gerenciar_batalhas = tela_batalha_integrantes = tela_batalha_rodada = tela_batalha_de_equipes
     
     def tela_batalha_de_equipes(): pass
     def tela_batalha_times(): pass
