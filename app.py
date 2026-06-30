@@ -82,24 +82,35 @@ except ImportError:
 def tela_cadastro_perguntas(): pass
 def tela_lista_perguntas(): pass
 
-
-
-def tela_batalha_de_equipes(): st.write("Módulo de batalhas sendo carregado...")
-def tela_batalha_times(): st.write("Módulo de times sendo carregado...")
-def tela_batalha_integrantes(): st.write("Módulo de integrantes sendo carregado...")
-def tela_gerenciar_batalhas(): st.write("Módulo de gestão sendo carregado...")
-def tela_batalha_rodada(): st.write("Módulo de rodada sendo carregado...")
-
-def carregar_telas_batalha():
+def tela_batalha_de_equipes(): 
     try:
-        from telas.batalha_de_equipes.batalha_de_equipes import tela_batalha_de_equipes as real_batalha
-        return real_batalha
-    except ImportError as e:
-        def tela_batalha_de_equipes(): st.error(f"Erro Real: {e}")
-        def tela_batalha_times(): st.error(f"Erro Real: {e}")
-        def tela_batalha_integrantes(): st.error(f"Erro Real: {e}")
-        def tela_gerenciar_batalhas(): st.error(f"Erro Real: {e}")
-        def tela_batalha_rodada(): st.error(f"Erro Real: {e}")
+        from telas.batalha_de_equipes.batalha_de_equipes import tela_batalha_de_equipes as real_tela
+        real_tela()
+    except Exception as e: st.error(f"Erro ao carregar arena: {e}")
+
+def tela_batalha_times(): 
+    try:
+        from telas.batalha_de_equipes.times import tela_batalha_times as real_tela
+        real_tela()
+    except Exception as e: st.error(f"Erro ao carregar times: {e}")
+
+def tela_batalha_integrantes(): 
+    try:
+        from telas.batalha_de_equipes.integrantes import tela_batalha_integrantes as real_tela
+        real_tela()
+    except Exception as e: st.error(f"Erro ao carregar integrantes: {e}")
+
+def tela_gerenciar_batalhas(): 
+    try:
+        from telas.batalha_de_equipes.gerenciar_batalhas import tela_gerenciar_batalhas as real_tela
+        real_tela()
+    except Exception as e: st.error(f"Erro ao carregar gestão: {e}")
+
+def tela_batalha_rodada(): 
+    try:
+        from telas.batalha_de_equipes.rodada import tela_batalha_rodada as real_tela
+        real_tela()
+    except Exception as e: st.error(f"Erro ao carregar rodada: {e}")
 
 st.set_page_config(
     page_title="Challenge System",
