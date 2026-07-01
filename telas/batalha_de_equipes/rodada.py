@@ -1,5 +1,6 @@
 import streamlit as st
 import time
+from utils.estilo import aplicar_estilo, cabecalho
 from database.conexao import supabase 
 from services.batalha_service import (
     encerrar_partida_sincrona, processar_resposta_sincrona, 
@@ -48,7 +49,10 @@ def tela_batalha_rodada():
         
     b_id = st.session_state.get("batalha_ativa_id")
     b = obter_estado_batalha(b_id)
-    if not b: return
+    
+    if b and b.get("status") == "finalizada":
+        st.session_state.pagina = "batalha_resultado"
+        st.rerun()
     
     u = st.session_state.get("usuario_logado", {})
     tipo_u = str(u.get("tipo_usuario", "aluno")).lower()
@@ -62,6 +66,12 @@ def tela_batalha_rodada():
     renderizador_pergunta_reativo(b_id, tid, ta_id, tb_id, tipo_u)
 
     if tipo_u in ("professor", "admin"):
+        with st.expander("⚙️ Painel de Controle da Partida"):
+            if st.button("🔥 Iniciar Partida Agora"):
+                iniciar_partida_sincrona(b_id, ta_id)
+                st.rerun()
+
+    if tipo_u in ("professor", "admin"):
         with st.expander("⚙️ Controle do Docente"):
             if st.button("⏹️ Encerrar Partida Agora"):
                 sucesso = encerrar_partida_sincrona(b_id)
@@ -71,3 +81,22 @@ def tela_batalha_rodada():
                     st.rerun()
                 else:
                     st.error("Erro ao encerrar a partida.")
+
+def tela_batalha_resultado():
+    aplicar_estilo()
+    b_id = st.session_state.get("batalha_ativa_id")
+    
+    res = supabase.table("historico_batalhas").select("*").eq("batalha_id", b_id).execute()
+    
+    if res.data:
+        info = res.data[0]
+        st.balloons()
+        cabecalho("🏁 Partida Encerrada!", "Resultado final da batalha")
+        
+        with st.container(border=True):
+            st.markdown(f"### {info['resultado_extenso']}")
+            st.write(f"**Pontuação:** {info['time_a_nome']}: {info['pontos_time_a']} | {info['time_b_nome']}: {info['pontos_time_b']}")
+    
+    if st.button("🏠 Voltar para a Arena"):
+        st.session_state.pagina = "batalha_de_equipes"
+        st.rerun()
