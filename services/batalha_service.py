@@ -135,7 +135,7 @@ def iniciar_partida_sincrona(batalha_id, time_inicial_id):
         }).eq("id", batalha_id).execute()
         return True
     except Exception as e:
-        print(f"Erro ao iniciar partida: {e}")
+        print(f"Erro crítico ao iniciar: {e}")
         return False
 
 def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id, alternativa_correta, time_adversario_id, tentativa_atual):
@@ -273,7 +273,11 @@ def cadastrar_nova_batalha(titulo, descricao, time_a_id, time_b_id=None, modalid
     
 def obter_pergunta_atual(batalha_id, ordem):
     try:
-        res_link = supabase.table("batalha_perguntas").select("questao_id").eq("batalha_id", batalha_id).eq("ordem", ordem).single().execute()
+        res_link = supabase.table("batalha_perguntas")\
+            .select("questao_id")\
+            .eq("batalha_id", batalha_id)\
+            .eq("ordem", ordem)\
+            .single().execute()
         
         if not res_link.data:
             return None
@@ -288,7 +292,7 @@ def obter_pergunta_atual(batalha_id, ordem):
         pergunta["alternativas"] = res_alt.data
         return pergunta
     except Exception as e:
-        print(f"Erro ao buscar pergunta atual: {e}")
+        print(f"DEBUG - Erro ao buscar pergunta (Batalha {batalha_id}, Ordem {ordem}): {e}")
         return None
     
 def obter_time_do_usuario(usuario_id):

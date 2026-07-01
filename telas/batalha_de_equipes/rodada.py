@@ -32,8 +32,7 @@ def tela_batalha_rodada():
     dados_p = obter_pergunta_atual(b_id, p_ordem)
 
     if not dados_p:
-        st.success("🏁 Batalha encerrada!")
-        if st.button("⬅️ Sair"): st.session_state.pagina = "batalha_de_equipes"; st.rerun()
+        st.warning(f"Aguardando o professor carregar ou liberar a pergunta {p_ordem}...")
         return
 
     st.markdown(f"### 📍 {dados_p['enunciado']}")
