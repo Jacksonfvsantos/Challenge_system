@@ -115,13 +115,25 @@ def cadastrar_questoes_batalha(batalha_id, lista_questoes):
     except Exception as e:
         return {"sucesso": False, "mensagem": str(e)}
 
-def cadastrar_questao_rapida(enunciado, alternativas_texto, indice_correta):
+def cadastrar_questao_rapida(batalha_id, enunciado, alternativas_texto, indice_correta):
     try:
         res_q = supabase.table("questoes").insert({"enunciado": enunciado.strip()}).execute()
         q_id = res_q.data[0]["id"]
-        linhas = [{"questao_id": q_id, "texto": txt.strip(), "ordem": i+1, "correta": (i == indice_correta)} for i, txt in enumerate(alternativas_texto)]
+        
+        res_contagem = supabase.table("batalha_perguntas").select("count", count='exact').eq("batalha_id", batalha_id).execute()
+        proxima_ordem = (res_contagem.count or 0) + 1
+        
+        supabase.table("batalha_perguntas").insert({
+            "batalha_id": batalha_id,
+            "questao_id": q_id,
+            "ordem": proxima_ordem
+        }).execute()
+
+        linhas = [{"questao_id": q_id, "texto": txt.strip(), "ordem": i+1, "correta": (i == indice_correta)} 
+                 for i, txt in enumerate(alternativas_texto)]
         supabase.table("alternativas").insert(linhas).execute()
-        return {"sucesso": True, "mensagem": "Questão salva!"}
+        
+        return {"sucesso": True, "mensagem": "Questão salva e vinculada à batalha!"}
     except Exception as e:
         return {"sucesso": False, "mensagem": str(e)}
 

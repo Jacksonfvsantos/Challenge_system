@@ -43,48 +43,60 @@ def tela_gerenciar_batalhas():
                         st.rerun()
 
     with aba_nova:
-        formatar_titulo_aba("Abrir Novo Edital e Adicionar Questões")
+        formatar_titulo_aba("1. Abrir Novo Edital")
         
         with st.form("form_nova_batalha"):
             titulo = st.text_input("Título da Batalha")
             descricao = st.text_area("Descrição / Regras")
             modalidade = st.selectbox("Modalidade:", ["sincrona", "assincrona"])
             times = listar_times()
-            time_a = st.selectbox("Time A:", options=[t['nome'] for t in times])
-            time_b = st.selectbox("Time B:", options=[t['nome'] for t in times])
+            time_a = st.selectbox("Time A (Inicial):", options=[t['nome'] for t in times])
+            time_b = st.selectbox("Time B (Adversário):", options=[t['nome'] for t in times])
             
             if st.form_submit_button("Criar Batalha"):
                 t_a_id = next(t['id'] for t in times if t['nome'] == time_a)
                 t_b_id = next(t['id'] for t in times if t['nome'] == time_b)
                 res = cadastrar_nova_batalha(titulo, descricao, t_a_id, t_b_id, modalidade)
                 if res["sucesso"]:
-                    st.success("Batalha criada! Agora adicione as questões abaixo.")
+                    st.success("Batalha criada com sucesso! Agora adicione as questões abaixo.")
                 else:
                     st.error(res["mensagem"])
 
         st.divider()
+        formatar_titulo_aba("2. Adicionar Questões")
         
-        st.subheader("Adicionar Questões")
-        metodo = st.radio("Método de cadastro:", ["Manual", "Upload CSV"])
-        
-        if metodo == "Manual":
-            with st.form("form_questao_manual"):
-                enunciado = st.text_area("Enunciado")
-                col_a, col_b = st.columns(2)
-                alt_a = col_a.text_input("Alt A")
-                alt_b = col_b.text_input("Alt B")
-                alt_c = col_a.text_input("Alt C")
-                alt_d = col_b.text_input("Alt D")
-                correta = st.selectbox("Índice da correta (0-3):", [0, 1, 2, 3])
-                if st.form_submit_button("Salvar Questão Manual"):
-                    res = cadastrar_questao_rapida(enunciado, [alt_a, alt_b, alt_c, alt_d], correta)
-                    st.success(res["mensagem"])
-        
+        lista_ativas_cadastro = listar_batalhas_ativas()
+        if lista_ativas_cadastro:
+            batalha_selecionada = st.selectbox("Vincular questão à batalha:", options=lista_ativas_cadastro, format_func=lambda x: x['titulo'])
+            b_id = batalha_selecionada['id']
+            
+            metodo = st.radio("Método de cadastro:", ["Manual", "Upload CSV"])
+            
+            if metodo == "Manual":
+                with st.form("form_questao_manual"):
+                    enunciado = st.text_area("Enunciado da Questão")
+                    col_a, col_b = st.columns(2)
+                    alt_a = col_a.text_input("Alt A")
+                    alt_b = col_b.text_input("Alt B")
+                    alt_c = col_a.text_input("Alt C")
+                    alt_d = col_b.text_input("Alt D")
+                    correta = st.selectbox("Índice da correta (0 = A, 1 = B...):", [0, 1, 2, 3])
+                    
+                    if st.form_submit_button("Salvar Questão Manual"):
+                        res = cadastrar_questao_rapida(b_id, enunciado, [alt_a, alt_b, alt_c, alt_d], correta)
+                        if res["sucesso"]:
+                            st.success(res["mensagem"])
+                        else:
+                            st.error(res["mensagem"])
+            
+            else:
+                st.info("Formato CSV esperado: enunciado, a, b, c, d, correta_idx")
+                arquivo = st.file_uploader("Subir CSV", type=["csv"])
+                if arquivo:
+                    df = pd.read_csv(arquivo)
+                    if st.button("Processar Lote de Questões"):
+                        for _, row in df.iterrows():
+                            cadastrar_questao_rapida(b_id, row['enunciado'], [row['a'], row['b'], row['c'], row['d']], int(row['correta_idx']))
+                        st.success("Lote de questões carregado com sucesso!")
         else:
-            arquivo = st.file_uploader("Subir CSV (Colunas: enunciado, a, b, c, d, correta_idx)", type=["csv"])
-            if arquivo:
-                df = pd.read_csv(arquivo)
-                if st.button("Processar Lote"):
-                    for _, row in df.iterrows():
-                        cadastrar_questao_rapida(row['enunciado'], [row['a'], row['b'], row['c'], row['d']], int(row['correta_idx']))
-                    st.success("Questões carregadas!")
+            st.warning("Crie uma batalha acima primeiro para poder vincular as questões.")
