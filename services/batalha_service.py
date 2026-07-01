@@ -147,7 +147,7 @@ def iniciar_partida_sincrona(batalha_id, time_inicial_id):
         }).eq("id", batalha_id).execute()
         return True
     except Exception as e:
-        print(f"Erro crítico ao iniciar: {e}")
+        print(f"Erro ao iniciar: {e}")
         return False
 
 def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id, alternativa_correta, time_adversario_id, tentativa_atual):
