@@ -261,6 +261,10 @@ elif pagina == "batalha_gerenciar":
 elif pagina == "batalha_rodada":
     tela_batalha_rodada()
 
+elif st.session_state.pagina == "batalha_historico":
+    from telas.batalha_de_equipes.historico import tela_historico_batalhas
+    tela_historico_batalhas()
+
 else:
     st.session_state.pagina = "home"
     st.rerun()
