@@ -187,41 +187,28 @@ def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id,
 
 def encerrar_partida_sincrona(batalha_id):
     try:
-        res_b = supabase.table("batalhas").select("*").eq("id", (b_id := batalha_id)).execute()
+        res_b = supabase.table("batalhas").select("*").eq("id", batalha_id).execute()
         if not res_b.data: return False
         b = res_b.data[0]
         
         t_a, t_b = b.get("time_a_id"), b.get("time_b_id")
-        nome_a, nome_b = "Time A", "Time B"
-        if t_a and t_b:
-            rt = supabase.table("times").select("id, nome").in_("id", [t_a, t_b]).execute()
-            if rt.data:
-                mapa = {str(x["id"]).strip(): x["nome"] for x in rt.data}
-                nome_a, nome_b = mapa.get(str(t_a).strip(), "Time A"), mapa.get(str(t_b).strip(), "Time B")
+        resp = supabase.table("batalha_respostas").select("time_id, resposta_correta").eq("batalha_id", batalha_id).execute()
+        p_a = sum(1 for r in resp.data if str(r.get("time_id")).strip() == str(t_a).strip() and r.get("resposta_correta"))
+        p_b = sum(1 for r in resp.data if str(r.get("time_id")).strip() == str(t_b).strip() and r.get("resposta_correta"))
 
-        resp = supabase.table("batalha_respostas").select("time_id, resposta_correta").eq("batalha_id", b_id).execute()
-        p_a, p_b = 0, 0
-        if resp.data:
-            for r in resp.data:
-                if r.get("resposta_correta") is True:
-                    if str(r.get("time_id")).strip() == str(t_a).strip(): p_a += 1
-                    elif str(r.get("time_id")).strip() == str(t_b).strip(): p_b += 1
-
-        if p_a > p_b: desfecho = f"🥇 Vencedor: {nome_a} ({p_a} XP) | 🥈 Perdedor: {nome_b} ({p_b} XP)"
-        elif p_b > p_a: desfecho = f"🥇 Vencedor: {nome_b} ({p_b} XP) | 🥈 Perdedor: {nome_a} ({p_a} XP)"
-        else: desfecho = f"🤝 Resultado: Empate entre as equipes ({p_a} XP cada)"
-
+        desfecho = f"Resultado final: Time A {p_a} vs Time B {p_b}"
         supabase.table("historico_batalhas").insert({
-            "batalha_id": b_id, "titulo": b.get("titulo", "Arena"),
-            "time_a_nome": nome_a, "time_b_nome": nome_b,
-            "points_time_a": p_a, "points_time_b": p_b,
+            "batalha_id": batalha_id, 
+            "titulo": b.get("titulo"),
+            "time_a_nome": str(t_a), "time_b_nome": str(t_b),
+            "pontos_time_a": p_a, "pontos_time_b": p_b,
             "resultado_extenso": desfecho
         }).execute()
 
-        supabase.table("batalhas").update({"finalizada": True, "status": "finalizada"}).eq("id", b_id).execute()
+        supabase.table("batalhas").update({"status": "finalizada", "finalizada": True}).eq("id", batalha_id).execute()
         return True
     except Exception as e:
-        print(f"Erro ao salvar histórico: {e}")
+        print(f"❌ Erro ao encerrar: {e}")
         return False
 
 def deletar_batalha(batalha_id):

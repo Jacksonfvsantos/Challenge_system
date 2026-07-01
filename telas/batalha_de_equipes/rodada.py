@@ -61,10 +61,13 @@ def tela_batalha_rodada():
  
     renderizador_pergunta_reativo(b_id, tid, ta_id, tb_id, tipo_u)
 
-
-    if tipo_u in ("professor", "admin") and not obter_pergunta_atual(b_id, b.get("pergunta_atual_ordem", 1)):
-        if st.button("🔄 Resetar Batalha"):
-            supabase.table("batalhas").update({"pergunta_atual_ordem": 1, "status": "em_andamento"}).eq("id", b_id).execute()
-            st.rerun()
-
-    if st.button("🚪 Sair"): st.session_state.pagina = "batalha_de_equipes"; st.rerun()
+    if tipo_u in ("professor", "admin"):
+        with st.expander("⚙️ Controle do Docente"):
+            if st.button("⏹️ Encerrar Partida Agora"):
+                sucesso = encerrar_partida_sincrona(b_id)
+                if sucesso:
+                    st.success("Partida encerrada!")
+                    st.session_state.pagina = "batalha_de_equipes"
+                    st.rerun()
+                else:
+                    st.error("Erro ao encerrar a partida.")
