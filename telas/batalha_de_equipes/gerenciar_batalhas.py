@@ -82,15 +82,7 @@ def tela_gerenciar_batalhas():
                         cadastrar_questao_rapida(b_id, enunciado, alt, correta)
                         st.rerun()
             
-            elif metodo == "Upload CSV":
-                arquivo = st.file_uploader("CSV", type=["csv"])
-                if arquivo and st.button("Processar CSV"):
-                    df = pd.read_csv(arquivo)
-                    for _, row in df.iterrows():
-                        cadastrar_questao_rapida(b_id, row['enunciado'], [row['a'], row['b'], row['c'], row['d']], int(row['correta_idx']))
-                    st.success("Lote carregado!")
-            
-            else: # IA
+            else:
                 api_key = st.text_input("Gemini API Key", type="password")
                 arquivo = st.file_uploader("Documento (PDF/DOCX)", type=["pdf", "docx"])
                 if arquivo and api_key and st.button("Processar com IA"):
