@@ -222,10 +222,14 @@ def deletar_batalha(batalha_id):
 
 def listar_batalhas_ativas():
     try:
-        res = supabase.table("batalhas").select("*, times:time_a_id(nome)").order("created_at", desc=True).execute()
+        res = supabase.table("batalhas")\
+            .select("*, times:time_a_id(nome)")\
+            .neq("status", "finalizada")\
+            .order("created_at", desc=True)\
+            .execute()
         return res.data or []
     except Exception as e:
-        print(f"Erro ao listar batalhas: {e}")
+        print(f"Erro ao listar: {e}")
         return []
 
 def buscar_detalhes_prova_ou_batalha(batalha_id):

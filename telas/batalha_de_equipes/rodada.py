@@ -49,7 +49,12 @@ def tela_batalha_rodada():
         
     b_id = st.session_state.get("batalha_ativa_id")
     b = obter_estado_batalha(b_id)
-    
+
+    if not b or b.get("status") == "finalizada":
+        st.info("Esta batalha já foi encerrada.")
+        st.session_state.pagina = "batalha_resultado" # Redireciona para a tela que criamos
+        st.rerun()
+
     if b and b.get("status") == "finalizada":
         st.session_state.pagina = "batalha_resultado"
         st.rerun()
