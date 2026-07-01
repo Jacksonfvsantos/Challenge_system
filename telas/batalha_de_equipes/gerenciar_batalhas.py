@@ -75,13 +75,13 @@ def tela_gerenciar_batalhas():
                 with st.form("form_manual"):
                     enunciado = st.text_area("Enunciado")
                     c1, c2 = st.columns(2)
-                    alt = [c1.text_input("Alt A"), c2.text_input("Alt B"), c1.text_input("Alt C"), c2.text_input("Alt D")]
-                    correta = st.selectbox("Correta (A, B, C, D)", ["A", "B", "C", "D"])
+                    alt = [c1.text_input("Alternativa A"), c2.text_input("Alternativa B"), c1.text_input("Alternativa C"), c2.text_input("Alternativa D")]
+                    correta = st.selectbox("Resposta", ["A", "B", "C", "D"])
                     if st.form_submit_button("Salvar Questão"):
                         cadastrar_questao_rapida(b_id, enunciado, alt, ["A", "B", "C", "D"].index(correta))
                         st.success("Questão salva!")
             
-            else: # IA
+            else:
                 api_key = st.text_input("Gemini API Key", type="password")
                 arquivo = st.file_uploader("Documento (PDF/DOCX)", type=["pdf", "docx"])
                 if arquivo and api_key and st.button("Processar com IA"):
