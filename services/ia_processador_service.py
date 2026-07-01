@@ -18,7 +18,7 @@ def extrair_texto_de_arquivo(arquivo_bytes, extensao):
         print(f"Erro na extração: {e}")
     return texto
 
-def gerar_questoes_ia(texto_base, prompt_adicional, api_key, tipo="quiz"):
+def gerar_questoes_ia(texto_base, prompt_adicional, api_key):
     client = genai.Client(api_key=api_key)
 
     esquema = types.Schema(type=types.Type.OBJECT, properties={
