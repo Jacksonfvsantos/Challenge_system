@@ -37,17 +37,23 @@ def tela_batalha_rodada():
         return
 
     st.markdown(f"### 📍 {dados_p['enunciado']}")
+
     eh_vez = (str(tid).strip() == str(b.get("time_da_vez_id")).strip())
 
+    adversario_id = tb_id if str(tid).strip() == str(ta_id).strip() else ta_id
+
     for alt in dados_p["alternativas"]:
-        if st.button(alt["texto"], key=f"alt_{alt['id']}", use_container_width=True):
+        if st.button(alt["texto"], key=f"alt_{alt['id']}", use_container_width=True, disabled=not eh_vez):
             if b.get("modalidade") == "sincrona":
                 tentativa = 2 if b.get("status_sincrono") == "rebate_ativo" else 1
-                res = processar_resposta_sincrona(b_id, dados_p["id"], tid, alt["id"], alt["correta"], tb_id if tid == ta_id else ta_id, tentativa)
+                
+                res = processar_resposta_sincrona(
+                    b_id, dados_p["id"], tid, alt["id"], alt["correta"], 
+                    adversario_id, tentativa
+                )
                 st.toast(f"Resultado: {res}")
             else:
                 processar_resposta_assincrona(b_id, dados_p["id"], tid, alt["id"], alt["correta"])
                 st.success("Resposta registrada!")
             time.sleep(0.5); st.rerun()
-
     if st.button("🚪 Sair"): st.session_state.pagina = "batalha_de_equipes"; st.rerun()

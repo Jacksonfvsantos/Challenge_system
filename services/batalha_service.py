@@ -167,7 +167,7 @@ def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id,
                 supabase.table("batalhas").update({
                     "pergunta_atual_ordem": ordem_atual + 1,
                     "status_sincrono": "aguardando_resposta",
-                    "time_da_vez_id": time_id
+                    "time_da_vez_id": time_adversario_id # Passa a vez
                 }).eq("id", batalha_id).execute()
                 return "ambos_erraram"
     except Exception as e:
