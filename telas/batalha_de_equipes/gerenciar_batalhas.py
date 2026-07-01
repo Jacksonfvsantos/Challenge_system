@@ -1,5 +1,4 @@
 import streamlit as st
-import pandas as pd
 from utils.estilo import aplicar_estilo, cabecalho, formatar_titulo_aba
 from services.batalha_service import (
     listar_batalhas_ativas, deletar_batalha, iniciar_partida_sincrona, 
@@ -70,7 +69,7 @@ def tela_gerenciar_batalhas():
             batalha_selecionada = st.selectbox("Vincular à batalha:", options=lista_ativas_cadastro, format_func=lambda x: x['titulo'])
             b_id = batalha_selecionada['id']
             
-            metodo = st.radio("Método de cadastro:", ["Manual", "Upload CSV", "IA (PDF/DOCX)"])
+            metodo = st.radio("Método de cadastro:", ["Manual", "IA (PDF/DOCX)"])
             
             if metodo == "Manual":
                 with st.form("form_manual"):
@@ -78,11 +77,11 @@ def tela_gerenciar_batalhas():
                     c1, c2 = st.columns(2)
                     alt = [c1.text_input("Alt A"), c2.text_input("Alt B"), c1.text_input("Alt C"), c2.text_input("Alt D")]
                     correta = st.selectbox("Correta (0=A, 1=B, 2=C, 3=D)", [0, 1, 2, 3])
-                    if st.form_submit_button("Salvar"):
+                    if st.form_submit_button("Salvar Questão"):
                         cadastrar_questao_rapida(b_id, enunciado, alt, correta)
-                        st.rerun()
+                        st.success("Questão salva!")
             
-            else:
+            else: # IA
                 api_key = st.text_input("Gemini API Key", type="password")
                 arquivo = st.file_uploader("Documento (PDF/DOCX)", type=["pdf", "docx"])
                 if arquivo and api_key and st.button("Processar com IA"):
