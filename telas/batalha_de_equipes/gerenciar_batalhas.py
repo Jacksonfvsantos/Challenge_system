@@ -76,9 +76,9 @@ def tela_gerenciar_batalhas():
                     enunciado = st.text_area("Enunciado")
                     c1, c2 = st.columns(2)
                     alt = [c1.text_input("Alt A"), c2.text_input("Alt B"), c1.text_input("Alt C"), c2.text_input("Alt D")]
-                    correta = st.selectbox("Correta (0=A, 1=B, 2=C, 3=D)", [0, 1, 2, 3])
+                    correta = st.selectbox("Correta (A, B, C, D)", ["A", "B", "C", "D"])
                     if st.form_submit_button("Salvar Questão"):
-                        cadastrar_questao_rapida(b_id, enunciado, alt, correta)
+                        cadastrar_questao_rapida(b_id, enunciado, alt, ["A", "B", "C", "D"].index(correta))
                         st.success("Questão salva!")
             
             else: # IA
