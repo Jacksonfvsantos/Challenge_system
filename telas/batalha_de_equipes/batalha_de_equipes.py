@@ -1,7 +1,7 @@
 import streamlit as st
 from datetime import datetime
 from utils.estilo import aplicar_estilo, cabecalho
-from services.batalha_service import listar_batalhas_ativas
+from services.batalha_service import listar_batalhas_ativas, deletar_batalha
 
 def tela_batalha_de_equipes():
     aplicar_estilo()
@@ -36,10 +36,25 @@ def renderizar_lista_batalhas(lista):
     if not lista:
         st.info("Nenhuma batalha ativa nesta modalidade.")
         return
+    
+    usuario = st.session_state.get("usuario_logado", {})
+    tipo_usuario = str(usuario.get("tipo_usuario", "aluno")).lower()
+
     for ba in lista:
         with st.container(border=True):
-            st.markdown(f"### {ba['titulo']}")
+            col_titulo, col_del = st.columns([0.85, 0.15])
+            
+            with col_titulo:
+                st.markdown(f"### {ba['titulo']}")
+            
+            with col_del:
+                if tipo_usuario in ("professor", "admin"):
+                    if st.button("🗑️", key=f"del_{ba['id']}"):
+                        deletar_batalha(ba['id'])
+                        st.rerun()
+            
             st.write(ba.get("descricao", "Sem diretrizes anexadas."))
+            
             if st.button(f"Entrar na Arena - {ba['titulo']}", key=f"entrar_{ba['id']}", use_container_width=True):
                 st.session_state.batalha_ativa_id = ba["id"]
                 st.session_state.pagina = "batalha_rodada"
