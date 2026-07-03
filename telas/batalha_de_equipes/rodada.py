@@ -88,6 +88,12 @@ def tela_batalha_rodada():
     
     b_id = st.session_state.get("batalha_ativa_id")
     b = obter_estado_batalha(b_id)
+    
+    p_ordem = int(b.get("pergunta_atual_ordem", 1))
+    dados_p = obter_pergunta_atual(b_id, p_ordem)
+
+    if b.get("status") == "em_andamento" and dados_p:
+        cronometro_reativo(b_id, b.get("time_da_vez_id"), b)
 
     if not b or b.get("status") == "finalizada":
         st.session_state.pagina = "batalha_resultado"
