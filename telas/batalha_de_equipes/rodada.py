@@ -76,33 +76,26 @@ def tela_batalha_rodada():
         with st.expander("⚙️ Governança Docente", expanded=True):
             
             if b.get("status") == "agendada":
-                ta_id, tb_id = str(b.get("time_a_id", "")).strip(), str(b.get("time_b_id", "")).strip()
+                ta_id = str(b.get("time_a_id", "")).strip()
+                tb_id = str(b.get("time_b_id", "")).strip()
+                
                 nome_ta, nome_tb = obter_nomes_dos_times(ta_id, tb_id)
                 
-                opcao_inicial = st.selectbox(
+                opcoes = {ta_id: nome_ta, tb_id: nome_tb}
+                
+                time_selecionado = st.selectbox(
                     "Qual time iniciará a batalha?", 
-                    options=[ta_id, tb_id], 
-                    format_func=lambda x: nome_ta if x == ta_id else nome_tb
+                    options=list(opcoes.keys()), 
+                    format_func=lambda x: opcoes[x]
                 )
                 
                 if st.button("🚀 Iniciar Partida", type="primary"):
-                    if iniciar_partida_sincrona(b_id, opcao_inicial):
-                        st.success("Partida iniciada!")
+                    if iniciar_partida_sincrona(b_id, time_selecionado):
+                        st.success(f"Partida iniciada! {opcoes[time_selecionado]} começa.")
                         st.rerun()
                     else:
-                        st.error("Erro ao iniciar.")
-            
-            col1, col2 = st.columns(2)
-            if col1.button("⏹️ Encerrar Partida"):
-                encerrar_partida_sincrona(b_id)
-                st.session_state.pagina = "batalha_resultado"
-                st.rerun()
-            
-            if col2.button("⏩ Pular Questão"):
-                ordem_atual = int(b.get("pergunta_atual_ordem", 1))
-                supabase.table("batalhas").update({"pergunta_atual_ordem": ordem_atual + 1}).eq("id", b_id).execute()
-                st.rerun()
-                
+                        st.error("Erro ao iniciar. Verifique o banco de dados.")
+
     # --- FLUXO DA PARTIDA ---
     if b.get("status") == "em_andamento":
         u = st.session_state.get("usuario_logado", {})
