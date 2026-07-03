@@ -156,14 +156,16 @@ def iniciar_partida_sincrona(batalha_id, time_inicial_id):
 
 def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id, alternativa_correta, time_adversario_id, tentativa_atual):
     try:
+        batalha = obter_estado_batalha(batalha_id)
+        if not batalha: return "erro: batalha_nao_encontrada"
+        
+        ordem_atual = int(batalha.get("pergunta_atual_ordem", 1))
+
         supabase.table("batalha_respostas").insert({
             "batalha_id": batalha_id, "questao_id": questao_id, 
             "time_id": time_id, "alternativa_id": alternativa_id, 
             "resposta_correta": bool(alternativa_correta), "tentativa_numero": int(tentativa_atual)
         }).execute()
-
-        batalha = obter_estado_batalha(batalha_id)
-        ordem_atual = int(batalha.get("pergunta_atual_ordem", 1))
 
         if alternativa_correta:
             supabase.table("batalhas").update({
