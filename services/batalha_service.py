@@ -153,6 +153,28 @@ def iniciar_partida_sincrona(batalha_id, time_inicial_id):
     except Exception as e:
         print(f"Erro ao iniciar: {e}")
         return False
+    
+def processar_passagem_de_vez(batalha_id, time_atual_id, time_adversario_id):
+    try:
+        b = obter_estado_batalha(batalha_id)
+        status = b.get("status_sincrono")
+        ordem = int(b.get("pergunta_atual_ordem", 1))
+
+        if status == "aguardando_resposta":
+            supabase.table("batalhas").update({
+                "time_da_vez_id": time_adversario_id,
+                "status_sincrono": "rebate_ativo",
+                "inicio_turno": datetime.datetime.now(datetime.timezone.utc).isoformat()
+            }).eq("id", batalha_id).execute()
+        else:
+            supabase.table("batalhas").update({
+                "pergunta_atual_ordem": ordem + 1,
+                "time_da_vez_id": time_adversario_id,
+                "status_sincrono": "aguardando_resposta",
+                "inicio_turno": datetime.datetime.now(datetime.timezone.utc).isoformat()
+            }).eq("id", batalha_id).execute()
+        return True
+    except Exception: return False
 
 def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id, alternativa_correta, time_adversario_id, tentativa_atual):
     try:
