@@ -51,21 +51,29 @@ def renderizador_pergunta_reativo(b_id, tid, ta_id, tb_id, tipo_u):
 @st.fragment(run_every=1)
 def cronometro_reativo(b_id, time_da_vez, b):
     inicio = b.get("inicio_turno")
-    if not inicio: return
+
+    if not inicio:
+        st.warning("Cronômetro não iniciado (inicio_turno ausente).")
+        return
     
-    agora = datetime.datetime.now()
-    tempo_passado = (agora - datetime.datetime.fromisoformat(inicio)).total_seconds()
-    tempo_restante = 45 - int(tempo_passado)
-    
-    if tempo_restante <= 0:
-        adversario = b.get("time_b_id") if time_da_vez == b.get("time_a_id") else b.get("time_a_id")
-        supabase.table("batalhas").update({
-            "time_da_vez_id": adversario,
-            "inicio_turno": datetime.datetime.now().isoformat()
-        }).eq("id", b_id).execute()
-        st.rerun()
-    else:
-        st.metric("Tempo para responder", f"{tempo_restante}s") 
+    try:
+        inicio_dt = datetime.datetime.fromisoformat(inicio)
+        agora = datetime.datetime.now()
+        tempo_passado = (agora - inicio_dt).total_seconds()
+        tempo_restante = 45 - int(tempo_passado)
+        
+        if tempo_restante <= 0:
+            adversario = b.get("time_b_id") if time_da_vez == b.get("time_a_id") else b.get("time_a_id")
+            supabase.table("batalhas").update({
+                "time_da_vez_id": adversario,
+                "inicio_turno": datetime.datetime.now().isoformat()
+            }).eq("id", b_id).execute()
+            st.rerun()
+        else:
+            st.metric("Tempo para responder", f"{tempo_restante}s")
+            
+    except Exception as e:
+        st.error(f"Erro no cronômetro: {e}")
 
 def tela_batalha_rodada():
     aplicar_estilo()
@@ -79,10 +87,11 @@ def tela_batalha_rodada():
     if not b or b.get("status") == "finalizada":
         st.session_state.pagina = "batalha_resultado"
         st.rerun()
-    
-    b = obter_estado_batalha(b_id)
-    cronometro_reativo(b_id, b.get("time_da_vez_id"), b)
 
+    if b.get("status") == "em_andamento":
+        cronometro_reativo(b_id, b.get("time_da_vez_id"), b)
+    else:
+        st.caption("Aguardando início da partida...")
     u = st.session_state.get("usuario_logado", {})
     tipo_u = str(u.get("tipo_usuario", "aluno")).lower()
     uid = u.get("id")
