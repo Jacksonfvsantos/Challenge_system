@@ -63,6 +63,8 @@ def tela_batalha_de_equipes():
                     res = cadastrar_questao_rapida(b_sel['id'], enun, [a1, a2, a3, a4], correta)
                     if res["sucesso"]: st.success("Salvo!"); st.rerun()
             else:
+                prompt_custom = prompt_custom = st.text_input("Instruções adicionais para a IA (opcional):", 
+                                             placeholder="Ex: Foque em questões de múltipla escolha sobre algoritmos...")
                 arquivo = st.file_uploader("Upload (PDF/DOCX)", type=["pdf", "docx"])
                 if arquivo and st.button("🤖 Processar e Injetar"):
                     # Processamento IA...
