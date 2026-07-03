@@ -12,6 +12,36 @@ def lista_batalhas_reativa():
     with aba_assincrona:
         renderizar_lista_batalhas([b for b in todas_batalhas if b.get("modalidade") == "assincrona"])
 
+def renderizar_lista_batalhas(lista):
+    if not lista:
+        st.info("Nenhuma batalha ativa nesta modalidade.")
+        return
+    
+    usuario = st.session_state.get("usuario_logado", {})
+    tipo_usuario = str(usuario.get("tipo_usuario", "aluno")).lower()
+
+    for ba in lista:
+        with st.container(border=True):
+            col_titulo, col_del = st.columns([0.85, 0.15])
+            
+            with col_titulo:
+                st.markdown(f"### {ba['titulo']}")
+            
+            with col_del:
+                if tipo_usuario in ("professor", "admin"):
+                    with st.popover("🗑️"):
+                        st.warning("Tem certeza que deseja excluir esta arena?")
+                        if st.button("Confirmar Exclusão", key=f"del_{ba['id']}"):
+                            deletar_batalha(ba['id'])
+                            st.rerun()
+            
+            st.write(ba.get("descricao", "Sem diretrizes anexadas."))
+            
+            if st.button(f"Entrar na Arena - {ba['titulo']}", key=f"entrar_{ba['id']}", use_container_width=True):
+                st.session_state.batalha_ativa_id = ba["id"]
+                st.session_state.pagina = "batalha_rodada"
+                st.rerun()
+
 def tela_batalha_de_equipes():
     aplicar_estilo()
     if st.button("⬅️ Voltar ao Dashboard"):
@@ -33,33 +63,3 @@ def tela_batalha_de_equipes():
         if col_m2.button("👥 Alocação de Alunos", use_container_width=True): st.session_state.pagina = "batalha_integrantes"; st.rerun()
         if col_m3.button("📝 Abrir Nova Batalha", type="primary", use_container_width=True): st.session_state.pagina = "batalha_gerenciar"; st.rerun()
         if st.button("📜 Ver Histórico de Batalhas", use_container_width=True): st.session_state.pagina = "batalha_historico"; st.rerun()
-
-def renderizar_lista_batalhas(lista):
-    if not lista:
-        st.info("Nenhuma batalha ativa nesta modalidade.")
-        return
-    
-    usuario = st.session_state.get("usuario_logado", {})
-    tipo_usuario = str(usuario.get("tipo_usuario", "aluno")).lower()
-
-    for ba in lista:
-        with st.container(border=True):
-            col_titulo, col_del = st.columns([0.85, 0.15])
-            
-            with col_titulo:
-                st.markdown(f"### {ba['titulo']}")
-            
-            with col_del:
-                if tipo_usuario in ("professor", "admin"):
-                    with st.popover("🗑️"):
-                        st.warning("Tem certeza?")
-                        if st.button("Confirmar Exclusão", key=f"del_{ba['id']}"):
-                            deletar_batalha(ba['id'])
-                            st.rerun()
-            
-            st.write(ba.get("descricao", "Sem diretrizes anexadas."))
-            
-            if st.button(f"Entrar na Arena - {ba['titulo']}", key=f"entrar_{ba['id']}", use_container_width=True):
-                st.session_state.batalha_ativa_id = ba["id"]
-                st.session_state.pagina = "batalha_rodada"
-                st.rerun()
