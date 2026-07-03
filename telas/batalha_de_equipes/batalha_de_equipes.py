@@ -23,6 +23,14 @@ def tela_batalha_de_equipes():
     # --- GOVERNANÇA DOCENTE ---
     if tipo_usuario in ("professor", "admin"):
         with st.expander("👨‍🏫 Governança Docente"):
+            st.subheader("⚙️ Nova Arena")
+        with st.form("form_batalha"):
+            titulo_b = st.text_input("Título da Arena:")
+            modalidade = st.selectbox("Modalidade:", ["sincrona", "assincrona"])
+            if st.form_submit_button("Criar Arena"):
+                from services.batalha_service import cadastrar_nova_batalha
+                cadastrar_nova_batalha(titulo_b, "Arena criada pelo professor", None, None, modalidade)
+                st.rerun()
             st.subheader("Gerenciar Equipes")
             for t in listar_times():
                 with st.expander(f"Time: {t['nome']}"):
@@ -93,5 +101,17 @@ def renderizar_lista(lista):
     for ba in lista:
         with st.container(border=True):
             st.markdown(f"### {ba['titulo']}")
+            
+            # Botões Docentes
+            if st.session_state.get("usuario_logado", {}).get("tipo_usuario") in ("professor", "admin"):
+                col1, col2, col3 = st.columns(3)
+                if col1.button("🚀 Iniciar", key=f"init_{ba['id']}"):
+                    st.rerun()
+                if col2.button("🛑 Encerrar", key=f"end_{ba['id']}"):
+                    from services.batalha_service import encerrar_partida_sincrona
+                    encerrar_partida_sincrona(ba['id']); st.rerun()
+                if col3.button("🗑️ Deletar", key=f"del_{ba['id']}"):
+                    deletar_batalha(ba['id']); st.rerun()
+            
             if st.button(f"Entrar na Arena", key=f"entrar_{ba['id']}", use_container_width=True):
                 st.session_state.batalha_ativa_id = ba["id"]; st.session_state.pagina = "batalha_rodada"; st.rerun()
