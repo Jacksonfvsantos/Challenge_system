@@ -99,12 +99,17 @@ def tela_batalha_rodada():
     if b.get("status") == "em_andamento":
         u = st.session_state.get("usuario_logado", {})
         tid = obter_time_do_usuario(u.get("id"))[0]
-        ta_id, tb_id = str(b.get("time_a_id", "")).strip(), str(b.get("time_b_id", "")).strip()
+        
+        ta_id = str(b.get("time_a_id", "")).strip()
+        tb_id = str(b.get("time_b_id", "")).strip()
+        
         nome_ta, nome_tb = obter_nomes_dos_times(ta_id, tb_id)
         
+        pa, pb = calcular_placar_atual(b_id, ta_id, tb_id)
+        
+        st.markdown(f"**Placar:** {nome_ta} ({pa}) vs {nome_tb} ({pb})")
+        
         cronometro_reativo(b_id, b)
-        placar = calcular_placar_atual(b_id, ta_id, tb_id)
-        st.markdown(f"**Placar:** {nome_ta} ({placar[0]}) vs {nome_tb} ({placar[1]})")
         renderizador_pergunta(b_id, tid, ta_id, tb_id, str(u.get("tipo_usuario", "aluno")).lower(), b.get("status_sincrono"))
         
     elif b.get("status") == "finalizada":
