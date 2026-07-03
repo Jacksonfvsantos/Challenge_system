@@ -8,17 +8,26 @@ from services.batalha_service import (
 )
 from utils.estilo import aplicar_estilo
 
-@st.fragment(run_every=3)
-def monitor_status_reativo(b_id):
+@st.fragment(run_every=2)
+def monitor_de_sincronia_reativo(b_id):
+    """
+    Monitora mudanças no banco de dados e força o refresh da tela
+    se a pergunta ou o status da partida mudarem.
+    """
     try:
         b = obter_estado_batalha(b_id)
         if not b: return
+        
+        ordem_atual = b.get("pergunta_atual_ordem")
         status_atual = b.get("status")
-
-        if "ultimo_status" in st.session_state and st.session_state.ultimo_status != status_atual:
-            st.session_state.ultimo_status = status_atual
-            st.rerun()
-        st.session_state.ultimo_status = status_atual
+        
+        if "ordem_local" not in st.session_state: st.session_state.ordem_local = ordem_atual
+        if "status_local" not in st.session_state: st.session_state.status_local = status_atual
+        
+        if st.session_state.ordem_local != ordem_atual or st.session_state.status_local != status_atual:
+            st.session_state.ordem_local = ordem_atual
+            st.session_state.status_local = status_atual
+            st.rerun() 
     except Exception: pass
 
 @st.fragment(run_every=5)
@@ -35,6 +44,7 @@ def renderizador_pergunta_reativo(b_id, tid, ta_id, tb_id, tipo_u):
         if not b: return
         p_ordem = int(b.get("pergunta_atual_ordem", 1))
         dados_p = obter_pergunta_atual(b_id, p_ordem)
+        
         if not dados_p: 
             st.info("Aguardando próxima questão...")
             return
@@ -63,36 +73,41 @@ def cronometro_reativo(b_id, b):
         inicio_dt = datetime.datetime.fromisoformat(inicio.replace('Z', '+00:00'))
         tempo_passado = (datetime.datetime.now(datetime.timezone.utc) - inicio_dt).total_seconds()
         tempo_restante = 45 - int(tempo_passado)
-        if tempo_restante <= 0: st.rerun()
-        else: st.metric("Tempo para responder", f"{tempo_restante}s")
+        if tempo_restante <= 0:
+            st.warning("Tempo esgotado!")
+            st.rerun()
+        else:
+            st.metric("Tempo para responder", f"{tempo_restante}s")
     except Exception: pass
 
 def tela_batalha_rodada():
     aplicar_estilo()
     b_id = st.session_state.get("batalha_ativa_id")
-    if not b_id:
-        st.warning("ID da batalha não encontrado.")
-        return
-        
-    monitor_status_reativo(b_id)
-    b = obter_estado_batalha(b_id)
+    if not b_id: 
+        st.error("ID da batalha não encontrado."); return
+
+    monitor_de_sincronia_reativo(b_id)
     
-    if not b or b.get("status") == "finalizada":
-        st.session_state.pagina = "batalha_resultado"
-        st.rerun()
-        
+    b = obter_estado_batalha(b_id)
+    if not b: return
+    
     if b.get("status") == "em_andamento":
-        cronometro_reativo(b_id, b)
         u = st.session_state.get("usuario_logado", {})
         tid_lista = obter_time_do_usuario(u.get("id"))
         tid = tid_lista[0] if tid_lista else ""
         ta_id, tb_id = str(b.get("time_a_id", "")).strip(), str(b.get("time_b_id", "")).strip()
         nome_ta, nome_tb = obter_nomes_dos_times(ta_id, tb_id)
         
+        cronometro_reativo(b_id, b)
         painel_estatistico_reativo(b_id, ta_id, tb_id, nome_ta, nome_tb)
         renderizador_pergunta_reativo(b_id, tid, ta_id, tb_id, str(u.get("tipo_usuario", "aluno")).lower())
-    else:
-        st.info("⏱️ A batalha ainda não começou.")
+    
+    elif b.get("status") == "agendada":
+        st.info("⏱️ A batalha está agendada. Aguarde o professor iniciar.")
+    
+    elif b.get("status") == "finalizada":
+        st.session_state.pagina = "batalha_resultado"
+        st.rerun()
 
     if st.button("⬅️ Voltar para a Arena"):
         st.session_state.pagina = "batalha_de_equipes"

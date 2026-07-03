@@ -1,25 +1,19 @@
 import streamlit as st
+import time
 from utils.estilo import aplicar_estilo, cabecalho
 from services.batalha_service import listar_batalhas_ativas, deletar_batalha
 
 def tela_batalha_de_equipes():
     aplicar_estilo()
-    
-    # Navegação básica
     if st.button("⬅️ Voltar ao Dashboard"):
-        st.session_state.pagina = "home"
-        st.rerun()
+        st.session_state.pagina = "home"; st.rerun()
         
     cabecalho("⚔️ Arena de Batalha de Equipes", "Participe de rodadas síncronas")
-
     todas_batalhas = listar_batalhas_ativas()
     
     aba_rebate, aba_assincrona = st.tabs(["⚡ Bate-Rebate (Síncrona)", "⏳ Batalha Assíncrona"])
-    
-    with aba_rebate:
-        renderizar_lista_batalhas([b for b in todas_batalhas if b.get("modalidade") == "sincrona"])
-    with aba_assincrona:
-        renderizar_lista_batalhas([b for b in todas_batalhas if b.get("modalidade") == "assincrona"])
+    with aba_rebate: renderizar_lista_batalhas([b for b in todas_batalhas if b.get("modalidade") == "sincrona"])
+    with aba_assincrona: renderizar_lista_batalhas([b for b in todas_batalhas if b.get("modalidade") == "assincrona"])
 
     usuario = st.session_state.get("usuario_logado", {})
     tipo_usuario = str(usuario.get("tipo_usuario", "aluno")).lower()
@@ -34,28 +28,12 @@ def tela_batalha_de_equipes():
         if st.button("📜 Ver Histórico de Batalhas", use_container_width=True): st.session_state.pagina = "batalha_historico"; st.rerun()
 
 def renderizar_lista_batalhas(lista):
-    if not lista:
-        st.info("Nenhuma batalha ativa nesta modalidade.")
-        return
-    
-    usuario = st.session_state.get("usuario_logado", {})
-    tipo_usuario = str(usuario.get("tipo_usuario", "aluno")).lower()
-
+    if not lista: st.info("Nenhuma batalha ativa."); return
     for ba in lista:
         with st.container(border=True):
-            col_titulo, col_del = st.columns([0.85, 0.15])
-            with col_titulo:
-                st.markdown(f"### {ba['titulo']}")
-            with col_del:
-                if tipo_usuario in ("professor", "admin"):
-                    if st.button("🗑️", key=f"del_{ba['id']}"):
-                        deletar_batalha(ba['id'])
-                        st.rerun()
-            
-            st.write(ba.get("descricao", "Sem diretrizes anexadas."))
-            
-
-            if st.button(f"Entrar na Arena - {ba['titulo']}", key=f"entrar_{ba['id']}"):
+            st.markdown(f"### {ba['titulo']}")
+            if st.button(f"Entrar na Arena - {ba['titulo']}", key=f"entrar_{ba['id']}", use_container_width=True):
                 st.session_state.batalha_ativa_id = ba["id"]
                 st.session_state.pagina = "batalha_rodada"
+                time.sleep(0.1)
                 st.rerun()

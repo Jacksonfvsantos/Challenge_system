@@ -144,8 +144,15 @@ if not st.session_state.get("usuario_logado"):
 query_params = st.query_params
 
 if "sala" in query_params and "id" in query_params:
-    tipo_sala = str(query_params["sala"]).strip().lower()
-    sala_id = str(query_params["id"]).strip()
+    if not st.session_state.get("redirecionamento_processado"):
+        tipo_sala = str(query_params["sala"]).strip().lower()
+        sala_id = str(query_params["id"]).strip()
+        if tipo_sala == "batalha":
+            st.session_state.batalha_ativa_id = sala_id
+            st.session_state.pagina = "batalha_rodada"
+        st.session_state.redirecionamento_processado = True
+        st.query_params.clear()
+        st.rerun()
     
     if st.session_state.get("usuario_logado") is None:
         st.session_state["redirecionamento_pendente"] = {"sala": tipo_sala, "id": sala_id}
@@ -262,5 +269,6 @@ elif pagina == "batalha_historico":
     tela_historico_batalhas()
 
 else:
-    st.session_state.pagina = "home"
-    st.rerun()
+    if pagina != "home":
+        st.session_state.pagina = "home"
+        st.rerun()
