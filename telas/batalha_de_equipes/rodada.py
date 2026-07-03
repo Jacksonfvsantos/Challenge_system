@@ -1,5 +1,5 @@
 import streamlit as st
-import time
+import time, datetime
 from utils.estilo import aplicar_estilo, cabecalho
 from database.conexao import supabase 
 from services.batalha_service import (
@@ -48,6 +48,25 @@ def renderizador_pergunta_reativo(b_id, tid, ta_id, tb_id, tipo_u):
                 st.success("Resposta registrada!")
             time.sleep(0.5); st.rerun()
 
+@st.fragment(run_every=1)
+def cronometro_reativo(b_id, time_da_vez, b):
+    inicio = b.get("inicio_turno")
+    if not inicio: return
+    
+    agora = datetime.datetime.now()
+    tempo_passado = (agora - datetime.datetime.fromisoformat(inicio)).total_seconds()
+    tempo_restante = 45 - int(tempo_passado)
+    
+    if tempo_restante <= 0:
+        adversario = b.get("time_b_id") if time_da_vez == b.get("time_a_id") else b.get("time_a_id")
+        supabase.table("batalhas").update({
+            "time_da_vez_id": adversario,
+            "inicio_turno": datetime.datetime.now().isoformat()
+        }).eq("id", b_id).execute()
+        st.rerun()
+    else:
+        st.metric("Tempo para responder", f"{tempo_restante}s") 
+
 def tela_batalha_rodada():
     aplicar_estilo()
     if st.button("⬅️ Voltar para a Arena"):
@@ -70,6 +89,9 @@ def tela_batalha_rodada():
     ta_id = str(b.get("time_a_id")).strip()
     tb_id = str(b.get("time_b_id")).strip()
     nome_ta, nome_tb = obter_nomes_dos_times(ta_id, tb_id)
+
+    b = obter_estado_batalha(b_id)
+    cronometro_reativo(b_id, b.get("time_da_vez_id"), b)
     
     painel_estatistico_reativo(b_id, ta_id, tb_id, nome_ta, nome_tb)
     renderizador_pergunta_reativo(b_id, tid, ta_id, tb_id, tipo_u)

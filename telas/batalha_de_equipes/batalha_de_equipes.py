@@ -49,9 +49,11 @@ def renderizar_lista_batalhas(lista):
             
             with col_del:
                 if tipo_usuario in ("professor", "admin"):
-                    if st.button("🗑️", key=f"del_{ba['id']}"):
-                        deletar_batalha(ba['id'])
-                        st.rerun()
+                    with st.popover("🗑️"):
+                        st.warning("Tem certeza?")
+                        if st.button("Confirmar Exclusão", key=f"del_{ba['id']}"):
+                            deletar_batalha(ba['id'])
+                            st.rerun()
             
             st.write(ba.get("descricao", "Sem diretrizes anexadas."))
             
