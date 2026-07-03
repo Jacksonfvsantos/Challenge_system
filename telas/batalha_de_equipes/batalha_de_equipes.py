@@ -23,10 +23,8 @@ def renderizar_lista_batalhas(lista):
     for ba in lista:
         with st.container(border=True):
             col_titulo, col_del = st.columns([0.85, 0.15])
-            
             with col_titulo:
                 st.markdown(f"### {ba['titulo']}")
-            
             with col_del:
                 if tipo_usuario in ("professor", "admin"):
                     with st.popover("🗑️"):
