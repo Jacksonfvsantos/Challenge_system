@@ -94,7 +94,8 @@ def obter_batalhas_finalizadas():
 
 def cadastrar_questoes_batalha(batalha_id, lista_questoes):
     """
-    lista_questoes: Lista de dicts com 'enunciado', 'alternativas' (lista), 'correta_idx' (int)
+    Cadastra múltiplas questões em lote vinculadas a uma batalha.
+    lista_questoes: Lista de dicts [{'enunciado': str, 'alternativas': [str], 'correta_idx': int}]
     """
     try:
         for i, q in enumerate(lista_questoes):
@@ -104,18 +105,31 @@ def cadastrar_questoes_batalha(batalha_id, lista_questoes):
             
             if res_q.data:
                 q_id = res_q.data[0]["id"]
+                
+                res_contagem = supabase.table("batalha_perguntas").select("id", count='exact').eq("batalha_id", batalha_id).execute()
+                ordem_atual = (res_contagem.count or 0) + 1
+                
                 supabase.table("batalha_perguntas").insert({
                     "batalha_id": batalha_id,
                     "questao_id": q_id,
-                    "ordem": i + 1
+                    "ordem": ordem_atual
                 }).execute()
                 
-                alternativas = [{"questao_id": q_id, "texto": txt, "ordem": idx+1, "correta": (idx == q["correta_idx"])} 
+                alternativas = [{"questao_id": q_id, "texto": txt.strip(), "ordem": idx+1, "correta": (idx == q["correta_idx"])} 
                                for idx, txt in enumerate(q["alternativas"])]
                 supabase.table("alternativas").insert(alternativas).execute()
         return {"sucesso": True}
     except Exception as e:
         return {"sucesso": False, "mensagem": str(e)}
+
+def salvar_questoes_lote_ia(batalha_id, lista_questoes):
+    """
+    Camada de interface para injetar questões processadas pela IA.
+    """
+    if not lista_questoes or not isinstance(lista_questoes, list):
+        return {"sucesso": False, "mensagem": "Formato de questões inválido."}
+    
+    return cadastrar_questoes_batalha(batalha_id, lista_questoes)
 
 def cadastrar_questao_rapida(batalha_id, enunciado, alternativas_texto, indice_correta):
     try:

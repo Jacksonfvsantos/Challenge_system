@@ -1,10 +1,11 @@
 import streamlit as st
 import time
 from utils.estilo import aplicar_estilo, cabecalho
+from services.ia_processador_service import extrair_texto_de_arquivo, gerar_questoes_ia
 from services.batalha_service import (
     listar_batalhas_ativas, deletar_batalha, criar_time, listar_times,
     entrar_no_time, aluno_tem_time, listar_membros_time,
-    remover_aluno, deletar_time, cadastrar_questao_rapida
+    remover_aluno, deletar_time, cadastrar_questao_rapida, salvar_questoes_lote_ia
 )
 
 def tela_batalha_de_equipes():
@@ -35,6 +36,7 @@ def tela_batalha_de_equipes():
             
             st.divider()
             st.subheader("📝 Cadastrar Questão")
+            b_sel = st.selectbox("Batalha destino:", listar_batalhas_ativas(), format_func=lambda x: x['titulo'])
             modo = st.radio("Método:", ["Manual", "Via IA"], horizontal=True)
 
             if modo == "Manual":
@@ -42,17 +44,27 @@ def tela_batalha_de_equipes():
                     enun = st.text_area("Enunciado:")
                     a1, a2 = st.text_input("Alt A"), st.text_input("Alt B")
                     a3, a4 = st.text_input("Alt C"), st.text_input("Alt D")
-                    correta = st.selectbox("Correta:", [0, 1, 2, 3])
-                    b_sel = st.selectbox("Batalha:", listar_batalhas_ativas(), format_func=lambda x: x['titulo'])
-                    
+                    correta = st.selectbox("Correta (0-3):", [0, 1, 2, 3])
                     if st.form_submit_button("Salvar Questão"):
                         res = cadastrar_questao_rapida(b_sel['id'], enun, [a1, a2, a3, a4], correta)
                         if res["sucesso"]: st.success("Salvo!"); st.rerun()
                         else: st.error(res["mensagem"])
-            else:
-                texto_base = st.text_area("Conteúdo base para IA:")
-                if st.button("Gerar com IA"):
-                    st.info("Funcionalidade de IA em implementação...")
+            
+            else: # --- IMPLEMENTAÇÃO IA ---
+                arquivo = st.file_uploader("Upload de Caderno (PDF/DOCX)", type=["pdf", "docx"])
+                prompt_custom = st.text_input("Instruções adicionais para a IA (opcional):")
+                
+                if arquivo and st.button("🤖 Processar e Injetar Questões"):
+                    with st.spinner("Processando arquivo e gerando questões com IA..."):
+                        ext = arquivo.name.split('.')[-1]
+                        texto = extrair_texto_de_arquivo(arquivo.getvalue(), ext)
+                        questoes = gerar_questoes_ia(texto, prompt_custom, st.secrets["GEMINI_API_KEY"])
+                        
+                        if questoes:
+                            res = salvar_questoes_lote_ia(b_sel['id'], questoes)
+                            if res["sucesso"]: st.success("Questões injetadas!"); st.rerun()
+                            else: st.error(res["mensagem"])
+                        else: st.warning("A IA não conseguiu extrair questões válidas.")
 
     # --- GESTÃO DE EQUIPES (ALUNOS) ---
     elif tipo_usuario == "aluno":
@@ -60,11 +72,14 @@ def tela_batalha_de_equipes():
             with st.expander("✨ Gerencie sua equipe:", expanded=True):
                 c1, c2 = st.columns(2)
                 with c1:
-                    if st.button("🚀 Criar Equipe"): criar_time(st.text_input("Nome:"))
+                    nome = st.text_input("Nome da nova equipe:")
+                    if st.button("🚀 Criar Equipe"): criar_time(nome); st.rerun()
                 with c2:
                     times = listar_times()
-                    if times and st.button("🤝 Entrar"): entrar_no_time(st.selectbox("Escolha:", times, format_func=lambda x: x['nome'])['id'], usuario_id)
-        else: st.success("✅ Você está em um time.")
+                    if times:
+                        sel = st.selectbox("Escolha uma equipe:", times, format_func=lambda x: x['nome'])
+                        if st.button("🤝 Entrar"): entrar_no_time(sel['id'], usuario_id); st.rerun()
+        else: st.success("✅ Você já está alocado em um time.")
 
     # --- ARENA DE BATALHAS ---
     todas = listar_batalhas_ativas()
@@ -74,8 +89,9 @@ def tela_batalha_de_equipes():
     with assinc: renderizar_lista([b for b in todas if b.get("modalidade") == "assincrona"])
 
 def renderizar_lista(lista):
-    if not lista: st.info("Nenhuma batalha aqui."); return
+    if not lista: st.info("Nenhuma batalha ativa no momento."); return
     for ba in lista:
         with st.container(border=True):
-            if st.button(f"Entrar: {ba['titulo']}", key=f"entrar_{ba['id']}", use_container_width=True):
+            st.markdown(f"### {ba['titulo']}")
+            if st.button(f"Entrar na Arena", key=f"entrar_{ba['id']}", use_container_width=True):
                 st.session_state.batalha_ativa_id = ba["id"]; st.session_state.pagina = "batalha_rodada"; st.rerun()
