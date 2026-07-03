@@ -51,14 +51,16 @@ def renderizador_pergunta_reativo(b_id, tid, ta_id, tb_id, tipo_u):
 @st.fragment(run_every=1)
 def cronometro_reativo(b_id, time_da_vez, b):
     inicio = b.get("inicio_turno")
-
+    st.sidebar.write(f"DEBUG: b.get('inicio_turno') = {inicio}") 
+    
     if not inicio:
-        st.warning("Cronômetro não iniciado (inicio_turno ausente).")
+        st.warning("⚠️ Cronômetro parado: inicio_turno não encontrado no banco.")
         return
     
     try:
-        inicio_dt = datetime.datetime.fromisoformat(inicio)
-        agora = datetime.datetime.now()
+        inicio_dt = datetime.datetime.fromisoformat(str(inicio).replace('Z', '+00:00'))
+        agora = datetime.datetime.now(datetime.timezone.utc) if inicio.endswith('Z') else datetime.datetime.now()
+        
         tempo_passado = (agora - inicio_dt).total_seconds()
         tempo_restante = 45 - int(tempo_passado)
         
@@ -73,7 +75,7 @@ def cronometro_reativo(b_id, time_da_vez, b):
             st.metric("Tempo para responder", f"{tempo_restante}s")
             
     except Exception as e:
-        st.error(f"Erro no cronômetro: {e}")
+        st.error(f"Erro no cálculo do tempo: {e}")
 
 def tela_batalha_rodada():
     aplicar_estilo()
