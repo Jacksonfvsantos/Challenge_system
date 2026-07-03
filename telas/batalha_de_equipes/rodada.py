@@ -62,15 +62,16 @@ def renderizador_pergunta(b_id, tid, ta_id, tb_id, tipo_u, status):
         
         # Se você clicar e não acontecer nada, o st.button retornará False.
         if st.button(alt["texto"], key=f"alt_{alt['id']}", disabled=not eh_vez, use_container_width=True):
-            # AQUI É ONDE A MÁGICA ACONTECE
-            st.write(f"DEBUG: Tentando responder com alternativa {alt['id']}...")
-            
             adv = tb_id if tid_limpo == ta_id.strip().lower() else ta_id
             tentativa = 2 if status == "rebate_ativo" else 1
             
+            # Captura a resposta do serviço
             resultado = processar_resposta_sincrona(b_id, dados_p["id"], tid, alt["id"], alt["correta"], adv, tentativa)
             
-            st.write(f"DEBUG: Resultado do servidor: {resultado}")
+            # Debug visual na tela
+            st.warning(f"Resultado processado: {resultado}")
+            
+            # Força o rerun apenas após o processamento
             st.rerun()
 
 def tela_batalha_rodada():
