@@ -56,10 +56,21 @@ def renderizador_pergunta(b_id, tid, ta_id, tb_id, tipo_u, status):
     eh_vez = (tid_limpo == vez_limpo and tipo_u not in ("professor", "admin"))
     
     for alt in dados_p.get("alternativas", []):
+        # DEBUG: Se o botão estiver desabilitado, você não saberá o porquê.
+        # Vamos adicionar um tooltip ou verificar o estado lógico.
+        eh_vez = (tid_limpo == vez_limpo and tipo_u not in ("professor", "admin"))
+        
+        # Se você clicar e não acontecer nada, o st.button retornará False.
         if st.button(alt["texto"], key=f"alt_{alt['id']}", disabled=not eh_vez, use_container_width=True):
+            # AQUI É ONDE A MÁGICA ACONTECE
+            st.write(f"DEBUG: Tentando responder com alternativa {alt['id']}...")
+            
             adv = tb_id if tid_limpo == ta_id.strip().lower() else ta_id
             tentativa = 2 if status == "rebate_ativo" else 1
-            processar_resposta_sincrona(b_id, dados_p["id"], tid, alt["id"], alt["correta"], adv, tentativa)
+            
+            resultado = processar_resposta_sincrona(b_id, dados_p["id"], tid, alt["id"], alt["correta"], adv, tentativa)
+            
+            st.write(f"DEBUG: Resultado do servidor: {resultado}")
             st.rerun()
 
 def tela_batalha_rodada():
