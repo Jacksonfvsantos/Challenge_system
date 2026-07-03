@@ -2,10 +2,6 @@ import streamlit as st
 from utils.estilo import aplicar_estilo, cabecalho
 from services.batalha_service import listar_batalhas_ativas, deletar_batalha
 
-@st.fragment(run_every=3)
-def lista_batalhas_reativa():
-    st.session_state.batalhas_ativas = listar_batalhas_ativas()
-
 def tela_batalha_de_equipes():
     aplicar_estilo()
     
@@ -13,21 +9,19 @@ def tela_batalha_de_equipes():
         st.session_state.pagina = "home"
         st.rerun()
         
-    usuario = st.session_state.get("usuario_logado", {})
-    tipo_usuario = str(usuario.get("tipo_usuario", "aluno")).lower()
-    
     cabecalho("⚔️ Arena de Batalha de Equipes", "Participe de rodadas síncronas e desafios de engenharia")
 
-    lista_batalhas_reativa()
+    todas_batalhas = listar_batalhas_ativas()
     
-    todas_batalhas = st.session_state.get("batalhas_ativas", [])
-
     aba_rebate, aba_assincrona = st.tabs(["⚡ Bate-Rebate (Síncrona)", "⏳ Batalha Assíncrona"])
     
     with aba_rebate:
         renderizar_lista_batalhas([b for b in todas_batalhas if b.get("modalidade") == "sincrona"])
     with aba_assincrona:
         renderizar_lista_batalhas([b for b in todas_batalhas if b.get("modalidade") == "assincrona"])
+
+    usuario = st.session_state.get("usuario_logado", {})
+    tipo_usuario = str(usuario.get("tipo_usuario", "aluno")).lower()
 
     if tipo_usuario in ("professor", "admin"):
         st.divider()
@@ -37,6 +31,9 @@ def tela_batalha_de_equipes():
         if col_m2.button("👥 Alocação de Alunos", use_container_width=True): st.session_state.pagina = "batalha_integrantes"; st.rerun()
         if col_m3.button("📝 Abrir Nova Batalha", type="primary", use_container_width=True): st.session_state.pagina = "batalha_gerenciar"; st.rerun()
         if st.button("📜 Ver Histórico de Batalhas", use_container_width=True): st.session_state.pagina = "batalha_historico"; st.rerun()
+        
+        if st.button("🔄 Atualizar Lista de Arenas"):
+            st.rerun()
 
 def renderizar_lista_batalhas(lista):
     if not lista:
