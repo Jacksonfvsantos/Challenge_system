@@ -11,31 +11,27 @@ from utils.estilo import aplicar_estilo
 
 @st.fragment(run_every=1)
 def motor_de_sincronia_unificado(b_id):
-    """
-    Motor central que gerencia estado da batalha e cronômetro, 
-    evitando conflitos de múltiplos reruns.
-    """
+    """Motor central estável para gerenciar estado e tempo."""
     try:
         b = obter_estado_batalha(b_id)
         if not b: return
         
-        # 1. Monitoramento de estado para Rerun
-        estado_composto = f"{b.get('pergunta_atual_ordem')}_{b.get('status')}"
+        # Monitoramento robusto: só reroda se houver mudança real de estado
+        estado_composto = f"{b.get('pergunta_atual_ordem')}_{b.get('status')}_{b.get('status_sincrono')}"
         if "estado_local" not in st.session_state: st.session_state.estado_local = estado_composto
         
         if st.session_state.estado_local != estado_composto:
             st.session_state.estado_local = estado_composto
             st.rerun()
 
-        # 2. Cronômetro integrado (apenas se em andamento)
+        # Cronômetro integrado
         if b.get("status") == "em_andamento":
             inicio = b.get("inicio_turno")
             if inicio:
-                inicio_dt = datetime.datetime.fromisoformat(inicio.replace('Z', '+00:00'))
+                inicio_dt = datetime.datetime.fromisoformat(str(inicio).replace('Z', '+00:00'))
                 tempo_passado = (datetime.datetime.now(datetime.timezone.utc) - inicio_dt).total_seconds()
-                
-                # Exibe métrica de tempo
                 tempo_restante = 45 - int(tempo_passado)
+                
                 st.metric("Tempo para responder", f"{max(0, tempo_restante)}s")
                 
                 if tempo_restante <= 0:
@@ -68,13 +64,17 @@ def renderizador_pergunta(b_id, tid, ta_id, tb_id, tipo_u, status):
 
 def tela_batalha_rodada():
     aplicar_estilo()
+    
+    # Validação crítica para evitar erro de UUID None
     b_id = st.session_state.get("batalha_ativa_id")
-    if not b_id: st.error("ID não encontrado."); return
+    if not b_id or b_id == "None":
+        st.error("Batalha não selecionada.")
+        if st.button("Voltar"): st.session_state.pagina = "batalha_de_equipes"; st.rerun()
+        return
         
     b = obter_estado_batalha(b_id)
-    if not b: return
+    if not b: st.error("Erro ao carregar dados da arena."); return
     
-    # Motor de sincronia reativo
     motor_de_sincronia_unificado(b_id)
 
     # --- GOVERNANÇA DOCENTE ---
