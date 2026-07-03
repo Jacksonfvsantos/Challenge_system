@@ -89,27 +89,42 @@ def tela_batalha_rodada():
     b_id = st.session_state.get("batalha_ativa_id")
     b = obter_estado_batalha(b_id)
     
-    p_ordem = int(b.get("pergunta_atual_ordem", 1))
-    dados_p = obter_pergunta_atual(b_id, p_ordem)
-
-    if b.get("status") == "em_andamento" and dados_p:
-        cronometro_reativo(b_id, b.get("time_da_vez_id"), b)
-
     if not b or b.get("status") == "finalizada":
         st.session_state.pagina = "batalha_resultado"
         st.rerun()
+    
+    p_ordem = int(b.get("pergunta_atual_ordem", 1))
+    dados_p = obter_pergunta_atual(b_id, p_ordem)
+    
+    if b.get("status") == "em_andamento" and dados_p:
+        cronometro_reativo(b_id, b.get("time_da_vez_id"), b)
+    elif b.get("status") == "em_andamento" and not dados_p:
+        st.info("🏁 Todas as questões foram respondidas. Aguardando o professor encerrar.")
 
     u = st.session_state.get("usuario_logado", {})
     tipo_u = str(u.get("tipo_usuario", "aluno")).lower()
-    uid = u.get("id")
-    tid = obter_time_do_usuario(uid)[0]
+    tid = obter_time_do_usuario(u.get("id"))[0]
     
     ta_id, tb_id = str(b.get("time_a_id", "")).strip(), str(b.get("time_b_id", "")).strip()
     nome_ta, nome_tb = obter_nomes_dos_times(ta_id, tb_id)
-
+    
     if st.button("⬅️ Voltar para a Arena"):
         st.session_state.pagina = "batalha_de_equipes"
         st.rerun()
+
+    painel_estatistico_reativo(b_id, ta_id, tb_id, nome_ta, nome_tb)
+    renderizador_pergunta_reativo(b_id, tid, ta_id, tb_id, tipo_u)
+    
+    if tipo_u in ("professor", "admin"):
+        with st.expander("⚙️ Painel de Governança Docente"):
+            if b.get("status") == "agendada" and st.button("🔥 Iniciar Partida"):
+                iniciar_partida_sincrona(b_id, ta_id)
+                st.rerun()
+            
+            if st.button("⏹️ Encerrar Partida", type="primary"):
+                if encerrar_partida_sincrona(b_id):
+                    st.session_state.pagina = "batalha_resultado"
+                    st.rerun()
 
     painel_estatistico_reativo(b_id, ta_id, tb_id, nome_ta, nome_tb)
     

@@ -1,7 +1,16 @@
 import streamlit as st
-from datetime import datetime
 from utils.estilo import aplicar_estilo, cabecalho
 from services.batalha_service import listar_batalhas_ativas, deletar_batalha
+
+@st.fragment(run_every=3)
+def lista_batalhas_reativa():
+    todas_batalhas = listar_batalhas_ativas()
+    aba_rebate, aba_assincrona = st.tabs(["⚡ Bate-Rebate (Síncrona)", "⏳ Batalha Assíncrona"])
+    
+    with aba_rebate:
+        renderizar_lista_batalhas([b for b in todas_batalhas if b.get("modalidade") == "sincrona"])
+    with aba_assincrona:
+        renderizar_lista_batalhas([b for b in todas_batalhas if b.get("modalidade") == "assincrona"])
 
 def tela_batalha_de_equipes():
     aplicar_estilo()
@@ -14,14 +23,7 @@ def tela_batalha_de_equipes():
     
     cabecalho("⚔️ Arena de Batalha de Equipes", "Participe de rodadas síncronas e desafios de engenharia")
 
-    todas_batalhas = listar_batalhas_ativas()
-    aba_rebate, aba_assincrona = st.tabs(["⚡ Bate-Rebate (Síncrona)", "⏳ Batalha Assíncrona"])
-
-    with aba_rebate:
-        renderizar_lista_batalhas([b for b in todas_batalhas if b.get("modalidade") == "sincrona"])
-    
-    with aba_assincrona:
-        renderizar_lista_batalhas([b for b in todas_batalhas if b.get("modalidade") == "assincrona"])
+    lista_batalhas_reativa()
 
     if tipo_usuario in ("professor", "admin"):
         st.divider()
