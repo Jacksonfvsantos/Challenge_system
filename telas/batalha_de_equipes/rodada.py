@@ -13,7 +13,7 @@ def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_ta, nome_t
     pa, pb = calcular_placar_atual(batalha_id, time_a_id, time_b_id)
     st.markdown(f"**Placar:** {nome_ta} {pa} vs {nome_tb} {pb}", unsafe_allow_html=True)
 
-@st.fragment(run_every=2)
+@st.fragment
 def renderizador_pergunta_reativo(b_id, tid, ta_id, tb_id, tipo_u):
     b = obter_estado_batalha(b_id)
     p_ordem = int(b.get("pergunta_atual_ordem", 1))
@@ -22,7 +22,9 @@ def renderizador_pergunta_reativo(b_id, tid, ta_id, tb_id, tipo_u):
     if not dados_p: return
 
     st.markdown(f"### 📍 {dados_p['enunciado']}")
-    tid_limpo, vez_limpo = str(tid).strip().lower(), str(b.get("time_da_vez_id", "")).strip().lower()
+    
+    tid_limpo = str(tid).strip().lower()
+    vez_limpo = str(b.get("time_da_vez_id", "")).strip().lower()
     eh_vez = (tid_limpo == vez_limpo and tipo_u not in ("professor", "admin"))
     
     for alt in dados_p["alternativas"]:
