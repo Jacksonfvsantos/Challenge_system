@@ -10,7 +10,7 @@ def tela_gerenciar_batalhas():
     aplicar_estilo()
   
     if st.button("⬅️ Voltar ao Painel"):
-        st.session_state.pagina = "dashboard_professor"
+        st.session_state.pagina = "batalha_de_equipes"
         st.rerun()
     
     cabecalho("Gestão de Batalhas", "Administração de editais e monitoramento síncrono")
