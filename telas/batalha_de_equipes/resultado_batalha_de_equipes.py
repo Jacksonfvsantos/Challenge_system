@@ -36,7 +36,6 @@ def tela_batalha_resultado():
         
         with st.container(border=True):
             st.markdown(f"### Placar Final: {nome_a} {p_a} x {p_b} {nome_b}")
-            st.write(f"Detalhes: {info['resultado_extenso']}")
     
     if st.button("🏠 Voltar para a Arena"):
         st.session_state.pagina = "batalha_de_equipes"
