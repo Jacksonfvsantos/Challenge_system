@@ -19,7 +19,7 @@ def tela_batalha_times():
     
     cabecalho(
         "🏢 Central de Equipes e Times",
-        "Crie uma nova equipa ou junte-se a um grupo ativo para libertar o seu acesso à Arena Ao Vivo"
+        "Crie uma nova equipe ou junte-se a um grupo ativo para liberar o seu acesso à Arena Ao Vivo"
     )
     
     if tipo_usuario == "aluno":
@@ -33,18 +33,18 @@ def tela_batalha_times():
             
             with col_criar:
                 with st.container(border=True):
-                    st.markdown("#### ✨ Criar Nova Equipa")
+                    st.markdown("#### ✨ Criar Nova Equipe")
                     st.caption("Seja o fundador de um novo clã. Escolha um nome imponente e convide os seus colegas.")
                     
                     nome_novo_time = st.text_input("Nome da Equipe:", key="input_nome_novo_time")
                     
-                    if st.button("🔥 Fundar Equipa", type="primary", use_container_width=True):
+                    if st.button("🔥 Fundar Equipe", type="primary", use_container_width=True):
                         if not nome_novo_time.strip():
                             st.error("🛑 Digite um nome válido para o time.")
                         else:
                             sucesso = criar_time(nome_novo_time)
                             if sucesso:
-                                st.toast(f"🎉 Equipa '{nome_novo_time}' criada com sucesso!", icon="🚀")
+                                st.toast(f"🎉 Equipe '{nome_novo_time}' criada com sucesso!", icon="🚀")
                                 time.sleep(0.5)
                                 st.rerun()
                             else:
@@ -52,7 +52,7 @@ def tela_batalha_times():
             
             with col_entrar:
                 with st.container(border=True):
-                    st.markdown("#### 🚪 Entrar em Equipa Ativa")
+                    st.markdown("#### 🚪 Entrar em Equipe Ativa")
                     st.caption("Prefere juntar-se a um projeto existente? Selecione abaixo uma das equipas que possuem vagas livres.")
                     
                     times_disponiveis = listar_times()
