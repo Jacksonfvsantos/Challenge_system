@@ -283,6 +283,13 @@ def listar_times():
     except Exception:
         return []
     
+def deletar_time(time_id):
+    try:
+        supabase.table("time_membros").delete().eq("time_id", time_id).execute()
+        supabase.table("times").delete().eq("id", time_id).execute()
+        return True
+    except Exception: return False
+    
 def processar_resposta_assincrona(batalha_id, questao_id, time_id, alternativa_id, alternativa_correta):
     try:
         supabase.table("batalha_respostas").insert({

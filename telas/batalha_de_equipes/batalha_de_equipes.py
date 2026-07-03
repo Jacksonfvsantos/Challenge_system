@@ -7,7 +7,10 @@ from services.batalha_service import (
     criar_time,
     listar_times,
     entrar_no_time,
-    aluno_tem_time    
+    aluno_tem_time,
+    listar_membros_time,
+    remover_aluno,
+    deletar_time # Certifique-se de adicionar esta função ao seu service
 )
 
 def tela_batalha_de_equipes():
@@ -23,18 +26,38 @@ def tela_batalha_de_equipes():
         
     cabecalho("⚔️ Arena de Batalha de Equipes", "Participe de desafios síncronos em tempo real")
 
-    if tipo_usuario == "aluno":
+    # --- GOVERNANÇA DOCENTE ---
+    if tipo_usuario in ("professor", "admin"):
+        with st.expander("👨‍🏫 Governança de Equipes (Docente)"):
+            st.subheader("Gerenciar Equipes")
+            times = listar_times()
+            for t in times:
+                with st.container(border=True):
+                    col1, col2 = st.columns([0.7, 0.3])
+                    col1.write(f"**{t['nome']}**")
+                    if col2.button("Excluir Time", key=f"del_time_{t['id']}"):
+                        deletar_time(t['id'])
+                        st.rerun()
+                    
+                    membros = listar_membros_time(t['id'])
+                    for m in membros:
+                        m_col1, m_col2 = st.columns([0.7, 0.3])
+                        m_col1.write(f"- {m['nome']}")
+                        if m_col2.button("Remover", key=f"rem_{m['id']}_{t['id']}"):
+                            remover_aluno(t['id'], m['id'])
+                            st.rerun()
+
+    # --- GESTÃO DE EQUIPES (ALUNOS) ---
+    elif tipo_usuario == "aluno":
         if not aluno_tem_time(usuario_id):
             with st.expander("✨ Você ainda não tem um time! Gerencie aqui:", expanded=True):
                 col_criar, col_entrar = st.columns(2)
-                
                 with col_criar:
                     nome_novo = st.text_input("Nome da Equipa:")
                     if st.button("🚀 Criar Equipa"):
                         if criar_time(nome_novo):
                             st.success("Equipa criada!")
                             st.rerun()
-                
                 with col_entrar:
                     times = listar_times()
                     if times:
@@ -43,18 +66,14 @@ def tela_batalha_de_equipes():
                             if entrar_no_time(time_sel['id'], usuario_id):
                                 st.success("Vinculado com sucesso!")
                                 st.rerun()
-                    else:
-                        st.info("Nenhuma equipa disponível.")
         else:
             st.success("✅ Você já está alocado em uma equipe e pronto para a arena.")
-    else:
-        st.info("👤 Painel Docente: Gerenciamento de times oculto para alunos.")
 
+    # --- ARENA DE BATALHAS ---
     if st.button("🔄 Atualizar Lista de Arenas"):
         st.rerun()
 
     todas_batalhas = listar_batalhas_ativas()
-    
     aba_sincrona, aba_assincrona = st.tabs(["⚡ Síncronas (Bate-Rebate)", "⏳ Assíncronas"])
     
     with aba_sincrona:
@@ -82,7 +101,6 @@ def renderizar_lista(lista):
                         st.rerun()
 
             st.write(ba.get("descricao", "Sem diretrizes."))
-
             if st.button(f"Entrar na Arena: {ba['titulo']}", key=f"entrar_{ba['id']}", use_container_width=True):
                 st.session_state.batalha_ativa_id = ba["id"]
                 st.session_state.pagina = "batalha_rodada"
