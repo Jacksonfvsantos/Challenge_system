@@ -1,4 +1,5 @@
 import streamlit as st
+import time
 from utils.estilo import aplicar_estilo, cabecalho
 from services.batalha_service import listar_batalhas_ativas, deletar_batalha
 
@@ -61,4 +62,5 @@ def renderizar_lista_batalhas(lista):
             if st.button(f"Entrar na Arena - {ba['titulo']}", key=f"entrar_{ba['id']}", use_container_width=True):
                 st.session_state.batalha_ativa_id = ba["id"]
                 st.session_state.pagina = "batalha_rodada"
+                time.sleep(0.1)
                 st.rerun()

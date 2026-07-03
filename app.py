@@ -262,5 +262,7 @@ elif pagina == "batalha_historico":
     tela_historico_batalhas()
 
 else:
-    st.session_state.pagina = "home"
-    st.rerun()
+    st.write(f"DEBUG: Página não encontrada: {pagina}")
+    if st.button("Voltar para Home"):
+        st.session_state.pagina = "home"
+        st.rerun()

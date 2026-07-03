@@ -13,10 +13,10 @@ def monitor_status_reativo(b_id):
     try:
         b = obter_estado_batalha(b_id)
         status_atual = b.get("status") if b else "finalizada"
-        if "ultimo_status" not in st.session_state: st.session_state.ultimo_status = status_atual
-        if st.session_state.ultimo_status != status_atual:
+        
+        if st.session_state.get("ultimo_status") != status_atual:
             st.session_state.ultimo_status = status_atual
-            st.rerun()
+            st.rerun() 
     except Exception: pass
 
 @st.fragment(run_every=5)
