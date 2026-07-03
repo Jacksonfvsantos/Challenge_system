@@ -11,15 +11,17 @@ from utils.estilo import aplicar_estilo
 
 @st.fragment(run_every=2)
 def monitor_de_sincronia_reativo(b_id):
-    try:
-        b = obter_estado_batalha(b_id)
-        if not b: return
-        ordem_atual = b.get("pergunta_atual_ordem")
-        if "ordem_local" not in st.session_state: st.session_state.ordem_local = ordem_atual
-        if st.session_state.ordem_local != ordem_atual:
-            st.session_state.ordem_local = ordem_atual
-            st.rerun() 
-    except Exception: pass
+    b = obter_estado_batalha(b_id)
+    if not b: return
+    
+    estado_atual = f"{b.get('pergunta_atual_ordem')}_{b.get('status')}"
+    
+    if "estado_local" not in st.session_state:
+        st.session_state.estado_local = estado_atual
+    
+    if st.session_state.estado_local != estado_atual:
+        st.session_state.estado_local = estado_atual
+        st.rerun()
 
 @st.fragment
 def renderizador_pergunta(b_id, tid, ta_id, tb_id, tipo_u, status):
