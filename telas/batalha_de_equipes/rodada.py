@@ -8,15 +8,17 @@ from services.batalha_service import (
 )
 from utils.estilo import aplicar_estilo
 
-@st.fragment(run_every=2)
+@st.fragment(run_every=3)
 def monitor_status_reativo(b_id):
     try:
         b = obter_estado_batalha(b_id)
-        status_atual = b.get("status") if b else "finalizada"
-        
-        if st.session_state.get("ultimo_status") != status_atual:
+        if not b: return
+        status_atual = b.get("status")
+
+        if "ultimo_status" in st.session_state and st.session_state.ultimo_status != status_atual:
             st.session_state.ultimo_status = status_atual
-            st.rerun() 
+            st.rerun()
+        st.session_state.ultimo_status = status_atual
     except Exception: pass
 
 @st.fragment(run_every=5)
