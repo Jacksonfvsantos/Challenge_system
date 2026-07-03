@@ -76,25 +76,24 @@ def tela_batalha_rodada():
         with st.expander("⚙️ Governança Docente", expanded=True):
             
             if b.get("status") == "agendada":
-                ta_id = str(b.get("time_a_id", "")).strip()
-                tb_id = str(b.get("time_b_id", "")).strip()
+                from services.batalha_service import listar_times
+                todos_os_times = listar_times()
                 
-                nome_ta, nome_tb = obter_nomes_dos_times(ta_id, tb_id)
-                
-                opcoes = {ta_id: nome_ta, tb_id: nome_tb}
-                
-                time_selecionado = st.selectbox(
-                    "Qual time iniciará a batalha?", 
-                    options=list(opcoes.keys()), 
-                    format_func=lambda x: opcoes[x]
-                )
-                
-                if st.button("🚀 Iniciar Partida", type="primary"):
-                    if iniciar_partida_sincrona(b_id, time_selecionado):
-                        st.success(f"Partida iniciada! {opcoes[time_selecionado]} começa.")
-                        st.rerun()
-                    else:
-                        st.error("Erro ao iniciar. Verifique o banco de dados.")
+                if todos_os_times:
+                    time_selecionado = st.selectbox(
+                        "Qual time iniciará a batalha?",
+                        options=[t['id'] for t in todos_os_times],
+                        format_func=lambda x: next(t['nome'] for t in todos_os_times if t['id'] == x)
+                    )
+                    
+                    if st.button("🚀 Iniciar Partida", type="primary"):
+                        if iniciar_partida_sincrona(b_id, time_selecionado):
+                            st.success("Partida iniciada!")
+                            st.rerun()
+                        else:
+                            st.error("Erro ao iniciar.")
+                else:
+                    st.warning("Nenhum time cadastrado no sistema.")
 
     # --- FLUXO DA PARTIDA ---
     if b.get("status") == "em_andamento":
