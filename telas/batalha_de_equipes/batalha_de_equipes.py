@@ -10,7 +10,7 @@ from services.batalha_service import (
     aluno_tem_time,
     listar_membros_time,
     remover_aluno,
-    deletar_time # Certifique-se de adicionar esta função ao seu service
+    deletar_time
 )
 
 def tela_batalha_de_equipes():
@@ -18,8 +18,8 @@ def tela_batalha_de_equipes():
     
     usuario = st.session_state.get("usuario_logado", {})
     usuario_id = str(usuario.get("id", "")).strip()
-    tipo_usuario = str(usuario.get("tipo_usuario", "aluno")).lower()
-    
+    tipo_usuario = str(usuario.get("tipo_usuario") or usuario.get("tipo") or "aluno").lower()
+
     if st.button("⬅️ Voltar ao Dashboard"):
         st.session_state.pagina = "home"
         st.rerun()
