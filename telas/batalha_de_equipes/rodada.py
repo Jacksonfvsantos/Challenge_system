@@ -53,26 +53,35 @@ def cronometro_reativo(b_id, time_da_vez, b):
     inicio = b.get("inicio_turno")
     if not inicio: return
     
-    try:
-        inicio_dt = datetime.datetime.fromisoformat(inicio.replace('Z', '+00:00'))
+    inicio_dt = datetime.datetime.fromisoformat(inicio.replace('Z', '+00:00'))
+    tempo_passado = (datetime.datetime.now(datetime.timezone.utc) - inicio_dt).total_seconds()
+    tempo_restante = 45 - int(tempo_passado)
+    
+    if tempo_restante <= 0:
+        ordem_atual = int(b.get("pergunta_atual_ordem", 1))
+        novo_time = b.get("time_b_id") if time_da_vez == b.get("time_a_id") else b.get("time_a_id")
         
-        agora = datetime.datetime.now(datetime.timezone.utc)
+        pergunta = obter_pergunta_atual(b_id, ordem_atual)
+        if pergunta:
+            supabase.table("batalha_respostas").insert({
+                "batalha_id": b_id,
+                "questao_id": pergunta["id"],
+                "time_id": time_da_vez,
+                "resposta_correta": False,
+                "tentativa_numero": 1
+            }).execute()
+
+        supabase.table("batalhas").update({
+            "pergunta_atual_ordem": ordem_atual + 1,
+            "time_da_vez_id": novo_time,
+            "inicio_turno": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "status_sincrono": "aguardando_resposta"
+        }).eq("id", b_id).execute()
         
-        tempo_passado = (agora - inicio_dt).total_seconds()
-        tempo_restante = 45 - int(tempo_passado)
-        
-        if tempo_restante <= 0:
-            adversario = b.get("time_b_id") if time_da_vez == b.get("time_a_id") else b.get("time_a_id")
-            supabase.table("batalhas").update({
-                "time_da_vez_id": adversario,
-                "inicio_turno": datetime.datetime.now(datetime.timezone.utc).isoformat()
-            }).eq("id", b_id).execute()
-            st.rerun()
-        else:
-            st.metric("Tempo para responder", f"{tempo_restante}s")
-            
-    except Exception as e:
-        st.error(f"Erro no cronômetro: {e}")
+        st.toast("⏳ Tempo esgotado! Avançando para a próxima questão.")
+        st.rerun()
+    else:
+        st.metric("Tempo para responder", f"{tempo_restante}s")
 
 def tela_batalha_rodada():
     aplicar_estilo()
