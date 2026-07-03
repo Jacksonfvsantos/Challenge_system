@@ -74,24 +74,35 @@ def tela_batalha_rodada():
     # --- GOVERNANÇA DOCENTE ---
     if st.session_state.get("usuario_logado", {}).get("tipo_usuario") in ("professor", "admin"):
         with st.expander("⚙️ Governança Docente", expanded=True):
-            col1, col2, col3 = st.columns(3)
             
-            # Botão Iniciar condicional
             if b.get("status") == "agendada":
-                if col1.button("🚀 Iniciar Partida", type="primary"):
-                    iniciar_partida_sincrona(b_id, b.get("time_a_id"))
-                    st.rerun()
+                ta_id, tb_id = str(b.get("time_a_id", "")).strip(), str(b.get("time_b_id", "")).strip()
+                nome_ta, nome_tb = obter_nomes_dos_times(ta_id, tb_id)
+                
+                opcao_inicial = st.selectbox(
+                    "Qual time iniciará a batalha?", 
+                    options=[ta_id, tb_id], 
+                    format_func=lambda x: nome_ta if x == ta_id else nome_tb
+                )
+                
+                if st.button("🚀 Iniciar Partida", type="primary"):
+                    if iniciar_partida_sincrona(b_id, opcao_inicial):
+                        st.success("Partida iniciada!")
+                        st.rerun()
+                    else:
+                        st.error("Erro ao iniciar.")
             
-            if col2.button("⏹️ Encerrar Partida"):
+            col1, col2 = st.columns(2)
+            if col1.button("⏹️ Encerrar Partida"):
                 encerrar_partida_sincrona(b_id)
                 st.session_state.pagina = "batalha_resultado"
                 st.rerun()
             
-            if col3.button("⏩ Pular Questão"):
+            if col2.button("⏩ Pular Questão"):
                 ordem_atual = int(b.get("pergunta_atual_ordem", 1))
                 supabase.table("batalhas").update({"pergunta_atual_ordem": ordem_atual + 1}).eq("id", b_id).execute()
                 st.rerun()
-
+                
     # --- FLUXO DA PARTIDA ---
     if b.get("status") == "em_andamento":
         u = st.session_state.get("usuario_logado", {})
