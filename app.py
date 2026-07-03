@@ -112,6 +112,12 @@ def tela_batalha_rodada():
         real_tela()
     except Exception as e: st.error(f"Erro ao carregar rodada: {e}")
 
+def tela_batalha_resultado(): 
+    try:
+        from telas.batalha_de_equipes.resultado_batalha_de_equipes import tela_batalha_resultado as real_tela
+        real_tela()
+    except Exception as e: st.error(f"Erro ao carregar resultado: {e}")
+
 st.set_page_config(
     page_title="Challenge System",
     layout="centered"
@@ -261,7 +267,10 @@ elif pagina == "batalha_gerenciar":
 elif pagina == "batalha_rodada":
     tela_batalha_rodada()
 
-elif st.session_state.pagina == "batalha_historico":
+elif pagina == "batalha_resultado":
+    tela_batalha_resultado()
+
+elif pagina == "batalha_historico":
     from telas.batalha_de_equipes.historico import tela_historico_batalhas
     tela_historico_batalhas()
 
