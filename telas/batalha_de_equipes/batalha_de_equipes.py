@@ -7,7 +7,7 @@ from services.batalha_service import (
     entrar_no_time, aluno_tem_time, listar_membros_time,
     remover_aluno, deletar_time, cadastrar_questao_rapida, 
     salvar_questoes_lote_ia, cadastrar_nova_batalha, 
-    encerrar_partida_sincrona, obter_batalhas_finalizadas
+    encerrar_partida_sincrona, obter_batalhas_finalizadas, iniciar_partida_sincrona
 )
 
 def tela_batalha_de_equipes():
@@ -38,7 +38,6 @@ def tela_batalha_de_equipes():
             st.subheader("Gerenciar Equipes")
             for t in listar_times():
                 with st.expander(f"Time: {t['nome']}"):
-                    # Botões fora do formulário
                     if st.button("Excluir Time", key=f"del_time_{t['id']}"):
                         deletar_time(t['id']); st.rerun()
                     for m in listar_membros_time(t['id']):
@@ -63,15 +62,40 @@ def tela_batalha_de_equipes():
                     res = cadastrar_questao_rapida(b_sel['id'], enun, [a1, a2, a3, a4], correta)
                     if res["sucesso"]: st.success("Salvo!"); st.rerun()
             else:
-                prompt_custom = prompt_custom = st.text_input("Instruções adicionais para a IA (opcional):", 
-                                             placeholder="Ex: Foque em questões de múltipla escolha sobre algoritmos...")
-                arquivo = st.file_uploader("Upload (PDF/DOCX)", type=["pdf", "docx"])
-                if arquivo and st.button("🤖 Processar e Injetar"):
-                    # Processamento IA...
-                    st.success("Questões importadas!")
-                    st.rerun()
+                prompt_custom = st.text_area("Instruções adicionais para a IA:", height=100)
+                arquivo = st.file_uploader("Upload de Caderno (PDF/DOCX)", type=["pdf", "docx"])
+                
+                if arquivo and st.button("🤖 Processar e Injetar Questões"):
+                    with st.spinner("Processando arquivo e gerando questões com IA..."):
+                        ext = arquivo.name.split('.')[-1]
+                        texto = extrair_texto_de_arquivo(arquivo.getvalue(), ext)
+                        questoes = gerar_questoes_ia(texto, prompt_custom, st.secrets["GEMINI_API_KEY"])
+                        
+                        if questoes:
+                            res = salvar_questoes_lote_ia(b_sel['id'], questoes)
+                            if res["sucesso"]:
+                                st.balloons()
+                                st.success(f"Sucesso! {len(questoes)} questões injetadas na arena: **{b_sel['titulo']}**.")
+                                time.sleep(2); st.rerun()
+                            else: st.error(f"Erro ao salvar: {res['mensagem']}")
+                        else: st.warning("A IA não extraiu questões válidas.")
 
-    # --- ARENA DE BATALHAS COM ABAS ---
+    # --- GESTÃO DE EQUIPES (ALUNOS) ---
+    elif tipo_usuario == "aluno":
+        if not aluno_tem_time(usuario_id):
+            with st.expander("✨ Gerencie sua equipe:", expanded=True):
+                c1, c2 = st.columns(2)
+                with c1:
+                    nome = st.text_input("Nome da nova equipe:")
+                    if st.button("🚀 Criar Equipe"): criar_time(nome); st.rerun()
+                with c2:
+                    times = listar_times()
+                    if times:
+                        sel = st.selectbox("Escolha uma equipe:", times, format_func=lambda x: x['nome'])
+                        if st.button("🤝 Entrar"): entrar_no_time(sel['id'], usuario_id); st.rerun()
+        else: st.success("✅ Você já está alocado em um time.")
+
+    # --- ARENA DE BATALHAS ---
     todas = listar_batalhas_ativas()
     historico = obter_batalhas_finalizadas()
     
@@ -84,12 +108,18 @@ def tela_batalha_de_equipes():
     with hist_a: renderizar_historico([h for h in historico if h.get("modalidade") == "assincrona"])
 
 def renderizar_lista(lista):
+    if not lista: st.info("Nenhuma batalha ativa no momento."); return
     for ba in lista:
         with st.container(border=True):
             st.markdown(f"### {ba['titulo']}")
             if st.session_state.get("usuario_logado", {}).get("tipo_usuario") in ("professor", "admin"):
                 c1, c2, c3 = st.columns(3)
-                if c1.button("🚀 Iniciar", key=f"init_{ba['id']}"): pass
+                if c1.button("🚀 Iniciar", key=f"init_{ba['id']}"):
+                    time_a = ba.get("time_a_id")
+                    if time_a:
+                        if iniciar_partida_sincrona(ba['id'], time_a): st.success("Partida iniciada!"); st.rerun()
+                        else: st.error("Erro ao iniciar.")
+                    else: st.warning("Time A não definido.")
                 if c2.button("🛑 Encerrar", key=f"end_{ba['id']}"): encerrar_partida_sincrona(ba['id']); st.rerun()
                 if c3.button("🗑️ Deletar", key=f"del_{ba['id']}"): deletar_batalha(ba['id']); st.rerun()
             
@@ -97,6 +127,7 @@ def renderizar_lista(lista):
                 st.session_state.batalha_ativa_id = ba["id"]; st.session_state.pagina = "batalha_rodada"; st.rerun()
 
 def renderizar_historico(lista):
+    if not lista: st.info("Sem histórico nesta modalidade."); return
     for h in lista:
         with st.container(border=True):
             st.write(f"**{h['titulo']}** | {h['resultado_extenso']}")
