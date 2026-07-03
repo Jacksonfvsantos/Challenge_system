@@ -51,15 +51,12 @@ def renderizador_pergunta_reativo(b_id, tid, ta_id, tb_id, tipo_u):
 @st.fragment(run_every=1)
 def cronometro_reativo(b_id, time_da_vez, b):
     inicio = b.get("inicio_turno")
-    st.sidebar.write(f"DEBUG: b.get('inicio_turno') = {inicio}") 
-    
-    if not inicio:
-        st.warning("⚠️ Cronômetro parado: inicio_turno não encontrado no banco.")
-        return
+    if not inicio: return
     
     try:
-        inicio_dt = datetime.datetime.fromisoformat(str(inicio).replace('Z', '+00:00'))
-        agora = datetime.datetime.now(datetime.timezone.utc) if inicio.endswith('Z') else datetime.datetime.now()
+        inicio_dt = datetime.datetime.fromisoformat(inicio.replace('Z', '+00:00'))
+        
+        agora = datetime.datetime.now(datetime.timezone.utc)
         
         tempo_passado = (agora - inicio_dt).total_seconds()
         tempo_restante = 45 - int(tempo_passado)
@@ -68,14 +65,14 @@ def cronometro_reativo(b_id, time_da_vez, b):
             adversario = b.get("time_b_id") if time_da_vez == b.get("time_a_id") else b.get("time_a_id")
             supabase.table("batalhas").update({
                 "time_da_vez_id": adversario,
-                "inicio_turno": datetime.datetime.now().isoformat()
+                "inicio_turno": datetime.datetime.now(datetime.timezone.utc).isoformat()
             }).eq("id", b_id).execute()
             st.rerun()
         else:
             st.metric("Tempo para responder", f"{tempo_restante}s")
             
     except Exception as e:
-        st.error(f"Erro no cálculo do tempo: {e}")
+        st.error(f"Erro no cronômetro: {e}")
 
 def tela_batalha_rodada():
     aplicar_estilo()
