@@ -139,9 +139,10 @@ def cadastrar_questao_rapida(batalha_id, enunciado, alternativas_texto, indice_c
 
 def iniciar_partida_sincrona(batalha_id, time_inicial_id):
     try:
+        clean_time_id = str(time_inicial_id).strip()
         supabase.table("batalhas").update({
             "status": "em_andamento", 
-            "time_da_vez_id": time_inicial_id, 
+            "time_da_vez_id": clean_time_id, 
             "status_sincrono": "aguardando_resposta", 
             "pergunta_atual_ordem": 1
         }).eq("id", batalha_id).execute()

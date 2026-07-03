@@ -51,41 +51,44 @@ def tela_batalha_rodada():
     b = obter_estado_batalha(b_id)
 
     if not b or b.get("status") == "finalizada":
-        st.info("Esta batalha já foi encerrada.")
-        st.session_state.pagina = "batalha_resultado" # Redireciona para a tela que criamos
-        st.rerun()
-
-    if b and b.get("status") == "finalizada":
         st.session_state.pagina = "batalha_resultado"
         st.rerun()
     
     u = st.session_state.get("usuario_logado", {})
     tipo_u = str(u.get("tipo_usuario", "aluno")).lower()
-    tid = obter_time_do_usuario(u.get("id"))[0]
+    uid = u.get("id")
+    times_usuario = obter_time_do_usuario(uid)
+    tid = times_usuario[0] if times_usuario else None
     
-    ta_id, tb_id = str(b.get("time_a_id")).strip(), str(b.get("time_b_id")).strip()
+    ta_id = str(b.get("time_a_id")).strip()
+    tb_id = str(b.get("time_b_id")).strip()
     nome_ta, nome_tb = obter_nomes_dos_times(ta_id, tb_id)
     
     painel_estatistico_reativo(b_id, ta_id, tb_id, nome_ta, nome_tb)
- 
     renderizador_pergunta_reativo(b_id, tid, ta_id, tb_id, tipo_u)
 
     if tipo_u in ("professor", "admin"):
-        with st.expander("⚙️ Painel de Controle da Partida"):
-            if st.button("🔥 Iniciar Partida Agora"):
-                iniciar_partida_sincrona(b_id, ta_id)
-                st.rerun()
-
-    if tipo_u in ("professor", "admin"):
-        with st.expander("⚙️ Controle do Docente"):
-            if st.button("⏹️ Encerrar Partida Agora"):
-                sucesso = encerrar_partida_sincrona(b_id)
-                if sucesso:
-                    st.success("Partida encerrada!")
-                    st.session_state.pagina = "batalha_de_equipes"
+        with st.expander("⚙️ Painel de Governança Docente"):
+            if b.get("status") == "agendada":
+                if st.button("🔥 Iniciar Partida Agora"):
+                    iniciar_partida_sincrona(b_id, ta_id)
+                    st.rerun()
+            
+            if st.button("⏹️ Encerrar Partida Agora", type="primary"):
+                if encerrar_partida_sincrona(b_id):
+                    st.session_state.pagina = "batalha_resultado"
                     st.rerun()
                 else:
                     st.error("Erro ao encerrar a partida.")
+            
+            if not obter_pergunta_atual(b_id, b.get("pergunta_atual_ordem", 1)):
+                if st.button("🔄 Resetar Batalha (Forçar Pergunta 1)"):
+                    supabase.table("batalhas").update({"pergunta_atual_ordem": 1, "status": "em_andamento"}).eq("id", b_id).execute()
+                    st.rerun()
+
+    if st.button("🚪 Sair"): 
+        st.session_state.pagina = "batalha_de_equipes"
+        st.rerun()
 
 def tela_batalha_resultado():
     aplicar_estilo()
