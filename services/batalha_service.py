@@ -167,9 +167,11 @@ def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id,
             supabase.table("batalhas").update({
                 "pergunta_atual_ordem": ordem_atual + 1,
                 "time_da_vez_id": time_adversario_id,
-                "status_sincrono": "aguardando_resposta"
+                "status_sincrono": "aguardando_resposta",
+                "inicio_turno": datetime.datetime.now(datetime.timezone.utc).isoformat()
             }).eq("id", batalha_id).execute()
             return "acertou"
+        
         else:
             if int(tentativa_atual) == 1:
                 supabase.table("batalhas").update({
@@ -181,7 +183,8 @@ def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id,
                 supabase.table("batalhas").update({
                     "pergunta_atual_ordem": ordem_atual + 1,
                     "status_sincrono": "aguardando_resposta",
-                    "time_da_vez_id": time_adversario_id # Passa a vez
+                    "time_da_vez_id": time_adversario_id,
+                    "inicio_turno": datetime.datetime.now(datetime.timezone.utc).isoformat()
                 }).eq("id", batalha_id).execute()
                 return "ambos_erraram"
     except Exception as e:
