@@ -138,6 +138,12 @@ def cadastrar_questao_rapida(batalha_id, enunciado, alternativas_texto, indice_c
         return {"sucesso": True, "mensagem": "Questão salva e vinculada à batalha!"}
     except Exception as e:
         return {"sucesso": False, "mensagem": str(e)}
+    
+def obter_total_questoes(batalha_id):
+    try:
+        res = supabase.table("batalha_perguntas").select("id", count='exact').eq("batalha_id", batalha_id).execute()
+        return res.count or 0
+    except Exception: return 0
 
 def iniciar_partida_sincrona(batalha_id, time_inicial_id):
     try:

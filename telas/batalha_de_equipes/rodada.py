@@ -4,7 +4,7 @@ from database.conexao import supabase
 from services.batalha_service import (
     encerrar_partida_sincrona, processar_resposta_sincrona, 
     obter_estado_batalha, obter_pergunta_atual, obter_time_do_usuario, 
-    calcular_placar_atual, obter_nomes_dos_times, processar_passagem_de_vez
+    calcular_placar_atual, obter_nomes_dos_times, processar_passagem_de_vez, obter_total_questoes
 )
 from utils.estilo import aplicar_estilo
 
@@ -48,8 +48,16 @@ def renderizador_pergunta(b_id, tid, ta_id, tb_id, tipo_u, status):
 
 @st.fragment(run_every=1)
 def cronometro_reativo(b_id, b):
+    ordem_atual = int(b.get("pergunta_atual_ordem", 1))
+    total_questoes = obter_total_questoes(b_id)
+    
+    if ordem_atual > total_questoes:
+        st.info("🏁 Todas as questões foram respondidas!")
+        return
+
     inicio = b.get("inicio_turno")
     if not inicio: return
+    
     try:
         inicio_dt = datetime.datetime.fromisoformat(inicio.replace('Z', '+00:00'))
         tempo_passado = (datetime.datetime.now(datetime.timezone.utc) - inicio_dt).total_seconds()
