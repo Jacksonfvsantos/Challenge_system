@@ -42,9 +42,9 @@ def tela_batalha_de_equipes():
             if modo == "Manual":
                 with st.form("form_manual"):
                     enun = st.text_area("Enunciado:")
-                    a1, a2 = st.text_input("Alt A"), st.text_input("Alt B")
-                    a3, a4 = st.text_input("Alt C"), st.text_input("Alt D")
-                    correta = st.selectbox("Correta (0-3):", [0, 1, 2, 3])
+                    a1, a2 = st.text_input("Alternativa A"), st.text_input("Alternativa B")
+                    a3, a4 = st.text_input("Alternativa C"), st.text_input("Alternativa D")
+                    correta = st.selectbox("Correta:", ["A", "B", "C", "D"], format_func=lambda x: f"Alternativa {x}")
                     if st.form_submit_button("Salvar Questão"):
                         res = cadastrar_questao_rapida(b_sel['id'], enun, [a1, a2, a3, a4], correta)
                         if res["sucesso"]: st.success("Salvo!"); st.rerun()
