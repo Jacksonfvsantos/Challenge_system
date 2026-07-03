@@ -1,86 +1,29 @@
 import streamlit as st
 import time
-import datetime
-import extra_streamlit_components as stx
-import traceback
-
 from utils.session import iniciar_session
 from components.navbar import mostrar_menu
 
-from telas.quiz_rodada import tela_quiz_rodada
-from telas.quiz_ranking_global import tela_quiz_ranking_global
-from telas.cadastro_perguntas_quiz import tela_cadastro_perguntas_quiz
 from telas.login import tela_login
 from telas.cadastro import tela_cadastro
 from telas.home import tela_home
+from telas.quiz_rodada import tela_quiz_rodada
+from telas.quiz_ranking_global import tela_quiz_ranking_global
+from telas.cadastro_perguntas_quiz import tela_cadastro_perguntas_quiz
 from telas.votacao import tela_votacao
 from telas.regras import tela_central_regras
 from telas.pontuacoes import tela_pontuacoes
-
-try:
-    from telas.desafios import tela_desafios
-except ImportError:
-    def tela_desafios(): st.warning("Tela de desafios em desenvolvimento.")
-
-try:
-    from telas.quiz_ao_vivo import tela_quiz_ao_vivo
-except ImportError:
-    def tela_quiz_ao_vivo(): st.warning("Tela de quiz ao vivo em desenvolvimento.")
-
-try:
-    from telas.recompensas import tela_recompensas
-except ImportError:
-    def tela_recompensas(): st.warning("Módulo de recompensas indisponível.")
-
-try:
-    from telas.tela_mini_provas_principal import tela_mini_provas
-except ImportError as e:
-    mensagem_erro_prova = str(e)
-    def tela_mini_provas(err=mensagem_erro_prova): 
-        st.warning(f"Módulo de mini provas indisponível. Erro: {err}")
-
-try:
-    from telas.mini_provas.pontuacao_mini_provas import tela_pontuacao_mini_provas
-except ImportError:
-    def tela_pontuacao_mini_provas(): st.warning("Tela de pontuação específica de mini provas em desenvolvimento.")
-
-try:
-    from telas.mini_provas.desempenho_mini_provas import tela_desempenho_mini_provas
-except ImportError:
-    def tela_desempenho_mini_provas(): st.warning("Tela de desempenho de mini provas em desenvolvimento.")
-
-try:
-    from telas.mini_provas.historico_provas_professor import tela_historico_provas_professor
-except ImportError:
-    def tela_historico_provas_professor(): st.error("Módulo de histórico do professor não localizado.")
-
-try:
-    from telas.mini_provas.realizar_mini_prova import tela_realizar_mini_prova
-except ImportError:
-    def tela_realizar_mini_prova(): st.error("Tela 'realizar_mini_prova' não localizada.")
-
-try:
-    from telas.mini_provas.responder import tela_responder_mini_prova
-except ImportError:
-    def tela_responder_mini_prova(): st.error("Tela 'responder' não localizada.")
-
-try:
-    from telas.mini_provas.resultado_mini_prova import tela_resultado_mini_prova
-except ImportError:
-    def tela_resultado_mini_prova(): st.error("Tela 'resultado_mini_prova' não localizada.")
-
-try:
-    from telas.mini_provas.resultados_mini_provas import tela_resultados_mini_provas
-except ImportError:
-    def tela_resultados_mini_provas(): st.error("Tela 'resultados_mini_provas' não localizada.")
-
-try:
-    from telas.mini_provas.mini_provas_professor import tela_mini_provas_professor
-except ImportError:
-    def tela_mini_provas_professor(): st.error("Módulo de gerenciamento do professor não localizado.")
-
-def tela_cadastro_perguntas(): pass
-def tela_lista_perguntas(): pass
+from telas.desafios import tela_desafios
+from telas.quiz_ao_vivo import tela_quiz_ao_vivo
+from telas.recompensas import tela_recompensas
+from telas.tela_mini_provas_principal import tela_mini_provas
+from telas.mini_provas.pontuacao_mini_provas import tela_pontuacao_mini_provas
+from telas.mini_provas.desempenho_mini_provas import tela_desempenho_mini_provas
+from telas.mini_provas.historico_provas_professor import tela_historico_provas_professor
+from telas.mini_provas.realizar_mini_prova import tela_realizar_mini_prova
+from telas.mini_provas.responder import tela_responder_mini_prova
+from telas.mini_provas.resultado_mini_prova import tela_resultado_mini_prova
+from telas.mini_provas.resultados_mini_provas import tela_resultados_mini_provas
+from telas.mini_provas.mini_provas_professor import tela_mini_provas_professor
 
 def tela_batalha_de_equipes(): 
     try:
@@ -118,157 +61,65 @@ def tela_batalha_resultado():
         real_tela()
     except Exception as e: st.error(f"Erro ao carregar resultado: {e}")
 
-st.set_page_config(
-    page_title="Challenge System",
-    layout="centered"
-)
+def tela_batalha_historico():
+    try:
+        from telas.batalha_de_equipes.historico import tela_historico_batalhas
+        tela_historico_batalhas()
+    except Exception as e: st.error(f"Erro ao carregar histórico: {e}")
 
+st.set_page_config(page_title="Challenge System", layout="centered")
 iniciar_session()
 
-def obter_gerenciador_cookies():
-    return stx.CookieManager()
-
-cookie_manager = obter_gerenciador_cookies()
-time.sleep(0.1)
-
-MINUTOS_SESSAO_ATIVA = 30
-
-if not st.session_state.get("usuario_logado"):
-    cookie_usuario = cookie_manager.get(cookie="user_session_token")
-    if cookie_usuario and isinstance(cookie_usuario, dict):
-        st.session_state.usuario_logado = cookie_usuario
-        if "pagina" not in st.session_state:
-            st.session_state.pagina = "home"
-        st.rerun()
-
 query_params = st.query_params
-
 if "sala" in query_params and "id" in query_params:
     if not st.session_state.get("redirecionamento_processado"):
-        tipo_sala = str(query_params["sala"]).strip().lower()
-        sala_id = str(query_params["id"]).strip()
-        if tipo_sala == "batalha":
-            st.session_state.batalha_ativa_id = sala_id
-            st.session_state.pagina = "batalha_rodada"
+        st.session_state.batalha_ativa_id = str(query_params["id"]).strip()
+        st.session_state.pagina = "batalha_rodada"
         st.session_state.redirecionamento_processado = True
         st.query_params.clear()
         st.rerun()
-    
-    if st.session_state.get("usuario_logado") is None:
-        st.session_state["redirecionamento_pendente"] = {"sala": tipo_sala, "id": sala_id}
-    else:
-        if tipo_sala == "batalha":
-            st.session_state.batalha_ativa_id = sala_id
-            st.session_state.pagina = "batalha_rodada"
-        elif tipo_sala == "quiz":
-            st.session_state.quiz_ativo_id = sala_id
-            st.session_state.pagina = "quiz_ao_vivo" 
-        elif tipo_sala == "prova":
-            st.session_state.prova_ativa_id = sala_id
-            st.session_state.pagina = "mini_provas" 
-            
-        st.query_params.clear()
 
 if not st.session_state.get("usuario_logado"):
-    pagina_auth = st.session_state.get("pagina", "login")
-    if pagina_auth == "cadastro":
+    if st.session_state.get("pagina") == "cadastro":
         tela_cadastro()
     else:
-        tela_login(cookie_manager, MINUTOS_SESSAO_ATIVA)
+        tela_login(None, 30)
     st.stop()
 
-mostrar_menu(cookie_manager)
+mostrar_menu(None)
+pagina = st.session_state.get("pagina", "home")
 
-pagina       = st.session_state.get("pagina", "home")
-usuario      = st.session_state.get("usuario_logado", {})
-tipo_usuario = str(usuario.get("tipo_usuario", "aluno")).lower()
+rotas = {
+    "home": tela_home,
+    "desafios": tela_desafios,
+    "votacao": tela_votacao,
+    "pontuacoes": tela_pontuacoes,
+    "regras_plataforma": tela_central_regras,
+    "quiz_rodada": tela_quiz_rodada,
+    "quiz_ranking_global": tela_quiz_ranking_global,
+    "quiz_ao_vivo": tela_quiz_ao_vivo,
+    "cadastro_perguntas_quiz": tela_cadastro_perguntas_quiz,
+    "recompensas": tela_recompensas,
+    "mini_provas": tela_mini_provas,
+    "mini_provas_professor": tela_mini_provas_professor,
+    "historico_provas_professor": tela_historico_provas_professor,
+    "pontuacao_mini_provas": tela_pontuacao_mini_provas,
+    "realizar_mini_prova": tela_realizar_mini_prova,
+    "prova_responder": tela_responder_mini_prova,
+    "resultados_mini_provas": tela_resultados_mini_provas,
+    "resultado_mini_prova": tela_resultado_mini_prova,
+    "desempenho_mini_provas": tela_desempenho_mini_provas,
+    "batalha_de_equipes": tela_batalha_de_equipes,
+    "batalha_times": tela_batalha_times,
+    "batalha_integrantes": tela_batalha_integrantes,
+    "batalha_gerenciar": tela_gerenciar_batalhas,
+    "batalha_rodada": tela_batalha_rodada,
+    "batalha_resultado": tela_batalha_resultado,
+    "batalha_historico": tela_batalha_historico
+}
 
-if pagina == "home":
-    tela_home()
-
-elif pagina == "desafios":
-    tela_desafios()
-
-elif pagina == "votacao":
-    tela_votacao()
-
-elif pagina == "pontuacoes":
-    tela_pontuacoes()
-
-elif pagina == "regras_plataforma":
-    tela_central_regras()
-
-elif pagina == "quiz_rodada":
-    tela_quiz_rodada()
-
-elif pagina == "quiz_ranking_global":
-    tela_quiz_ranking_global()
-
-elif pagina == "quiz_ao_vivo":
-    tela_quiz_ao_vivo()
-
-elif pagina == "cadastro_perguntas_quiz":
-    tela_cadastro_perguntas_quiz()
-
-elif pagina == "recompensas":
-    tela_recompensas()
-
-elif pagina == "mini_provas":
-    tela_mini_provas()
-
-elif pagina == "mini_provas_professor":
-    tela_mini_provas_professor()
-
-elif pagina == "historico_provas_professor":
-    tela_historico_provas_professor()
-
-elif pagina == "pontuacao_mini_provas":
-    tela_pontuacao_mini_provas()
-
-elif pagina == "realizar_mini_prova":
-    tela_realizar_mini_prova()
-
-elif pagina == "prova_responder":
-    tela_responder_mini_prova()
-
-elif pagina == "resultados_mini_provas":
-    tela_resultados_mini_provas()
-
-elif pagina == "resultado_mini_prova":
-    tela_resultado_mini_prova()
-
-elif pagina == "cadastro_perguntas":
-    tela_cadastro_perguntas()
-
-elif pagina == "lista_perguntas":
-    tela_lista_perguntas()
-
-elif pagina == "desempenho_mini_provas":
-    tela_desempenho_mini_provas()
-
-elif pagina == "batalha_de_equipes":
-    tela_batalha_de_equipes()
-
-elif pagina == "batalha_times":
-    tela_batalha_times()
-
-elif pagina == "batalha_integrantes":
-    tela_batalha_integrantes()
-
-elif pagina == "batalha_gerenciar":
-    tela_gerenciar_batalhas()
-
-elif pagina == "batalha_rodada":
-    tela_batalha_rodada()
-
-elif pagina == "batalha_resultado":
-    tela_batalha_resultado()
-
-elif pagina == "batalha_historico":
-    from telas.batalha_de_equipes.historico import tela_historico_batalhas
-    tela_historico_batalhas()
-
+if pagina in rotas:
+    rotas[pagina]()
 else:
-    if pagina != "home":
-        st.session_state.pagina = "home"
-        st.rerun()
+    st.session_state.pagina = "home"
+    st.rerun()
