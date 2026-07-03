@@ -198,8 +198,10 @@ def processar_passagem_de_vez(batalha_id, time_atual_id, time_adversario_id):
 
 def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id, alternativa_correta, time_adversario_id, tentativa_atual):
     try:
+        if not time_id or str(time_id) == "None":
+            return "erro: time_id_invalido"
+        
         batalha = obter_estado_batalha(batalha_id)
-        if not batalha: return "erro: batalha_nao_encontrada"
         
         ordem_atual = int(batalha.get("pergunta_atual_ordem", 1))
 

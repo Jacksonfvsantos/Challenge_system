@@ -51,27 +51,23 @@ def renderizador_pergunta(b_id, tid, ta_id, tb_id, tipo_u, status):
 
     st.markdown(f"### 📍 {dados_p.get('enunciado')}")
     
-    tid_limpo = str(tid).strip().lower()
-    vez_limpo = str(b.get("time_da_vez_id", "")).strip().lower()
-    eh_vez = (tid_limpo == vez_limpo and tipo_u not in ("professor", "admin"))
+    # Restrição: Professores NÃO devem responder
+    eh_vez = (str(tid).strip().lower() == str(b.get("time_da_vez_id", "")).strip().lower() 
+              and tipo_u not in ("professor", "admin"))
     
     for alt in dados_p.get("alternativas", []):
-        # DEBUG: Se o botão estiver desabilitado, você não saberá o porquê.
-        # Vamos adicionar um tooltip ou verificar o estado lógico.
-        eh_vez = (tid_limpo == vez_limpo and tipo_u not in ("professor", "admin"))
-        
-        # Se você clicar e não acontecer nada, o st.button retornará False.
         if st.button(alt["texto"], key=f"alt_{alt['id']}", disabled=not eh_vez, use_container_width=True):
-            adv = tb_id if tid_limpo == ta_id.strip().lower() else ta_id
+            
+            # --- CORREÇÃO: Validação de ID antes do processamento ---
+            if not tid or tid == "None":
+                st.error("Você não pertence a um time válido para responder.")
+                return
+
+            adv = tb_id if str(tid).strip().lower() == ta_id.strip().lower() else ta_id
             tentativa = 2 if status == "rebate_ativo" else 1
             
-            # Captura a resposta do serviço
             resultado = processar_resposta_sincrona(b_id, dados_p["id"], tid, alt["id"], alt["correta"], adv, tentativa)
-            
-            # Debug visual na tela
-            st.warning(f"Resultado processado: {resultado}")
-            
-            # Força o rerun apenas após o processamento
+            st.warning(f"Resultado: {resultado}")
             st.rerun()
 
 def tela_batalha_rodada():
