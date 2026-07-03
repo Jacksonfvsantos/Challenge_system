@@ -78,9 +78,11 @@ mover_aluno = blackjack_mover_aluno
 
 def obter_estado_batalha(batalha_id):
     try:
-        res = supabase.table("batalhas").select("*").eq("id", batalha_id).execute()
+        if not batalha_id: return None
+        res = supabase.table("batalhas").select("*").eq("id", str(batalha_id).strip()).execute()
         return res.data[0] if res.data else None
-    except Exception:
+    except Exception as e:
+        print(f"Erro [obter_estado_batalha]: {e}")
         return None
 
 def obter_batalhas_finalizadas():
