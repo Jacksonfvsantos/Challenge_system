@@ -7,32 +7,34 @@ def tela_batalha_resultado():
     b_id = st.session_state.get("batalha_ativa_id")
     
     if not b_id:
-        st.info("Nenhuma batalha ativa para exibir resultados.")
+        st.info("Nenhuma batalha ativa.")
         return
 
     res = supabase.table("historico_batalhas").select("*").eq("batalha_id", b_id).execute()
     
     if res.data:
         info = res.data[0]
-        st.balloons()
+        t_a_id, t_b_id = info['time_a_nome'], info['time_b_nome']
+        
+        res_times = supabase.table("times").select("id, nome").in_("id", [t_a_id, t_b_id]).execute()
+        mapa_nomes = {str(t['id']): t['nome'] for t in res_times.data}
+        
+        nome_a = mapa_nomes.get(str(t_a_id), "Time A")
+        nome_b = mapa_nomes.get(str(t_b_id), "Time B")
         
         p_a, p_b = info['pontos_time_a'], info['pontos_time_b']
-        nome_a, nome_b = info['time_a_nome'], info['time_b_nome']
-
-        if p_a > p_b:
-            mensagem = f"🏆 Vencedor: {nome_a}!"
-        elif p_b > p_a:
-            mensagem = f"🏆 Vencedor: {nome_b}!"
-        else:
-            mensagem = "🤝 Partida terminou em Empate!"
+        
+        st.balloons()
+        
+        if p_a > p_b: mensagem = f"🏆 Vencedor: {nome_a}!"
+        elif p_b > p_a: mensagem = f"🏆 Vencedor: {nome_b}!"
+        else: mensagem = "🤝 Empate!"
             
         cabecalho("🏁 Partida Encerrada!", mensagem)
         
         with st.container(border=True):
-            st.markdown(f"### {info['resultado_extenso']}")
-            st.write(f"**Placar Final:** {nome_a} **{p_a}** x **{p_b}** {nome_b}")
-    else:
-        st.error("Erro ao carregar o resultado da batalha.")
+            st.markdown(f"### Placar Final: {nome_a} {p_a} x {p_b} {nome_b}")
+            st.write(f"Detalhes: {info['resultado_extenso']}")
     
     if st.button("🏠 Voltar para a Arena"):
         st.session_state.pagina = "batalha_de_equipes"
