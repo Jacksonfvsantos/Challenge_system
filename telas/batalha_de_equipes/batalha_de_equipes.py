@@ -1,16 +1,50 @@
 import streamlit as st
 import time
 from utils.estilo import aplicar_estilo, cabecalho
-from services.batalha_service import listar_batalhas_ativas, deletar_batalha
+from services.batalha_service import (
+    listar_batalhas_ativas, 
+    deletar_batalha,
+    criar_time,
+    listar_times,
+    entrar_no_time,
+    aluno_tem_time    
+)
 
 def tela_batalha_de_equipes():
     aplicar_estilo()
+    
+    usuario = st.session_state.get("usuario_logado", {})
+    usuario_id = str(usuario.get("id", "")).strip()
     
     if st.button("⬅️ Voltar ao Dashboard"):
         st.session_state.pagina = "home"
         st.rerun()
         
     cabecalho("⚔️ Arena de Batalha de Equipes", "Participe de desafios síncronos em tempo real")
+
+    if not aluno_tem_time(usuario_id):
+        with st.expander("✨ Você ainda não tem um time! Gerencie aqui:", expanded=True):
+            col_criar, col_entrar = st.columns(2)
+            
+            with col_criar:
+                nome_novo = st.text_input("Nome da Equipa:")
+                if st.button("🚀 Criar Equipa"):
+                    if criar_time(nome_novo):
+                        st.success("Equipa criada!")
+                        st.rerun()
+            
+            with col_entrar:
+                times = listar_times()
+                if times:
+                    time_sel = st.selectbox("Escolha uma equipa:", options=times, format_func=lambda x: x['nome'])
+                    if st.button("🤝 Entrar na Equipe"):
+                        if entrar_no_time(time_sel['id'], usuario_id):
+                            st.success("Vinculado com sucesso!")
+                            st.rerun()
+                else:
+                    st.info("Nenhuma equipa disponível.")
+    else:
+        st.success("✅ Você já está alocado em uma equipe e pronto para a arena.")
 
     if st.button("🔄 Atualizar Lista de Arenas"):
         st.rerun()

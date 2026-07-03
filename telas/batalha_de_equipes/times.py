@@ -36,7 +36,7 @@ def tela_batalha_times():
                     st.markdown("#### ✨ Criar Nova Equipa")
                     st.caption("Seja o fundador de um novo clã. Escolha um nome imponente e convide os seus colegas.")
                     
-                    nome_novo_time = st.text_input("Nome da Equipa:", key="input_nome_novo_time")
+                    nome_novo_time = st.text_input("Nome da Equipe:", key="input_nome_novo_time")
                     
                     if st.button("🔥 Fundar Equipa", type="primary", use_container_width=True):
                         if not nome_novo_time.strip():
