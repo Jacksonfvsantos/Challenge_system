@@ -80,6 +80,9 @@ def tela_batalha_rodada():
         st.session_state.pagina = "batalha_resultado"
         st.rerun()
     
+    b = obter_estado_batalha(b_id)
+    cronometro_reativo(b_id, b.get("time_da_vez_id"), b)
+
     u = st.session_state.get("usuario_logado", {})
     tipo_u = str(u.get("tipo_usuario", "aluno")).lower()
     uid = u.get("id")
@@ -89,10 +92,7 @@ def tela_batalha_rodada():
     ta_id = str(b.get("time_a_id")).strip()
     tb_id = str(b.get("time_b_id")).strip()
     nome_ta, nome_tb = obter_nomes_dos_times(ta_id, tb_id)
-
-    b = obter_estado_batalha(b_id)
-    cronometro_reativo(b_id, b.get("time_da_vez_id"), b)
-    
+  
     painel_estatistico_reativo(b_id, ta_id, tb_id, nome_ta, nome_tb)
     renderizador_pergunta_reativo(b_id, tid, ta_id, tb_id, tipo_u)
 
