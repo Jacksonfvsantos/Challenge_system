@@ -26,14 +26,21 @@ def renderizador_pergunta_reativo(b_id, tid, ta_id, tb_id, tipo_u):
 
     st.markdown(f"### 📍 {dados_p['enunciado']}")
     
-    eh_vez = (str(tid).strip() == str(b.get("time_da_vez_id")).strip())
-    adversario_id = tb_id if str(tid).strip() == str(ta_id).strip() else ta_id
-    eh_professor = tipo_u in ("professor", "admin")
+    tid_limpo = str(tid).strip().lower() if tid else "none"
+    vez_limpo = str(b.get("time_da_vez_id", "")).strip().lower()
+    
+    eh_vez = (tid_limpo == vez_limpo)
+    
+    if tipo_u in ("professor", "admin"):
+        eh_vez = False
+        st.info("👁️ Modo Observador: Apenas times podem responder.")
 
     for alt in dados_p["alternativas"]:
-        if st.button(alt["texto"], key=f"alt_{alt['id']}", use_container_width=True, disabled=not eh_vez and not eh_professor):
+        if st.button(alt["texto"], key=f"alt_{alt['id']}", use_container_width=True, disabled=not eh_vez):
             if b.get("modalidade") == "sincrona":
                 tentativa = 2 if b.get("status_sincrono") == "rebate_ativo" else 1
+                adversario_id = tb_id if tid_limpo == ta_id.strip().lower() else ta_id
+                
                 res = processar_resposta_sincrona(b_id, dados_p["id"], tid, alt["id"], alt["correta"], adversario_id, tentativa)
                 st.toast(f"Resultado: {res}")
             else:
