@@ -5,6 +5,7 @@ from services.batalha_service import listar_batalhas_ativas, deletar_batalha
 def tela_batalha_de_equipes():
     aplicar_estilo()
     
+    # Navegação básica
     if st.button("⬅️ Voltar ao Dashboard"):
         st.session_state.pagina = "home"
         st.rerun()
@@ -25,11 +26,12 @@ def tela_batalha_de_equipes():
 
     if tipo_usuario in ("professor", "admin"):
         st.divider()
-        st.markdown("### 🛠️ Painel de Governança Docente")
+        st.markdown("### 🛠️ Painel Avançado de Governança Docente")
         col_m1, col_m2, col_m3 = st.columns(3)
-        if col_m1.button("🏢 Gerenciar Equipes"): st.session_state.pagina = "batalha_times"; st.rerun()
-        if col_m2.button("👥 Alocação"): st.session_state.pagina = "batalha_integrantes"; st.rerun()
-        if col_m3.button("📝 Nova Batalha", type="primary"): st.session_state.pagina = "batalha_gerenciar"; st.rerun()
+        if col_m1.button("🏢 Gerenciar Equipes", use_container_width=True): st.session_state.pagina = "batalha_times"; st.rerun()
+        if col_m2.button("👥 Alocação de Alunos", use_container_width=True): st.session_state.pagina = "batalha_integrantes"; st.rerun()
+        if col_m3.button("📝 Abrir Nova Batalha", type="primary", use_container_width=True): st.session_state.pagina = "batalha_gerenciar"; st.rerun()
+        if st.button("📜 Ver Histórico de Batalhas", use_container_width=True): st.session_state.pagina = "batalha_historico"; st.rerun()
 
 def renderizar_lista_batalhas(lista):
     if not lista:
