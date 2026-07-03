@@ -144,7 +144,8 @@ def iniciar_partida_sincrona(batalha_id, time_inicial_id):
             "status": "em_andamento", 
             "time_da_vez_id": clean_time_id, 
             "status_sincrono": "aguardando_resposta", 
-            "pergunta_atual_ordem": 1
+            "pergunta_atual_ordem": 1,
+            "inicio_turno": datetime.datetime.now().isoformat() 
         }).eq("id", batalha_id).execute()
         return True
     except Exception as e:
