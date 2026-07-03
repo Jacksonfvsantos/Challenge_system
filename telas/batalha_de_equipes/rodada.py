@@ -8,12 +8,12 @@ from services.batalha_service import (
 )
 from utils.estilo import aplicar_estilo
 
-@st.fragment(run_every=1)
+@st.fragment(run_every=3)
 def painel_estatistico_reativo(batalha_id, time_a_id, time_b_id, nome_ta, nome_tb):
     pa, pb = calcular_placar_atual(batalha_id, time_a_id, time_b_id)
     st.markdown(f"**Placar:** {nome_ta} {pa} vs {nome_tb} {pb}", unsafe_allow_html=True)
 
-@st.fragment(run_every=1)
+@st.fragment(run_every=3)
 def renderizador_pergunta_reativo(b_id, tid, ta_id, tb_id, tipo_u):
     b = obter_estado_batalha(b_id)
     p_ordem = int(b.get("pergunta_atual_ordem", 1))
@@ -33,7 +33,7 @@ def renderizador_pergunta_reativo(b_id, tid, ta_id, tb_id, tipo_u):
             processar_resposta_sincrona(b_id, dados_p["id"], tid, alt["id"], alt["correta"], adv, 1)
             st.rerun()
 
-@st.fragment(run_every=1)
+@st.fragment(run_every=3)
 def cronometro_reativo(b_id, b):
     inicio = b.get("inicio_turno")
     if not inicio: return
