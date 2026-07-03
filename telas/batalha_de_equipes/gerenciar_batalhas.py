@@ -9,7 +9,7 @@ from services.ia_processador_service import extrair_texto_de_arquivo, gerar_ques
 def tela_gerenciar_batalhas():
     aplicar_estilo()
   
-    if st.button("⬅️ Voltar para Arena"):
+    if st.button("⬅️ Voltar para a Arena"):
         st.session_state.pagina = "batalha_de_equipes"
         st.rerun()
     
