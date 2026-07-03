@@ -58,4 +58,4 @@ def renderizar_lista_batalhas(lista):
             if st.button(f"Entrar na Arena - {ba['titulo']}", key=f"entrar_{ba['id']}"):
                 st.session_state.batalha_ativa_id = ba["id"]
                 st.session_state.pagina = "batalha_rodada"
-                st.experimental_rerun()
+                st.rerun()
