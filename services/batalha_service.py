@@ -402,3 +402,22 @@ def encerrar_partida_sincrona(batalha_id):
         supabase.table("batalhas").update({"status": "finalizada", "finalizada": True}).eq("id", str(batalha_id)).execute()
         return True
     except: return False
+
+def processar_resposta_assincrona(batalha_id, questao_id, time_id, alternativa_id, alternativa_correta):
+    try:
+        if not eh_uuid_valido(time_id): return "erro"
+        
+        # Trava de segurança: Verifica se a equipe já respondeu esta questão
+        res = supabase.table("batalha_respostas").select("id").eq("batalha_id", str(batalha_id)).eq("questao_id", str(questao_id)).eq("time_id", str(time_id)).execute()
+        if res.data: return "ja_respondida"
+        
+        # Salva a resposta com tentativa 1 (sem mecânica de rebate)
+        supabase.table("batalha_respostas").insert({
+            "batalha_id": str(batalha_id), "questao_id": str(questao_id), 
+            "time_id": str(time_id), "alternativa_id": str(alternativa_id), 
+            "resposta_correta": bool(alternativa_correta), "tentativa_numero": 1
+        }).execute()
+        
+        return "acertou" if alternativa_correta else "errou"
+    except Exception as e:
+        return f"erro: {str(e)}"

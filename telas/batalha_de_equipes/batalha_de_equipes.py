@@ -143,25 +143,30 @@ def tela_batalha_de_equipes():
 # --- FUNÇÕES DE RENDERIZAÇÃO DOS CARDS ---
 
 def renderizar_lista(lista):
-    if not lista: 
-        st.info("Nenhuma arena ativa nesta modalidade.")
-        return
-        
+    if not lista: st.info("Nenhuma batalha ativa."); return
     for ba in lista:
         with st.container(border=True):
-            st.markdown(f"### ⚔️ {ba['titulo']}")
+            st.markdown(f"### {ba['titulo']}")
             if st.session_state.get("usuario_logado", {}).get("tipo_usuario") in ("professor", "admin"):
                 c1, c2, c3 = st.columns(3)
-                if c1.button("🚀 Iniciar", key=f"init_{ba['id']}"):
-                    if iniciar_partida_sincrona(ba['id'], ba.get("time_a_id")): st.rerun()
+                
+                # Na assíncrona, o professor não precisa "Iniciar" a rodada.
+                if ba.get("modalidade") == "sincrona":
+                    if c1.button("🚀 Iniciar", key=f"init_{ba['id']}"):
+                        if iniciar_partida_sincrona(ba['id'], ba.get("time_a_id")): st.rerun()
+                        
                 if c2.button("🛑 Encerrar", key=f"end_{ba['id']}"): 
                     encerrar_partida_sincrona(ba['id']); st.rerun()
                 if c3.button("🗑️ Deletar", key=f"del_{ba['id']}"): 
                     deletar_batalha(ba['id']); st.rerun()
             
+            # O Roteador Inteligente
             if st.button(f"Entrar na Arena", key=f"entrar_{ba['id']}", use_container_width=True):
                 st.session_state.batalha_ativa_id = ba["id"]
-                st.session_state.pagina = "batalha_rodada"
+                if ba.get("modalidade") == "assincrona":
+                    st.session_state.pagina = "batalha_rodada_assincrona"
+                else:
+                    st.session_state.pagina = "batalha_rodada"
                 st.rerun()
 
 def renderizar_historico(lista):

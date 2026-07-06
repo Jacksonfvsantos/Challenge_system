@@ -67,6 +67,12 @@ def tela_batalha_historico():
         tela_historico_batalhas()
     except Exception as e: st.error(f"Erro ao carregar histórico: {e}")
 
+def tela_batalha_rodada_assincrona(): 
+    try:
+        from telas.batalha_de_equipes.rodada_assincrona import tela_batalha_rodada_assincrona as real_tela
+        real_tela()
+    except Exception as e: st.error(f"Erro ao carregar rodada assíncrona: {e}")
+
 st.set_page_config(page_title="Challenge System", layout="centered")
 iniciar_session()
 
@@ -115,7 +121,8 @@ rotas = {
     "batalha_gerenciar": tela_gerenciar_batalhas,
     "batalha_rodada": tela_batalha_rodada,
     "batalha_resultado": tela_batalha_resultado,
-    "batalha_historico": tela_batalha_historico
+    "batalha_historico": tela_batalha_historico,
+    "batalha_rodada_assincrona": tela_batalha_rodada_assincrona
 }
 
 if pagina in rotas:
