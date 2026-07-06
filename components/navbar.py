@@ -37,7 +37,7 @@ def mostrar_menu(cookie_manager):
     </div>
     """, unsafe_allow_html=True)
 
-    if st.sidebar.button("🏠 Início / Dashboard", use_container_width=True):
+    if st.sidebar.button("🏠 Visão Geral", use_container_width=True):
         st.session_state.pagina = "home"
         st.rerun()
         
@@ -52,29 +52,29 @@ def mostrar_menu(cookie_manager):
 
     st.sidebar.divider()
     
-    if st.sidebar.button("⚔️ Batalha de Equipes", use_container_width=True):
+    if st.sidebar.button("⚔️ Arena de Equipes", use_container_width=True):
         st.session_state.pagina = "batalha_de_equipes"
         st.rerun()
 
-    if st.sidebar.button("🎯 Desafios Operacionais", use_container_width=True):
+    if st.sidebar.button("🎯 Desafios Práticos", use_container_width=True):
         st.session_state.pagina = "desafios"
         st.rerun()
 
-    if st.sidebar.button("📝 Mini Provas Práticas", use_container_width=True):
+    if st.sidebar.button("📝 Avaliações Modulares", use_container_width=True):
         st.session_state.pagina = "mini_provas"
         st.rerun()
 
-    if st.sidebar.button("🎮 Quiz ao Vivo (Sala)", use_container_width=True):
+    if st.sidebar.button("🎮 Quiz em Tempo Real", use_container_width=True):
         st.session_state.pagina = "quiz_ao_vivo"
         st.rerun()
 
     st.sidebar.divider()
     
-    if st.sidebar.button("📊 Placar Global de Líderes", use_container_width=True):
+    if st.sidebar.button("📊 Ranking Geral", use_container_width=True):
         st.session_state.pagina = "pontuacoes"
         st.rerun()
         
-    if st.sidebar.button("📖 Manual e Fair Play", use_container_width=True):
+    if st.sidebar.button("📖 Regras e Condutas", use_container_width=True):
         st.session_state.pagina = "regras_plataforma"
         st.rerun()
 
