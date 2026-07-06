@@ -41,12 +41,13 @@ def mostrar_menu(cookie_manager):
         st.session_state.pagina = "home"
         st.rerun()
         
-    if st.sidebar.button("🎯 Desafios Operacionais", use_container_width=True):
-        st.session_state.pagina = "desafios"
-        st.rerun()
-        
     if st.sidebar.button("🗳️ Avaliação e Votos", use_container_width=True):
         st.session_state.pagina = "votacao"
+        st.rerun()
+
+    
+    if st.sidebar.button("🏆 Vitrine de Recompensas", use_container_width=True):
+        st.session_state.pagina = "recompensas"
         st.rerun()
 
     st.sidebar.divider()
@@ -63,8 +64,8 @@ def mostrar_menu(cookie_manager):
         st.session_state.pagina = "mini_provas"
         st.rerun()
 
-    if st.sidebar.button("🏆 Vitrine de Recompensas", use_container_width=True):
-        st.session_state.pagina = "recompensas"
+    if st.sidebar.button("🎯 Desafios Operacionais", use_container_width=True):
+        st.session_state.pagina = "desafios"
         st.rerun()
 
     st.sidebar.divider()
