@@ -23,7 +23,6 @@ def formatar_data_br(data_str):
 
 def tela_desafios():
     aplicar_estilo()
-    
     usuario = st.session_state.get("usuario_logado", {})
     usuario_id = str(usuario.get("id", "")).strip()
     tipo_usuario = str(usuario.get("tipo_usuario", "aluno")).lower()
@@ -43,11 +42,8 @@ def tela_desafios():
     if aba_cadastro:
         with aba_cadastro:
             st.markdown("### ➕ Criar Novo Desafio Prático")
-            
-            # O formulário garante que todos os campos sejam enviados juntos
             with st.form("form_novo_desafio_modular", clear_on_submit=True):
                 titulo = st.text_input("Título do Desafio:", placeholder="Ex: Otimização de Consultas SQL")
-                # O uso de 'key' ajuda a manter a integridade do dado no Streamlit
                 descricao = st.text_area("Enunciado / Requisitos Técnicos:", placeholder="Descreva os requisitos...")
                 
                 col_n, col_d = st.columns(2)
@@ -57,21 +53,19 @@ def tela_desafios():
                 btn_publicar = st.form_submit_button("🔥 Publicar Desafio", use_container_width=True)
                 
                 if btn_publicar:
-                    # Validação crítica antes de chamar o serviço
                     if not titulo.strip() or not descricao.strip():
                         st.error("🛑 Título e Enunciado são obrigatórios!")
                     else:
                         with st.spinner("Publicando desafio..."):
-                            # Chamada ao service (agora com a coluna 'criado_por' corrigida)
                             res = criar_desafio(titulo, descricao, usuario_id, str(data_limite), nivel)
-                            
                             if res.get("sucesso"):
                                 st.success("🎉 Desafio cadastrado com sucesso!")
                                 time.sleep(1.5)
-                                st.rerun() # Atualiza a página para mostrar o novo desafio na listagem
+                                st.rerun()
                             else:
                                 st.error(f"❌ Erro ao salvar: {res.get('mensagem')}")
 
+    # --- ABA DE LISTAGEM ---
     with aba_lista:
         desafios_ativos = listar_desafios() or []
         
@@ -87,35 +81,39 @@ def tela_desafios():
                     st.write(desafio.get("descricao", "Sem descrição."))
                     st.markdown(f"**📊 Nível:** `{desafio.get('nivel_dificuldade')}` &nbsp;|&nbsp; **📅 Prazo Final:** `{prazo_br}`")
                     
-                    # Ações do Aluno
+                    # Fluxo do Aluno
                     if tipo_usuario == "aluno":
                         participantes = listar_participantes(desafio_id) or []
                         vinc_aluno = next((p for p in participantes if str(p.get("usuario_id")).strip() == usuario_id), None)
                         
                         if not vinc_aluno:
-                            if st.button("🚀 Ingressar e Iniciar Desafio", key=f"ing_{desafio_id}", type="primary", use_container_width=True):
-                                if participar_desafio(desafio_id, usuario_id):
-                                    st.rerun()
+                            if st.button("🚀 Ingressar no Desafio", key=f"ing_{desafio_id}", type="primary", use_container_width=True):
+                                if participar_desafio(desafio_id, usuario_id): st.rerun()
+                                    
                         elif vinc_aluno.get("status") == "participando":
-                            col_c1, col_c2 = st.columns(2)
-                            if col_c1.button("🏁 Concluir", key=f"conc_{desafio_id}", type="primary", use_container_width=True):
-                                concluir_desafio(desafio_id, usuario_id); st.rerun()
-                            if col_c2.button("❌ Cancelar", key=f"canc_{desafio_id}", type="secondary", use_container_width=True):
-                                cancelar_participacao(desafio_id, usuario_id); st.rerun()
+                            with st.expander("🏁 Concluir e Submeter Entrega"):
+                                sub = st.text_area("Link do projeto ou observações:", key=f"sub_{desafio_id}")
+                                if st.button("✅ Enviar e Concluir", key=f"conc_{desafio_id}", type="primary", use_container_width=True):
+                                    if not sub.strip(): st.error("Preencha o campo de submissão.")
+                                    elif concluir_desafio(desafio_id, usuario_id, sub):
+                                        st.toast("Entrega realizada!"); time.sleep(1); st.rerun()
+                                if st.button("❌ Cancelar", key=f"canc_{desafio_id}", type="secondary", use_container_width=True):
+                                    cancelar_participacao(desafio_id, usuario_id); st.rerun()
+                                    
                         elif vinc_aluno.get("status") == "concluido":
                             st.success("👑 Desafio Concluído!")
+                            if vinc_aluno.get("submissao"): st.info(f"🔗 Sua entrega: {vinc_aluno.get('submissao')}")
 
-                    # Ações do Docente (Auditoria + Exclusão)
+                    # Fluxo do Docente
                     elif tipo_usuario in ("professor", "admin"):
                         if st.button("🗑️ Excluir Desafio Definitivamente", key=f"del_{desafio_id}", type="primary", use_container_width=True):
                             if deletar_desafio(desafio_id):
-                                st.success("Desafio removido!")
-                                st.rerun()
+                                st.success("Desafio removido!"); st.rerun()
                             else:
                                 st.error("Erro ao excluir.")
                         
-                        # Relatório de Engajamento
                         participantes = listar_participantes(desafio_id) or []
                         with st.expander(f"📊 Ver inscritos ({len(participantes)})"):
                             for p in participantes:
-                                st.markdown(f"• **{p.get('usuarios', {}).get('nome', 'Alu')}** - {p.get('status')}")
+                                st.markdown(f"• **{p.get('usuarios', {}).get('nome', 'Alu')}** - `{p.get('status')}`")
+                                if p.get("submissao"): st.caption(f"🔗 Entrega: {p.get('submissao')}")
