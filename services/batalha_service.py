@@ -184,3 +184,47 @@ def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id,
 
     except Exception as e:
         return {"erro": f"Erro crítico no processamento: {str(e)}"}
+    
+# --- GERENCIAMENTO GERAL DE BATALHAS (Adicionado para a tela principal) ---
+
+def listar_batalhas_ativas():
+    """Busca todas as batalhas que estão agendadas ou em andamento."""
+    try:
+        # Busca ordenando pelas mais recentes
+        resposta = supabase.table("batalhas").select("*").in_("status", ["agendada", "em_andamento"]).order("created_at", descending=True).execute()
+        return resposta.data or []
+    except Exception as e:
+        print(f"Erro [listar_batalhas_ativas]: {e}")
+        return []
+
+def listar_historico_batalhas():
+    """Busca batalhas já finalizadas para a aba de histórico."""
+    try:
+        resposta = supabase.table("batalhas").select("*").eq("status", "finalizada").order("created_at", descending=True).execute()
+        return resposta.data or []
+    except Exception as e:
+        print(f"Erro [listar_historico_batalhas]: {e}")
+        return []
+
+def deletar_batalha(batalha_id):
+    """Deleta a batalha e seus vínculos em cascata para evitar erro de Foreign Key."""
+    if not eh_uuid_valido(batalha_id): return False
+    try:
+        b_id = str(batalha_id)
+        # 1. Deleta respostas
+        supabase.table("batalha_respostas").delete().eq("batalha_id", b_id).execute()
+        
+        # 2. Deleta alternativas vinculadas às questões da batalha
+        perguntas = supabase.table("batalha_perguntas").select("questao_id").eq("batalha_id", b_id).execute()
+        for p in perguntas.data:
+            supabase.table("alternativas").delete().eq("questao_id", p['questao_id']).execute()
+            
+        # 3. Deleta o vínculo das questões
+        supabase.table("batalha_perguntas").delete().eq("batalha_id", b_id).execute()
+        
+        # 4. Deleta a batalha principal
+        supabase.table("batalhas").delete().eq("id", b_id).execute()
+        return True
+    except Exception as e:
+        print(f"Erro ao deletar batalha: {e}")
+        return False
