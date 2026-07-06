@@ -32,7 +32,7 @@ def tela_quiz_ao_vivo():
     quizzes = listar_quizzes()
     
     if not quizzes:
-        st.info("Nenhuma sala de quiz encontrada no momento.")
+        st.info("Nenhuma sala de quiz disponível no momento.")
     else:
         for q in quizzes:
             q_id = q["id"]
@@ -60,4 +60,10 @@ def tela_quiz_ao_vivo():
                                 st.session_state.pagina = "quiz_rodada"
                                 st.rerun()
                         else:
-                            st.button("🔒 Encerrado", disabled=True, use_container_width=True)
+                            st.button("🔒 Encerrado", key=f"lock_{q_id}", disabled=True, use_container_width=True)
+                
+                # --- INTEGRAÇÃO DO QR CODE (REQUISITO DE RELATÓRIO) ---
+                if tipo in ("professor", "admin"):
+                    with st.expander("📡 Painel de Compartilhamento (QR Code / Link)"):
+                        from utils.compartilhamento import exibir_painel_compartilhamento
+                        exibir_painel_compartilhamento("quiz", q_id)

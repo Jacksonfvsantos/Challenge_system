@@ -11,7 +11,6 @@ from services.participacao_service import (
 )
 
 def formatar_data_br(data_str):
-    """Converte datas padrão ISO (YYYY-MM-DD) para o formato brasileiro (DD/MM/YYYY)"""
     if not data_str:
         return "Sem prazo informado"
     try:
@@ -33,20 +32,17 @@ def tela_desafios():
         "Participe de projetos práticos da engenharia, submeta soluções robustas e eleve seu XP"
     )
 
-    # Separação de fluxos por Abas para manter o design profissional da plataforma
     if tipo_usuario in ("professor", "admin"):
         aba_lista, aba_cadastro = st.tabs(["📋 Desafios Lançados", "✨ Cadastrar Novo Desafio"])
     else:
         aba_lista = st.container()
         aba_cadastro = None
 
-    # --- ABA DE CADASTRO (EXCLUSIVA DO DOCENTE) ---
     if aba_cadastro:
         with aba_cadastro:
             st.markdown("### ➕ Criar Novo Desafio Prático")
             st.caption("Preencha as diretrizes abaixo. O sistema disparará alertas automáticos para a turma.")
             
-            # Form com limpeza automática após submissão de sucesso
             with st.form("form_novo_desafio_modular", clear_on_submit=True):
                 titulo = st.text_input("Título do Desafio:", placeholder="Ex: Otimização de Consultas SQL Complexas")
                 descricao = st.text_area("Enunciado / Requisitos Técnicos:", placeholder="Descreva detalhadamente o escopo, arquitetura alvo e critérios de aceitação...")
@@ -67,11 +63,10 @@ def tela_desafios():
                             if res.get("sucesso"):
                                 st.success("🎉 Desafio cadastrado com sucesso! Uma notificação de sistema foi enviada para todos os alunos.")
                                 time.sleep(1.5)
-                                st.rerun() # Redireciona e atualiza o estado da listagem automaticamente
+                                st.rerun()
                             else:
                                 st.error(f"❌ Falha operacional ao salvar no banco: {res.get('mensagem')}")
 
-    # --- ABA DE LISTAGEM (ALUNOS E PROFESSORES) ---
     with aba_lista:
         desafios_ativos = listar_desafios() or []
         
@@ -83,24 +78,17 @@ def tela_desafios():
                 prazo_br = formatar_data_br(desafio.get("data_limite"))
                 nivel_badge = desafio.get("nivel_dificuldade", "N/A")
                 
-                # Montagem de cards interativos com bordas customizadas
                 with st.container(border=True):
                     st.markdown(f"### 🎯 {desafio.get('titulo', 'Sem Título')}")
                     st.write(desafio.get("descricao", "Sem descrição disponível."))
-                    
                     st.markdown(f"**📊 Nível:** `{nivel_badge}` &nbsp;|&nbsp; **📅 Prazo Final (BR):** `{prazo_br}`")
                     
-                    # -------------------------------------------------------------
-                    # INTERAÇÕES DO ESTUDANTE (Ingressar / Concluir / Abandonar)
-                    # -------------------------------------------------------------
                     if tipo_usuario == "aluno":
                         participantes = listar_participantes(desafio_id) or []
                         vinc_aluno = next((p for p in participantes if str(p.get("usuario_id")).strip() == usuario_id), None)
                         
-                        st.write("") # Espaçamento
-                        
+                        st.write("")
                         if not vinc_aluno:
-                            # Fluxo 1: Aluno livre para entrar no desafio
                             if st.button("🚀 Ingressar e Iniciar Desafio", key=f"ing_{desafio_id}", type="primary", use_container_width=True):
                                 if participar_desafio(desafio_id, usuario_id):
                                     st.toast("Inscrição confirmada! Bons códigos.", icon="💻")
@@ -110,7 +98,6 @@ def tela_desafios():
                                     st.error("Erro ao processar inscrição no desafio.")
                         
                         elif vinc_aluno.get("status") == "participando":
-                            # Fluxo 2: Aluno está com o desafio em aberto
                             col_c1, col_c2 = st.columns(2)
                             with col_c1:
                                 if st.button("🏁 Concluir e Submeter Solução", key=f"conc_{desafio_id}", type="primary", use_container_width=True):
@@ -126,12 +113,8 @@ def tela_desafios():
                                     st.rerun()
                                     
                         elif vinc_aluno.get("status") == "concluido":
-                            # Fluxo 3: Aluno finalizou o projeto
                             st.success("👑 **Desafio Concluído!** Sua entrega foi registrada com sucesso e já está disponível para o fórum de avaliação e votos.")
 
-                    # -------------------------------------------------------------
-                    # AUDITORIA DO DOCENTE (Quem está fazendo o quê?)
-                    # -------------------------------------------------------------
                     elif tipo_usuario in ("professor", "admin"):
                         participantes = listar_participantes(desafio_id) or []
                         total_inscritos = len(participantes)
@@ -146,6 +129,11 @@ def tela_desafios():
                                 for p in participantes:
                                     nome_estudante = p.get("usuarios", {}).get("nome", "Usuário")
                                     status_cru = p.get("status", "participando")
-                                    
                                     emoji_status = "🟢 [Concluído]" if status_cru == "concluido" else "🟡 [Em Progresso]"
                                     st.markdown(f"{emoji_status} **{nome_estudante}**")
+
+                    # --- INTEGRAÇÃO DO QR CODE (REQUISITO DE RELATÓRIO) ---
+                    if tipo_usuario in ("professor", "admin"):
+                        with st.expander("📡 Painel de Compartilhamento (QR Code / Link)"):
+                            from utils.compartilhamento import exibir_painel_compartilhamento
+                            exibir_painel_compartilhamento("desafio", desafio_id)

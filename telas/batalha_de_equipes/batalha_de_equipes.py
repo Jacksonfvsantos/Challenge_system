@@ -1,13 +1,14 @@
 import streamlit as st
 import time
 from utils.estilo import aplicar_estilo, cabecalho
-from services.ia_processador_service import extrair_texto_de_arquivo, gerar_questoes_ia
 from services.batalha_service import (
-    listar_batalhas_ativas, deletar_batalha, criar_time, listar_times,
-    entrar_no_time, aluno_tem_time, listar_membros_time,
-    remover_aluno, deletar_time, cadastrar_questao_rapida, 
-    salvar_questoes_lote_ia, cadastrar_nova_batalha, 
-    encerrar_partida_sincrona, obter_batalhas_finalizadas, iniciar_partida_sincrona
+    listar_batalhas_ativas, 
+    cadastrar_nova_batalha, 
+    deletar_batalha, 
+    listar_times, 
+    deletar_time,
+    listar_membros_time,
+    obter_batalhas_finalizadas
 )
 
 def tela_batalha_de_equipes():
@@ -15,27 +16,20 @@ def tela_batalha_de_equipes():
     
     usuario = st.session_state.get("usuario_logado", {})
     usuario_id = str(usuario.get("id", "")).strip()
-    tipo_usuario = str(usuario.get("tipo_usuario") or usuario.get("tipo") or "aluno").lower()
-
-    if st.button("⬅️ Voltar ao Dashboard"):
-        st.session_state.pagina = "home"; st.rerun()
-        
-    cabecalho("⚔️ Arena de Batalha de Equipes", "Participe de desafios síncronos em tempo real")
+    tipo_usuario = str(usuario.get("tipo_usuario", "aluno")).lower()
+    
+    cabecalho("⚔️ Arena de Batalha de Equipes", "Participe de desafios síncronos e assíncronos em tempo real")
 
     # --- MENU DE NAVEGAÇÃO RÁPIDA ---
-    st.write("") # Dá um pequeno respiro na tela
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        # Botão visível para todos (Alunos e Professores)
-        if st.button("👥 Minha Equipe / Central de Times", use_container_width=True):
+    st.write("")
+    col_nav1, col_nav2 = st.columns(2)
+    with col_nav1:
+        if st.button("👥 Minha Equipe / Central de Times", use_container_width=True, key="btn_nav_times"):
             st.session_state.pagina = "batalha_times"
             st.rerun()
-            
-    with col2:
-        # Botão extra visível apenas para Professores
+    with col_nav2:
         if tipo_usuario in ("professor", "admin"):
-            if st.button("🛠️ Gestão Avançada de Integrantes", use_container_width=True):
+            if st.button("🛠️ Gestão Avançada de Integrantes", use_container_width=True, key="btn_nav_integrantes"):
                 st.session_state.pagina = "batalha_integrantes"
                 st.rerun()
 
@@ -43,191 +37,136 @@ def tela_batalha_de_equipes():
 
     # --- GOVERNANÇA DOCENTE ---
     if tipo_usuario in ("professor", "admin"):
-        with st.expander("👨‍🏫 Governança Docente", expanded=True):
-        # ... o resto do seu código continua normal daqui para baixo
-            st.subheader("⚙️ Nova Arena")
+        with st.expander("👨‍🏫 Governança Docente (Painel do Professor)", expanded=False):
+            aba_g1, aba_g2 = st.tabs(["➕ Lançar Nova Arena", "🤝 Gerenciar Equipes"])
             
-            # 1. Puxa as equipes cadastradas no banco
-            times_cadastrados = listar_times()
-            
-            # 2. Trava de segurança: só deixa criar arena se existirem equipes
-            if not times_cadastrados:
-                st.warning("⚠️ Você precisa criar pelo menos uma Equipe na seção abaixo antes de abrir uma Arena.")
-            else:
-                with st.form("form_batalha"):
-                    titulo_b = st.text_input("Título da Arena:")
-                    modalidade = st.selectbox("Modalidade:", ["sincrona", "assincrona"])
+            with aba_g1:
+                with st.form("form_nova_batalha", clear_on_submit=True):
+                    titulo_b = st.text_input("Título da Batalha:")
+                    desc_b = st.text_area("Instruções Técnicas:")
+                    mod_b = st.selectbox("Modalidade:", ["sincrona", "assincrona"])
                     
-                    # 3. Adiciona as caixas de seleção de equipes
-                    col1, col2 = st.columns(2)
-                    time_a = col1.selectbox("Equipe A:", times_cadastrados, format_func=lambda x: x["nome"])
-                    time_b = col2.selectbox("Equipe B:", times_cadastrados, format_func=lambda x: x["nome"])
+                    times_b = listar_times()
+                    options_times = [t["id"] for t in times_b]
+                    format_time = lambda x: next((t["nome"] for t in times_b if t["id"] == x), "Selecione")
                     
-                    submit_arena = st.form_submit_button("Criar Arena")
-                
-                if submit_arena:
-                    if not titulo_b.strip():
-                        st.error("O título da arena é obrigatório!")
-                    elif time_a["id"] == time_b["id"]:
-                        st.error("As equipes A e B não podem ser a mesma!")
-                    else:
-                        # 4. Envia os IDs reais das equipes para o serviço
-                        res = cadastrar_nova_batalha(
-                            titulo=titulo_b, 
-                            descricao="Arena criada pelo professor", 
-                            time_a_id=time_a["id"], 
-                            time_b_id=time_b["id"], 
-                            modalidade=modalidade
-                        )
-                        
-                        if res.get("sucesso"):
-                            st.success("✅ Arena criada com sucesso!")
-                            time.sleep(1)
-                            st.rerun()
+                    t_a = st.selectbox("Equipe Alfa:", options=options_times, format_func=format_time)
+                    t_b = st.selectbox("Equipe Beta:", options=options_times, format_func=format_time)
+                    
+                    if st.form_submit_button("🚀 Fundar Arena de Batalha"):
+                        if not titulo_b.strip():
+                            st.error("O título da arena é obrigatório.")
+                        elif t_a == t_b:
+                            st.error("Uma equipe não pode batalhar contra si mesma.")
                         else:
-                            st.error(f"Erro ao criar: {res.get('mensagem')}")
-
-            st.subheader("Gerenciar Equipes")
-            for t in listar_times():
-                with st.expander(f"Time: {t['nome']}"):
-                    if st.button("Excluir Time", key=f"del_time_{t['id']}"):
-                        deletar_time(t['id']); st.rerun()
-                    for m in listar_membros_time(t['id']):
-                        c1, c2 = st.columns([0.8, 0.2])
-                        c1.write(f"- {m['nome']}")
-                        if c2.button("Remover", key=f"rem_{m['id']}_{t['id']}"):
-                            remover_aluno(t['id'], m['id']); st.rerun()
-            
-            st.divider()
-            st.subheader("📝 Cadastrar Questão")
-            
-            # Inicializa fila se não existir
-            if "questoes_pendentes" not in st.session_state: st.session_state.questoes_pendentes = []
-            
-            batalhas_disponiveis = listar_batalhas_ativas()
-            
-            # Trava de segurança: só exibe o formulário se houver arenas criadas
-            if not batalhas_disponiveis:
-                st.warning("⚠️ Nenhuma arena ativa encontrada. Crie uma nova arena acima para poder cadastrar questões.")
-            else:
-                b_sel = st.selectbox("Batalha destino:", batalhas_disponiveis, format_func=lambda x: x['titulo'])
-                modo = st.radio("Método:", ["Manual", "Via IA"], horizontal=True)
-
-                if modo == "Manual":
-                    with st.form("form_manual"):
-                        enun = st.text_area("Enunciado:")
-                        a1, a2 = st.text_input("Alt A"), st.text_input("Alt B")
-                        a3, a4 = st.text_input("Alt C"), st.text_input("Alt D")
-                        correta = st.selectbox("Correta:", [0, 1, 2, 3], format_func=lambda x: f"Alt {x+1}")
-                        
-                        c1, c2 = st.columns(2)
-                        btn_add = c1.form_submit_button("➕ Adicionar à Fila")
-                        btn_salvar = c2.form_submit_button("✅ Salvar Fila no Banco")
-
-                    if btn_add:
-                        st.session_state.questoes_pendentes.append({
-                            "enunciado": enun, "alternativas": [a1, a2, a3, a4], "correta_idx": correta
-                        })
-                        st.toast("Questão na fila!", icon="✅")
-                    
-                    if btn_salvar:
-                        if st.session_state.questoes_pendentes:
-                            res = salvar_questoes_lote_ia(b_sel['id'], st.session_state.questoes_pendentes)
-                            if res["sucesso"]:
-                                st.success(f"{len(st.session_state.questoes_pendentes)} questões cadastradas!")
-                                st.session_state.questoes_pendentes = []
-                                time.sleep(1); st.rerun()
-                        else: st.warning("Fila vazia.")
-
-                else:
-                    prompt_custom = st.text_area("Instruções adicionais para a IA:", height=100)
-                    
-                    # Restringimos a PDF porque é o formato que a IA lê visualmente com 100% de precisão
-                    arquivo = st.file_uploader("Upload de Caderno (PDF)", type=["pdf"]) 
-                    
-                    if arquivo and st.button("🤖 Processar e Injetar"):
-                        with st.spinner("Lendo documento (analisando imagens e códigos)..."):
-                            
-                            from services.ia_processador_service import gerar_questoes_ia_multimodal
-                            
-                            questoes = gerar_questoes_ia_multimodal(
-                                arquivo_bytes=arquivo.getvalue(), 
-                                mime_type=arquivo.type, 
-                                prompt_custom=prompt_custom, 
-                                api_key=st.secrets["GEMINI_API_KEY"]
-                            )
-                            
-                            if questoes:
-                                if salvar_questoes_lote_ia(b_sel['id'], questoes)["sucesso"]:
-                                    st.success("Questões com imagens importadas com sucesso!")
-                                    time.sleep(1.5)
-                                    st.rerun()
+                            res = cadastrar_nova_batalha(titulo_b, desc_b, t_a, t_b, mod_b)
+                            if res.get("sucesso"):
+                                st.success("Nova arena cadastrada com sucesso!")
+                                time.sleep(1)
+                                st.rerun()
                             else:
-                                st.error("A IA não conseguiu gerar as questões. Verifique a formatação do PDF.")
-
-# --- ARENA DE BATALHAS ---
-    todas = listar_batalhas_ativas()
-    historico = obter_batalhas_finalizadas()
-    
-    sinc, assinc, hist_s, hist_a = st.tabs(["⚡ Síncronas", "⏳ Assíncronas", "📜 Hist. Síncronas", "📜 Hist. Assíncronas"])
-    
-    with sinc: 
-        renderizar_lista([b for b in todas if b.get("modalidade") == "sincrona"])
-    with assinc: 
-        renderizar_lista([b for b in todas if b.get("modalidade") == "assincrona"])
-    with hist_s: 
-        renderizar_historico([h for h in historico if h.get("modalidade") == "sincrona"])
-    with hist_a: 
-        renderizar_historico([h for h in historico if h.get("modalidade") == "assincrona"])
-
-# --- FUNÇÕES DE RENDERIZAÇÃO DOS CARDS ---
-
-def renderizar_lista(lista):
-    if not lista: st.info("Nenhuma batalha ativa."); return
-    for ba in lista:
-        with st.container(border=True):
-            st.markdown(f"### {ba['titulo']}")
-            if st.session_state.get("usuario_logado", {}).get("tipo_usuario") in ("professor", "admin"):
-                c1, c2, c3 = st.columns(3)
-                
-                # Na assíncrona, o professor não precisa "Iniciar" a rodada.
-                if ba.get("modalidade") == "sincrona":
-                    if c1.button("🚀 Iniciar", key=f"init_{ba['id']}"):
-                        if iniciar_partida_sincrona(ba['id'], ba.get("time_a_id")): st.rerun()
-                        
-                if c2.button("🛑 Encerrar", key=f"end_{ba['id']}"): 
-                    encerrar_partida_sincrona(ba['id']); st.rerun()
-                if c3.button("🗑️ Deletar", key=f"del_{ba['id']}"): 
-                    deletar_batalha(ba['id']); st.rerun()
-            
-            # O Roteador Inteligente
-            if st.button(f"Entrar na Arena", key=f"entrar_{ba['id']}", use_container_width=True):
-                st.session_state.batalha_ativa_id = ba["id"]
-                if ba.get("modalidade") == "assincrona":
-                    st.session_state.pagina = "batalha_rodada_assincrona"
+                                st.error(res.get("mensagem"))
+                                
+            with aba_g2:
+                st.markdown("#### Lista de Equipes Cadastradas")
+                todos_times = listar_times()
+                if not todos_times:
+                    st.caption("Nenhum time registrado no ecossistema.")
                 else:
-                    st.session_state.pagina = "batalha_rodada"
-                st.rerun()
+                    for time_item in todos_times:
+                        with st.expander(f"Time: {time_item['nome']}"):
+                            if st.button("Excluir Time", key=f"del_t_{time_item['id']}", type="primary"):
+                                if deletar_time(time_item['id']):
+                                    st.success("Time excluído!")
+                                    time.sleep(0.5)
+                                    st.rerun()
+                            
+                            membros = listar_membros_time(time_item['id'])
+                            for m in membros:
+                                m_id = m.get("id")
+                                st.markdown(f"• {m['nome']} ({m['email']})")
 
-def renderizar_historico(lista):
-    if not lista: 
-        st.info("Nenhuma batalha finalizada nesta modalidade ainda.")
-        return
-        
-    tipo_u = st.session_state.get("usuario_logado", {}).get("tipo_usuario", "aluno")
-    
-    for h in lista:
-        with st.container(border=True):
-            col1, col2 = st.columns([0.85, 0.15]) # Divide o card para o botão ficar à direita
-            
-            with col1:
-                st.markdown(f"### 🏆 {h.get('titulo')}")
-                st.markdown(f"**{h.get('time_a_nome')}** ({h.get('pontos_time_a')})  vs  **{h.get('time_b_nome')}** ({h.get('pontos_time_b')})")
-                st.caption(f"_{h.get('resultado_extenso')}_")
-                
-            with col2:
-                # O botão de exclusão só aparece se o usuário for professor ou admin
-                if tipo_u in ("professor", "admin"):
-                    if st.button("🗑️ Excluir", key=f"del_hist_{h['id']}"):
-                        deletar_batalha(h['id'])
-                        st.rerun()
+    # --- LISTAGEM DE ARENAS POR ABAS ---
+    aba_sinc, aba_assinc, aba_hist_sinc, aba_hist_assinc = st.tabs([
+        "⚡ Síncronas", "⏳ Assíncronas", "📜 Hist. Síncronas", "📜 Hist. Assíncronas"
+    ])
+
+    batalhas_ativas = listar_batalhas_ativas()
+    batalhas_finalizadas = obter_batalhas_finalizadas()
+
+    ativas_sinc = [b for b in batalhas_ativas if b.get("modalidade") == "sincrona"]
+    ativas_assinc = [b for b in batalhas_ativas if b.get("modalidade") == "assincrona"]
+    fin_sinc = [b for b in batalhas_finalizadas if b.get("modalidade") == "sincrona"]
+    fin_assinc = [b for b in batalhas_finalizadas if b.get("modalidade") == "assincrona"]
+
+    with aba_sinc:
+        if not ativas_sinc:
+            st.info("Nenhuma batalha ativa.")
+        else:
+            for b in ativas_sinc:
+                with st.container(border=True):
+                    st.markdown(f"### ⚔️ {b['titulo']}")
+                    st.write(b.get("descricao", "Sem descrição."))
+                    
+                    col_b1, col_b2 = st.columns(2)
+                    with col_b1:
+                        if st.button("🎯 Entrar na Arena Ao Vivo", key=f"entrar_sinc_{b['id']}", type="primary", use_container_width=True):
+                            st.session_state.batalha_ativa_id = b["id"]
+                            st.session_state.pagina = "batalha_rodada_sincrona"
+                            st.rerun()
+                    with col_b2:
+                        if tipo_usuario in ("professor", "admin"):
+                            if st.button("🗑️ Cancelar Arena", key=f"del_sinc_{b['id']}", use_container_width=True):
+                                if deletar_batalha(b["id"]):
+                                    st.rerun()
+                    
+                    # --- INTEGRAÇÃO DO QR CODE (REQUISITO DE RELATÓRIO) ---
+                    if tipo_usuario in ("professor", "admin"):
+                        with st.expander("📡 Painel de Compartilhamento (QR Code / Link)"):
+                            from utils.compartilhamento import exibir_painel_compartilhamento
+                            exibir_painel_compartilhamento("batalha", b["id"])
+
+    with aba_assinc:
+        if not ativas_assinc:
+            st.info("Nenhuma batalha ativa.")
+        else:
+            for b in ativas_assinc:
+                with st.container(border=True):
+                    st.markdown(f"### ⏳ {b['titulo']}")
+                    st.write(b.get("descricao", "Sem descrição."))
+                    
+                    col_ba1, col_ba2 = st.columns(2)
+                    with col_ba1:
+                        if st.button("🎯 Responder Missão Assíncrona", key=f"entrar_assinc_{b['id']}", type="primary", use_container_width=True):
+                            st.session_state.batalha_ativa_id = b["id"]
+                            st.session_state.pagina = "batalha_rodada_assincrona"
+                            st.rerun()
+                    with col_ba2:
+                        if tipo_usuario in ("professor", "admin"):
+                            if st.button("🗑️ Cancelar Arena", key=f"del_assinc_{b['id']}", use_container_width=True):
+                                if deletar_batalha(b["id"]):
+                                    st.rerun()
+                                    
+                    # --- INTEGRAÇÃO DO QR CODE (REQUISITO DE RELATÓRIO) ---
+                    if tipo_usuario in ("professor", "admin"):
+                        with st.expander("📡 Painel de Compartilhamento (QR Code / Link)"):
+                            from utils.compartilhamento import exibir_painel_compartilhamento
+                            exibir_painel_compartilhamento("batalha", b["id"])
+
+    with aba_hist_sinc:
+        if not fin_sinc:
+            st.info("Nenhum histórico disponível.")
+        else:
+            for b in fin_sinc:
+                with st.container(border=True):
+                    st.markdown(f"#### 🏁 {b['titulo']}")
+                    st.info(b.get("resultado_extenso", "Resultado arquivado"))
+
+    with aba_hist_assinc:
+        if not fin_assinc:
+            st.info("Nenhum histórico disponível.")
+        else:
+            for b in fin_assinc:
+                with st.container(border=True):
+                    st.markdown(f"#### 🏁 {b['titulo']}")
+                    st.info(b.get("resultado_extenso", "Resultado arquivado"))

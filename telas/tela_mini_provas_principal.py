@@ -8,9 +8,12 @@ def tela_mini_provas():
     cabecalho("Mini-provas", "Realize as avaliações modulares")
 
     usuario = st.session_state.get("usuario_logado", {})
-    if str(usuario.get("tipo_usuario")).lower() == "professor":
+    tipo_usuario = str(usuario.get("tipo_usuario", "aluno")).lower()
+    
+    if tipo_usuario in ("professor", "admin"):
         if st.button("➕ Nova Mini-Prova", type="primary"): 
-            st.session_state.pagina = "mini_provas_professor"; st.rerun()
+            st.session_state.pagina = "mini_provas_professor"
+            st.rerun()
         st.divider()
 
     formatar_titulo_aba("Provas Ativas")
@@ -22,6 +25,7 @@ def tela_mini_provas():
         st.info("Nenhuma mini prova em andamento.")
     
     for prova in provas_ativas:
+        prova_id = prova.get("id")
         with st.container(border=True):
             st.markdown(f"""
             <strong style="color:#0d1b2a; font-size:16px;">{prova.get('titulo', 'Sem Título')}</strong><br>
@@ -31,7 +35,15 @@ def tela_mini_provas():
             </span>
             """, unsafe_allow_html=True)
             
-            if st.button(f"Iniciar {prova.get('titulo', 'Prova')}", key=f"run_{prova['id']}", type="primary", use_container_width=True):
-                st.session_state.prova_ativa_id = prova["id"]
-                st.session_state.pagina = "realizar_mini_prova"
-                st.rerun()
+            st.write("")
+            if tipo_usuario == "aluno":
+                if st.button("🚀 Iniciar Prova", key=f"start_{prova_id}", type="primary", use_container_width=True):
+                    st.session_state.prova_ativa_id = prova_id
+                    st.session_state.pagina = "realizar_mini_prova"
+                    st.rerun()
+            
+            # --- INTEGRAÇÃO DO QR CODE (REQUISITO DE RELATÓRIO) ---
+            if tipo_usuario in ("professor", "admin"):
+                with st.expander("📡 Painel de Compartilhamento (QR Code / Link)"):
+                    from utils.compartilhamento import exibir_painel_compartilhamento
+                    exibir_painel_compartilhamento("mini_prova", prova_id)
