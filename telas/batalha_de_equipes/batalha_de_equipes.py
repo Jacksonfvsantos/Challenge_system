@@ -99,33 +99,31 @@ def tela_batalha_de_equipes():
 
                 else:
                     prompt_custom = st.text_area("Instruções adicionais para a IA:", height=100)
-                    arquivo = st.file_uploader("Upload de Caderno (PDF/DOCX)", type=["pdf", "docx"])
+                    
+                    # Restringimos a PDF porque é o formato que a IA lê visualmente com 100% de precisão
+                    arquivo = st.file_uploader("Upload de Caderno (PDF)", type=["pdf"]) 
                     
                     if arquivo and st.button("🤖 Processar e Injetar"):
                         with st.spinner("Lendo documento (analisando imagens e códigos)..."):
                             
-                            # Importamos a nova função multimodal
                             from services.ia_processador_service import gerar_questoes_ia_multimodal
                             
-                            # Captura os dados crus e o tipo do arquivo (ex: 'application/pdf')
-                            arquivo_bytes = arquivo.getvalue()
-                            mime_type = arquivo.type
-                            
-                            # Aciona o Gemini
                             questoes = gerar_questoes_ia_multimodal(
-                                arquivo_bytes, 
-                                mime_type, 
-                                prompt_custom, 
-                                st.secrets["GEMINI_API_KEY"]
+                                arquivo_bytes=arquivo.getvalue(), 
+                                mime_type=arquivo.type, 
+                                prompt_custom=prompt_custom, 
+                                api_key=st.secrets["GEMINI_API_KEY"]
                             )
                             
                             if questoes:
                                 if salvar_questoes_lote_ia(b_sel['id'], questoes)["sucesso"]:
                                     st.balloons()
-                                    st.success("Questões com código importadas com sucesso!")
+                                    st.success("Questões com imagens importadas com sucesso!")
+                                    import time
+                                    time.sleep(1.5)
                                     st.rerun()
                             else:
-                                st.error("A IA não conseguiu gerar as questões. Verifique o console para mais detalhes.")
+                                st.error("A IA não conseguiu gerar as questões. Verifique a formatação do PDF.")
 
 # --- ARENA DE BATALHAS ---
     todas = listar_batalhas_ativas()
