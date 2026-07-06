@@ -198,17 +198,27 @@ def processar_passagem_de_vez(batalha_id, time_atual_id, time_adversario_id):
 
 def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id, alternativa_correta, time_adversario_id, tentativa_atual):
     try:
+        # 1. Validações Críticas para evitar travamentos do PostgreSQL
         if not time_id or str(time_id) == "None":
-            return "erro: time_id_invalido"
+            return "erro: O aluno precisa estar em um time válido."
+        if not time_adversario_id or str(time_adversario_id) == "None":
+            return "erro: A batalha não possui uma Equipe Adversária configurada."
         
         batalha = obter_estado_batalha(batalha_id)
         ordem_atual = int(batalha.get("pergunta_atual_ordem", 1))
 
+        # 2. Registra o histórico da resposta
+        supabase.table("batalha_respostas").insert({
+            "batalha_id": batalha_id, "questao_id": questao_id, 
+            "time_id": time_id, "alternativa_id": alternativa_id, 
+            "resposta_correta": bool(alternativa_correta), "tentativa_numero": int(tentativa_atual)
+        }).execute()
+
+        # 3. Lógica de avanço
         if alternativa_correta:
-            # AQUI: O incremento é obrigatório para avançar a questão
             supabase.table("batalhas").update({
-                "pergunta_atual_ordem": ordem_atual + 1, 
-                "time_da_vez_id": time_adversario_id,
+                "pergunta_atual_ordem": ordem_atual + 1,
+                "time_da_vez_id": str(time_adversario_id).strip(),
                 "status_sincrono": "aguardando_resposta",
                 "inicio_turno": datetime.datetime.now(datetime.timezone.utc).isoformat()
             }).eq("id", batalha_id).execute()
@@ -216,21 +226,23 @@ def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id,
         
         else:
             if int(tentativa_atual) == 1:
+                # Se for a primeira tentativa e errar, ativa o rebate para o oponente
                 supabase.table("batalhas").update({
                     "status_sincrono": "rebate_ativo", 
-                    "time_da_vez_id": time_adversario_id
+                    "time_da_vez_id": str(time_adversario_id).strip()
                 }).eq("id", batalha_id).execute()
                 return "rebate"
             else:
+                # Se o oponente também errar o rebate, a questão avança e ninguém pontua
                 supabase.table("batalhas").update({
                     "pergunta_atual_ordem": ordem_atual + 1,
                     "status_sincrono": "aguardando_resposta",
-                    "time_da_vez_id": time_adversario_id,
+                    "time_da_vez_id": str(time_adversario_id).strip(),
                     "inicio_turno": datetime.datetime.now(datetime.timezone.utc).isoformat()
                 }).eq("id", batalha_id).execute()
                 return "ambos_erraram"
     except Exception as e:
-        return f"erro: {str(e)}"
+        return f"erro crítico no banco: {str(e)}"
 
 def encerrar_partida_sincrona(batalha_id):
     try:
