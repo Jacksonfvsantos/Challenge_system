@@ -62,45 +62,51 @@ def tela_batalha_de_equipes():
             # Inicializa fila se não existir
             if "questoes_pendentes" not in st.session_state: st.session_state.questoes_pendentes = []
             
-            b_sel = st.selectbox("Batalha destino:", listar_batalhas_ativas(), format_func=lambda x: x['titulo'])
-            modo = st.radio("Método:", ["Manual", "Via IA"], horizontal=True)
-
-            if modo == "Manual":
-                with st.form("form_manual"):
-                    enun = st.text_area("Enunciado:")
-                    a1, a2 = st.text_input("Alt A"), st.text_input("Alt B")
-                    a3, a4 = st.text_input("Alt C"), st.text_input("Alt D")
-                    correta = st.selectbox("Correta:", [0, 1, 2, 3], format_func=lambda x: f"Alt {x+1}")
-                    
-                    c1, c2 = st.columns(2)
-                    btn_add = c1.form_submit_button("➕ Adicionar à Fila")
-                    btn_salvar = c2.form_submit_button("✅ Salvar Fila no Banco")
-
-                if btn_add:
-                    st.session_state.questoes_pendentes.append({
-                        "enunciado": enun, "alternativas": [a1, a2, a3, a4], "correta_idx": correta
-                    })
-                    st.toast("Questão na fila!", icon="✅")
-                
-                if btn_salvar:
-                    if st.session_state.questoes_pendentes:
-                        res = salvar_questoes_lote_ia(b_sel['id'], st.session_state.questoes_pendentes)
-                        if res["sucesso"]:
-                            st.success(f"{len(st.session_state.questoes_pendentes)} questões cadastradas!")
-                            st.session_state.questoes_pendentes = []
-                            time.sleep(1); st.rerun()
-                    else: st.warning("Fila vazia.")
-
+            batalhas_disponiveis = listar_batalhas_ativas()
+            
+            # Trava de segurança: só exibe o formulário se houver arenas criadas
+            if not batalhas_disponiveis:
+                st.warning("⚠️ Nenhuma arena ativa encontrada. Crie uma nova arena acima para poder cadastrar questões.")
             else:
-                prompt_custom = st.text_area("Instruções adicionais para a IA:", height=100)
-                arquivo = st.file_uploader("Upload de Caderno (PDF/DOCX)", type=["pdf", "docx"])
-                if arquivo and st.button("🤖 Processar e Injetar"):
-                    with st.spinner("Processando..."):
-                        texto = extrair_texto_de_arquivo(arquivo.getvalue(), arquivo.name.split('.')[-1])
-                        questoes = gerar_questoes_ia(texto, prompt_custom, st.secrets["GEMINI_API_KEY"])
-                        if questoes:
-                            if salvar_questoes_lote_ia(b_sel['id'], questoes)["sucesso"]:
-                                st.balloons(); st.success("Questões importadas!"); st.rerun()
+                b_sel = st.selectbox("Batalha destino:", batalhas_disponiveis, format_func=lambda x: x['titulo'])
+                modo = st.radio("Método:", ["Manual", "Via IA"], horizontal=True)
+
+                if modo == "Manual":
+                    with st.form("form_manual"):
+                        enun = st.text_area("Enunciado:")
+                        a1, a2 = st.text_input("Alt A"), st.text_input("Alt B")
+                        a3, a4 = st.text_input("Alt C"), st.text_input("Alt D")
+                        correta = st.selectbox("Correta:", [0, 1, 2, 3], format_func=lambda x: f"Alt {x+1}")
+                        
+                        c1, c2 = st.columns(2)
+                        btn_add = c1.form_submit_button("➕ Adicionar à Fila")
+                        btn_salvar = c2.form_submit_button("✅ Salvar Fila no Banco")
+
+                    if btn_add:
+                        st.session_state.questoes_pendentes.append({
+                            "enunciado": enun, "alternativas": [a1, a2, a3, a4], "correta_idx": correta
+                        })
+                        st.toast("Questão na fila!", icon="✅")
+                    
+                    if btn_salvar:
+                        if st.session_state.questoes_pendentes:
+                            res = salvar_questoes_lote_ia(b_sel['id'], st.session_state.questoes_pendentes)
+                            if res["sucesso"]:
+                                st.success(f"{len(st.session_state.questoes_pendentes)} questões cadastradas!")
+                                st.session_state.questoes_pendentes = []
+                                time.sleep(1); st.rerun()
+                        else: st.warning("Fila vazia.")
+
+                else:
+                    prompt_custom = st.text_area("Instruções adicionais para a IA:", height=100)
+                    arquivo = st.file_uploader("Upload de Caderno (PDF/DOCX)", type=["pdf", "docx"])
+                    if arquivo and st.button("🤖 Processar e Injetar"):
+                        with st.spinner("Processando..."):
+                            texto = extrair_texto_de_arquivo(arquivo.getvalue(), arquivo.name.split('.')[-1])
+                            questoes = gerar_questoes_ia(texto, prompt_custom, st.secrets["GEMINI_API_KEY"])
+                            if questoes:
+                                if salvar_questoes_lote_ia(b_sel['id'], questoes)["sucesso"]:
+                                    st.balloons(); st.success("Questões importadas!"); st.rerun()
 
     # --- ARENA DE BATALHAS ---
     todas = listar_batalhas_ativas()

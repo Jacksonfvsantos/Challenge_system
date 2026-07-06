@@ -134,10 +134,14 @@ def cadastrar_nova_batalha(titulo, descricao, time_a_id=None, time_b_id=None, mo
 
 def listar_batalhas_ativas():
     try:
-        resposta = supabase.table("batalhas").select("*, times:time_a_id(nome)").in_("status", ["agendada", "em_andamento"]).order("created_at", descending=True).execute()
-        return resposta.data or []
+        res = supabase.table("batalhas")\
+            .select("*")\
+            .neq("status", "finalizada")\
+            .order("created_at", desc=True)\
+            .execute()
+        return res.data or []
     except Exception as e:
-        print(f"Erro [listar_batalhas_ativas]: {e}")
+        print(f"Erro ao listar batalhas ativas: {e}")
         return []
 
 def listar_historico_batalhas():
