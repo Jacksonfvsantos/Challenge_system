@@ -1,9 +1,11 @@
 import streamlit as st
 import pandas as pd
+import time
 from database.conexao import supabase
 from services.batalha_service import (
     listar_times, listar_membros_time, listar_alunos,
-    adicionar_aluno, remover_aluno, mover_aluno
+    adicionar_aluno, remover_aluno, mover_aluno, 
+    deletar_time
 )
 from utils.estilo import aplicar_estilo, cabecalho
 
@@ -52,12 +54,25 @@ def tela_batalha_integrantes():
         df_membros = pd.DataFrame(dados_tabela)
         st.dataframe(df_membros, use_container_width=True, hide_index=True)
 
+    # ⚠️ SEÇÃO DE GOVERNANÇA: Apenas Professores podem ver e interagir a partir daqui
     if tipo != "professor":
         return
 
     st.divider()
     st.markdown("### 🛠️ Ações de Gestão de Membros")
     
+    # --- NOVA AÇÃO: EXCLUIR EQUIPE INTEIRA ---
+    with st.expander("⚠️ Área de Risco: Excluir Equipe", expanded=False):
+        st.warning(f"Ao excluir a equipe **{time_selecionado_nome}**, todos os membros perderão o vínculo e ficarão livres, mas as contas dos estudantes NÃO serão apagadas.")
+        if st.button("🗑️ Confirmar Exclusão da Equipe", type="primary", use_container_width=True, key="btn_del_equipe_gov"):
+            if deletar_time(time_id_ativo):
+                st.success(f"Equipe '{time_selecionado_nome}' excluída com sucesso! A tela será atualizada.")
+                time.sleep(1.5)
+                st.rerun()
+            else:
+                st.error("Erro ao excluir a equipe. Verifique se há batalhas ativas travando a exclusão.")
+
+    # --- AÇÃO: ADICIONAR INTEGRANTE ---
     with st.expander("➕ Adicionar Novo Integrante (Janela de Cadastro)", expanded=False):
         alunos = listar_alunos()
         mapa_add = {a.get("nome"): str(a.get("id")).strip() for a in alunos if isinstance(a, dict) and a.get("nome") and a.get("id")}
@@ -67,12 +82,14 @@ def tela_batalha_integrantes():
             if st.button("Confirmar Vínculo na Equipe", use_container_width=True, key="btn_confirm_add_member_gov"):
                 if adicionar_aluno(time_id_ativo, mapa_add[sel_add]):
                     st.success("✅ Aluno matriculado e vinculado à equipe com sucesso!")
+                    time.sleep(1)
                     st.rerun()
                 else:
                     st.warning("Aviso: Este aluno já possui vínculo ativo com outra equipe.")
         else:
             st.info("Nenhum estudante disponível para alocação.")
 
+    # --- AÇÕES: REMOVER E TRANSFERIR ---
     if membros:
         mapa_membros_ativos = {m.get("nome"): str(m.get("id")).strip() for m in membros if isinstance(m, dict) and m.get("id")}
         
@@ -83,17 +100,26 @@ def tela_batalha_integrantes():
                 st.markdown("❌ **Remover Integrante**")
                 sel_rm = st.selectbox("Escolha quem deseja remover:", list(mapa_membros_ativos.keys()), key="sb_remover_membro")
                 if st.button("Confirmar Desvinculação", type="primary", use_container_width=True, key="btn_rm_member_gov"):
-                    remover_aluno(mapa_membros_ativos[sel_rm]) 
+                    remover_aluno(mapa_membros_ativos[sel_rm])
                     st.success("Membro removido da equipe com sucesso.")
+                    time.sleep(1)
                     st.rerun()
                     
         with col_trans:
             with st.container(border=True):
                 st.markdown("🔄 **Transferir entre Equipes**")
                 sel_mv = st.selectbox("Escolha quem deseja mover:", list(mapa_membros_ativos.keys()), key="sb_mover_membro")
-                destino_nome = st.selectbox("Selecione a equipe de destino:", [name for name in mapa_times.keys() if name != time_selecionado_nome], key="sb_destino_membro")
                 
-                if st.button("Executar Transferência", use_container_width=True, key="btn_mv_member_gov"):
-                    mover_aluno(mapa_membros_ativos[sel_mv], mapa_times[destino_nome])
-                    st.success(f"✅ Sucesso! Integrante transferido para o time '{destino_nome}'.")
-                    st.rerun()
+                # Lista apenas as OUTRAS equipes
+                equipes_destino = [name for name in mapa_times.keys() if name != time_selecionado_nome]
+                
+                if not equipes_destino:
+                    st.caption("Não há outras equipes cadastradas para transferência.")
+                else:
+                    destino_nome = st.selectbox("Selecione a equipe de destino:", equipes_destino, key="sb_destino_membro")
+                    
+                    if st.button("Executar Transferência", use_container_width=True, key="btn_mv_member_gov"):
+                        mover_aluno(mapa_membros_ativos[sel_mv], mapa_times[destino_nome])
+                        st.success(f"✅ Sucesso! Integrante transferido para o time '{destino_nome}'.")
+                        time.sleep(1)
+                        st.rerun()
