@@ -2,7 +2,7 @@ import streamlit as st
 import time
 from utils.session import iniciar_session
 from components.navbar import mostrar_menu
-
+from telas.admin import tela_admin
 from telas.login import tela_login
 from telas.cadastro import tela_cadastro
 from telas.home import tela_home
@@ -97,6 +97,7 @@ pagina = st.session_state.get("pagina", "home")
 
 rotas = {
     "home": tela_home,
+    "admin": tela_admin, # <-- ADICIONE ESTA LINHA AQUI
     "desafios": tela_desafios,
     "votacao": tela_votacao,
     "pontuacoes": tela_pontuacoes,

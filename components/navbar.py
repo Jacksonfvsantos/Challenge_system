@@ -9,9 +9,9 @@ def mostrar_menu(cookie_manager):
     perfil_usuario = str(usuario.get("tipo_usuario", "aluno")).upper()
     uid = usuario.get("id")
     
-    cor_badge_fundo = "#1e3a8a" if perfil_usuario == "PROFESSOR" else "#065f46"
-    cor_badge_texto = "#93c5fd" if perfil_usuario == "PROFESSOR" else "#a7f3d0"
-    badge_emoji = "👨‍🏫" if perfil_usuario == "PROFESSOR" else "👨‍🎓"
+    cor_badge_fundo = "#1e3a8a" if perfil_usuario in ["PROFESSOR", "ADMIN"] else "#065f46"
+    cor_badge_texto = "#93c5fd" if perfil_usuario in ["PROFESSOR", "ADMIN"] else "#a7f3d0"
+    badge_emoji = "🛡️" if perfil_usuario == "ADMIN" else ("👨‍🏫" if perfil_usuario == "PROFESSOR" else "👨‍🎓")
 
     with st.sidebar.container(border=True):
         st.markdown(f"""
@@ -37,6 +37,16 @@ def mostrar_menu(cookie_manager):
     </div>
     """, unsafe_allow_html=True)
 
+    # --- SEÇÃO EXCLUSIVA DO ADMIN CORRIGIDA PARA FICAR NA SIDEBAR ---
+    tipo_usuario = str(usuario.get("tipo_usuario", "")).lower()
+    if tipo_usuario == "admin":
+        st.sidebar.divider()
+        st.sidebar.markdown("### 🛡️ Administração")
+        if st.sidebar.button("👥 Gestão de Usuários", use_container_width=True, type="primary"):
+            st.session_state.pagina = "admin"
+            st.rerun()
+
+    # --- RESTANTE DOS BOTÕES ---
     if st.sidebar.button("🏠 Visão Geral", use_container_width=True):
         st.session_state.pagina = "home"
         st.rerun()
@@ -44,7 +54,6 @@ def mostrar_menu(cookie_manager):
     if st.sidebar.button("🗳️ Avaliação e Votos", use_container_width=True):
         st.session_state.pagina = "votacao"
         st.rerun()
-
     
     if st.sidebar.button("🏆 Vitrine de Recompensas", use_container_width=True):
         st.session_state.pagina = "recompensas"
