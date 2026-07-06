@@ -31,7 +31,7 @@ def tela_cadastro():
             elif senha != confirmar:
                 st.error("As senhas nao coincidem.")
             else:
-                resultado = cadastrar_usuario(nome, email, tipo_usuario, senha)
+                resultado = cadastrar_usuario(nome, email, senha)
                 if resultado == "ok":
                     st.success("Conta criada com sucesso!")
                     st.session_state.pagina = "login"
