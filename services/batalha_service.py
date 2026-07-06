@@ -336,53 +336,70 @@ def processar_passagem_de_vez(batalha_id, time_atual_id, time_adversario_id):
 
 def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id, alternativa_correta, time_adversario_id, tentativa_atual):
     try:
-        if not eh_uuid_valido(time_id): return {"erro": "O aluno precisa estar em um time válido."}
-        if not eh_uuid_valido(time_adversario_id): return {"erro": "A Equipe Adversária não está definida na arena."}
+        if not time_id or str(time_id) == "None":
+            return "erro: time_id_invalido"
         
-        b = obter_estado_batalha(batalha_id)
-        if not b: return {"erro": "Batalha não encontrada."}
+        # --- 1. TRAVA DE CONCORRÊNCIA (Impede múltiplos cliques do mesmo time) ---
+        trava = supabase.table("batalha_respostas")\
+            .select("id")\
+            .eq("batalha_id", str(batalha_id))\
+            .eq("questao_id", str(questao_id))\
+            .eq("time_id", str(time_id))\
+            .eq("tentativa_numero", int(tentativa_atual))\
+            .execute()
+            
+        if trava.data:
+            # Se já existir um registro, significa que outro membro da equipe já clicou
+            return "ja_respondida"
         
-        ordem_atual = int(b.get("pergunta_atual_ordem", 1))
-        total_questoes = obter_total_questoes(batalha_id) # Conta o limite da arena
+        # --- 2. PROCESSAMENTO NORMAL ---
+        batalha = obter_estado_batalha(batalha_id)
+        ordem_atual = int(batalha.get("pergunta_atual_ordem", 1))
+        total_q = obter_total_questoes(batalha_id) # Para encerrar o jogo automaticamente
 
-        # Salva a resposta no banco
+        # Salva a resposta do aluno mais rápido
         supabase.table("batalha_respostas").insert({
-            "batalha_id": str(batalha_id), "questao_id": str(questao_id), "time_id": str(time_id),
-            "alternativa_id": str(alternativa_id), "resposta_correta": bool(alternativa_correta), "tentativa_numero": int(tentativa_atual)
+            "batalha_id": str(batalha_id), "questao_id": str(questao_id), 
+            "time_id": str(time_id), "alternativa_id": str(alternativa_id), 
+            "resposta_correta": bool(alternativa_correta), "tentativa_numero": int(tentativa_atual)
         }).execute()
 
         agora = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        
+
         if alternativa_correta:
-            # Se acertou a última, encerra a partida
-            if ordem_atual >= total_questoes:
+            if ordem_atual >= total_q:
                 encerrar_partida_sincrona(batalha_id)
                 return "fim_de_jogo"
             else:
                 supabase.table("batalhas").update({
-                    "pergunta_atual_ordem": ordem_atual + 1, "time_da_vez_id": str(time_adversario_id),
-                    "status_sincrono": "aguardando_resposta", "inicio_turno": agora
+                    "pergunta_atual_ordem": ordem_atual + 1,
+                    "time_da_vez_id": str(time_adversario_id),
+                    "status_sincrono": "aguardando_resposta",
+                    "inicio_turno": agora
                 }).eq("id", str(batalha_id)).execute()
                 return "acertou"
         else:
             if int(tentativa_atual) == 1:
-                # Primeira tentativa errada: vai para o rebate (não avança)
                 supabase.table("batalhas").update({
-                    "status_sincrono": "rebate_ativo", "time_da_vez_id": str(time_adversario_id), "inicio_turno": agora
+                    "status_sincrono": "rebate_ativo", 
+                    "time_da_vez_id": str(time_adversario_id),
+                    "inicio_turno": agora
                 }).eq("id", str(batalha_id)).execute()
                 return "rebate"
             else:
-                # Errou no rebate na última questão: encerra a partida
-                if ordem_atual >= total_questoes:
+                if ordem_atual >= total_q:
                     encerrar_partida_sincrona(batalha_id)
                     return "fim_de_jogo"
                 else:
                     supabase.table("batalhas").update({
-                        "pergunta_atual_ordem": ordem_atual + 1, "status_sincrono": "aguardando_resposta",
-                        "time_da_vez_id": str(time_adversario_id), "inicio_turno": agora
+                        "pergunta_atual_ordem": ordem_atual + 1,
+                        "status_sincrono": "aguardando_resposta",
+                        "time_da_vez_id": str(time_adversario_id),
+                        "inicio_turno": agora
                     }).eq("id", str(batalha_id)).execute()
                     return "ambos_erraram"
-    except Exception as e: return {"erro": f"Erro crítico no processamento: {str(e)}"}
+    except Exception as e:
+        return f"erro: {str(e)}"
 
 def encerrar_partida_sincrona(batalha_id):
     try:

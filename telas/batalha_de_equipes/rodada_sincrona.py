@@ -91,12 +91,19 @@ def renderizador_pergunta(b_id, tid, ta_id, tb_id, tipo_u, status):
             
             resultado = processar_resposta_sincrona(b_id, dados_p["id"], tid, alt["id"], alt["correta"], adv, tentativa)
             
-            # --- FEEDBACKS VISUAIS GAMIFICADOS ---
+                # --- FEEDBACKS VISUAIS GAMIFICADOS ---
             if isinstance(resultado, dict) and "erro" in resultado:
                 st.error(f"⚠️ Erro: {resultado['erro']}")
                 time.sleep(2)
+                
+            elif resultado == "ja_respondida":
+                st.warning("⏳ Calma aí! Outro integrante da sua equipe foi mais rápido e já enviou a resposta!")
+                time.sleep(2)
+                
             elif resultado == "acertou":
                 st.success("🎉 RESPOSTA EXATA! Ponto garantido.")
+                time.sleep(2)
+            # ... resto dos elif (rebate, ambos erraram, etc.)
                 time.sleep(2)
             elif resultado == "rebate":
                 st.warning("❌ INCORRETO! A equipe adversária ganhou a chance do REBATE!")
