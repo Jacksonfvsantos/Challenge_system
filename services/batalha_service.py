@@ -156,13 +156,21 @@ def deletar_batalha(batalha_id):
     if not eh_uuid_valido(batalha_id): return False
     try:
         b_id = str(batalha_id)
+        
+        # 1. Limpa o registro do placar final na tabela de histórico
+        supabase.table("historico_batalhas").delete().eq("batalha_id", b_id).execute()
+        
+        # 2. Limpa as respostas dos alunos
         supabase.table("batalha_respostas").delete().eq("batalha_id", b_id).execute()
         
+        # 3. Limpa as questões e alternativas vinculadas
         perguntas = supabase.table("batalha_perguntas").select("questao_id").eq("batalha_id", b_id).execute()
         for p in perguntas.data:
             supabase.table("alternativas").delete().eq("questao_id", p['questao_id']).execute()
             
         supabase.table("batalha_perguntas").delete().eq("batalha_id", b_id).execute()
+        
+        # 4. Deleta a arena principal
         supabase.table("batalhas").delete().eq("id", b_id).execute()
         return True
     except Exception as e:
@@ -190,10 +198,32 @@ def calcular_placar_atual(batalha_id, t_a, t_b):
         return 0, 0
     
 def obter_batalhas_finalizadas():
-    """Busca as batalhas que já foram encerradas para a tela de resultados."""
+    """Busca batalhas finalizadas e mescla com seus resultados do histórico."""
     try:
-        resposta = supabase.table("batalhas").select("*").eq("status", "finalizada").order("created_at", descending=True).execute()
-        return resposta.data or []
+        # 1. Traz as batalhas (para sabermos a modalidade e título)
+        res_batalhas = supabase.table("batalhas").select("*").eq("status", "finalizada").order("created_at", desc=True).execute()
+        batalhas = res_batalhas.data or []
+        
+        # 2. Traz os resultados salvos
+        res_hist = supabase.table("historico_batalhas").select("*").execute()
+        mapa_historico = {str(h["batalha_id"]): h for h in (res_hist.data or [])}
+        
+        # 3. Mescla tudo em uma lista só
+        lista_completa = []
+        for b in batalhas:
+            b_id = str(b["id"])
+            hist = mapa_historico.get(b_id, {})
+            
+            # Injeta os dados do histórico para dentro do dicionário da batalha
+            b["resultado_extenso"] = hist.get("resultado_extenso", "Resultado em processamento...")
+            b["time_a_nome"] = hist.get("time_a_nome", "Equipe A")
+            b["time_b_nome"] = hist.get("time_b_nome", "Equipe B")
+            b["pontos_time_a"] = hist.get("pontos_time_a", 0)
+            b["pontos_time_b"] = hist.get("pontos_time_b", 0)
+            
+            lista_completa.append(b)
+            
+        return lista_completa
     except Exception as e:
         print(f"Erro [obter_batalhas_finalizadas]: {e}")
         return []

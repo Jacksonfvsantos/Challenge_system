@@ -1,5 +1,6 @@
 import streamlit as st
 import datetime
+import time
 from database.conexao import supabase
 from services.batalha_service import (
     encerrar_partida_sincrona, processar_resposta_sincrona, 
@@ -55,23 +56,43 @@ def renderizador_pergunta(b_id, tid, ta_id, tb_id, tipo_u, status):
     if tipo_u in ("professor", "admin"):
         eh_vez = False
 
-    for alt in dados_p.get("alternativas", []):
-        if st.button(alt["texto"], key=f"alt_{alt['id']}", disabled=not eh_vez, use_container_width=True):
-            if not tid or tid == "None":
-                st.error("Você não pertence a um time válido.")
-                return
+        for alt in dados_p.get("alternativas", []):
+                if st.button(alt["texto"], key=f"alt_{alt['id']}", disabled=not eh_vez, use_container_width=True):
+                    
+                    if not tid or tid == "None":
+                        st.error("Erro: Você não está vinculado a um time para responder.")
+                        return
 
-            adv = tb_id if tid_limpo == str(ta_id).strip().lower() else ta_id
-            tentativa = 2 if status == "rebate_ativo" else 1
-            
-            resultado = processar_resposta_sincrona(b_id, dados_p["id"], tid, alt["id"], alt["correta"], adv, tentativa)
-            
-            if "erro" in resultado:
-                st.error(resultado)
-            else:
-                st.toast(f"Resultado processado: {resultado}", icon="✅")
-            
-            st.rerun()
+                    adv = tb_id if tid_limpo == ta_id.lower() else ta_id
+                    tentativa = 2 if b.get("status_sincrono") == "rebate_ativo" else 1
+                    
+                    # Chama o serviço para salvar a resposta
+                    resultado = processar_resposta_sincrona(b_id, dados_p["id"], tid, alt["id"], alt["correta"], adv, tentativa)
+                    
+                    # --- LÓGICA DE FEEDBACK VISUAL GAMIFICADO ---
+                    if isinstance(resultado, dict) and "erro" in resultado:
+                        st.error(f"⚠️ Erro no processamento: {resultado['erro']}")
+                        time.sleep(2)
+                        
+                    elif resultado == "acertou":
+                        st.success("🎉 RESPOSTA EXATA! Ponto garantido. Preparando próxima questão...")
+                        time.sleep(2)
+                        
+                    elif resultado == "rebate":
+                        st.warning("❌ RESPOSTA INCORRETA! A equipe adversária ganhou a chance do REBATE!")
+                        time.sleep(2.5)
+                        
+                    elif resultado == "ambos_erraram":
+                        st.error("❌ INCORRETO NO REBATE! Nenhuma equipe pontuou. Avançando...")
+                        time.sleep(2)
+                        
+                    elif resultado == "fim_de_jogo":
+                        st.balloons()
+                        st.success("🏆 ÚLTIMA QUESTÃO CONCLUÍDA! Fim de jogo. Redirecionando para o pódio...")
+                        time.sleep(3)
+                    
+                    # Após o tempo de leitura, força a atualização da tela
+                    st.rerun()
 
 def tela_batalha_rodada():
     aplicar_estilo()
@@ -125,7 +146,7 @@ def tela_batalha_rodada():
                     supabase.table("batalhas").update({"pergunta_atual_ordem": ordem_atual + 1}).eq("id", b_id).execute()
                 
                 st.rerun()
-                
+
     if b.get("status") == "em_andamento":
         u = st.session_state.get("usuario_logado", {})
         times_usuario = obter_time_do_usuario(u.get("id"))

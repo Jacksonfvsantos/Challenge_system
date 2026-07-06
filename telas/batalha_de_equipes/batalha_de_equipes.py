@@ -108,29 +108,64 @@ def tela_batalha_de_equipes():
                                 if salvar_questoes_lote_ia(b_sel['id'], questoes)["sucesso"]:
                                     st.balloons(); st.success("Questões importadas!"); st.rerun()
 
-    # --- ARENA DE BATALHAS ---
+# --- ARENA DE BATALHAS ---
     todas = listar_batalhas_ativas()
     historico = obter_batalhas_finalizadas()
+    
     sinc, assinc, hist_s, hist_a = st.tabs(["⚡ Síncronas", "⏳ Assíncronas", "📜 Hist. Síncronas", "📜 Hist. Assíncronas"])
-    with sinc: renderizar_lista([b for b in todas if b.get("modalidade") == "sincrona"])
-    with assinc: renderizar_lista([b for b in todas if b.get("modalidade") == "assincrona"])
-    with hist_s: renderizar_historico([h for h in historico if h.get("modalidade") == "sincrona"])
-    with hist_a: renderizar_historico([h for h in historico if h.get("modalidade") == "assincrona"])
+    
+    with sinc: 
+        renderizar_lista([b for b in todas if b.get("modalidade") == "sincrona"])
+    with assinc: 
+        renderizar_lista([b for b in todas if b.get("modalidade") == "assincrona"])
+    with hist_s: 
+        renderizar_historico([h for h in historico if h.get("modalidade") == "sincrona"])
+    with hist_a: 
+        renderizar_historico([h for h in historico if h.get("modalidade") == "assincrona"])
+
+# --- FUNÇÕES DE RENDERIZAÇÃO DOS CARDS ---
 
 def renderizar_lista(lista):
-    if not lista: st.info("Nenhuma batalha ativa."); return
+    if not lista: 
+        st.info("Nenhuma arena ativa nesta modalidade.")
+        return
+        
     for ba in lista:
         with st.container(border=True):
-            st.markdown(f"### {ba['titulo']}")
+            st.markdown(f"### ⚔️ {ba['titulo']}")
             if st.session_state.get("usuario_logado", {}).get("tipo_usuario") in ("professor", "admin"):
                 c1, c2, c3 = st.columns(3)
                 if c1.button("🚀 Iniciar", key=f"init_{ba['id']}"):
                     if iniciar_partida_sincrona(ba['id'], ba.get("time_a_id")): st.rerun()
-                if c2.button("🛑 Encerrar", key=f"end_{ba['id']}"): encerrar_partida_sincrona(ba['id']); st.rerun()
-                if c3.button("🗑️ Deletar", key=f"del_{ba['id']}"): deletar_batalha(ba['id']); st.rerun()
-            if st.button(f"Entrar", key=f"entrar_{ba['id']}", use_container_width=True):
-                st.session_state.batalha_ativa_id = ba["id"]; st.session_state.pagina = "batalha_rodada"; st.rerun()
+                if c2.button("🛑 Encerrar", key=f"end_{ba['id']}"): 
+                    encerrar_partida_sincrona(ba['id']); st.rerun()
+                if c3.button("🗑️ Deletar", key=f"del_{ba['id']}"): 
+                    deletar_batalha(ba['id']); st.rerun()
+            
+            if st.button(f"Entrar na Arena", key=f"entrar_{ba['id']}", use_container_width=True):
+                st.session_state.batalha_ativa_id = ba["id"]
+                st.session_state.pagina = "batalha_rodada"
+                st.rerun()
 
 def renderizar_historico(lista):
+    if not lista: 
+        st.info("Nenhuma batalha finalizada nesta modalidade ainda.")
+        return
+        
+    tipo_u = st.session_state.get("usuario_logado", {}).get("tipo_usuario", "aluno")
+    
     for h in lista:
-        with st.container(border=True): st.write(f"**{h['titulo']}** | {h['resultado_extenso']}")
+        with st.container(border=True):
+            col1, col2 = st.columns([0.85, 0.15]) # Divide o card para o botão ficar à direita
+            
+            with col1:
+                st.markdown(f"### 🏆 {h.get('titulo')}")
+                st.markdown(f"**{h.get('time_a_nome')}** ({h.get('pontos_time_a')})  vs  **{h.get('time_b_nome')}** ({h.get('pontos_time_b')})")
+                st.caption(f"_{h.get('resultado_extenso')}_")
+                
+            with col2:
+                # O botão de exclusão só aparece se o usuário for professor ou admin
+                if tipo_u in ("professor", "admin"):
+                    if st.button("🗑️ Excluir", key=f"del_hist_{h['id']}"):
+                        deletar_batalha(h['id'])
+                        st.rerun()
