@@ -32,8 +32,18 @@ def tela_batalha_de_equipes():
                 submit_arena = st.form_submit_button("Criar Arena")
             
             if submit_arena:
-                cadastrar_nova_batalha(titulo_b, "Arena criada", None, None, modalidade)
-                st.rerun()
+                if not titulo_b.strip():
+                    st.error("⚠️ O título da arena é obrigatório!")
+                else:
+                    # Captura a resposta do serviço
+                    resultado = cadastrar_nova_batalha(titulo_b, "Arena criada", None, None, modalidade)
+                    
+                    if resultado.get("sucesso"):
+                        st.success("✅ Arena criada com sucesso!")
+                        time.sleep(1) # Dá 1 segundo para você ler a mensagem de sucesso
+                        st.rerun()    # Atualiza a tela para o card aparecer na lista
+                    else:
+                        st.error(f"❌ Erro ao criar arena: {resultado.get('mensagem')}")
 
             st.subheader("Gerenciar Equipes")
             for t in listar_times():

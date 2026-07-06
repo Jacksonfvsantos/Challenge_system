@@ -113,16 +113,20 @@ def obter_nomes_dos_times(t_a, t_b):
 # =====================================================================
 def cadastrar_nova_batalha(titulo, descricao, time_a_id=None, time_b_id=None, modalidade="sincrona"):
     try:
+        # Monta o payload base apenas com os campos que não são Chaves Estrangeiras (UUIDs)
         payload = {
             "titulo": titulo.strip(),
             "descricao": descricao.strip() if descricao else None,
             "modalidade": modalidade,
             "status": "agendada",
-            "time_a_id": time_a_id if eh_uuid_valido(time_a_id) else None,
-            "time_b_id": time_b_id if eh_uuid_valido(time_b_id) else None,
             "finalizada": False,
             "pergunta_atual_ordem": 1
         }
+        if time_a_id and str(time_a_id).strip() != "None": 
+            payload["time_a_id"] = str(time_a_id).strip()
+        if time_b_id and str(time_b_id).strip() != "None": 
+            payload["time_b_id"] = str(time_b_id).strip()
+            
         res = supabase.table("batalhas").insert(payload).execute()
         return {"sucesso": True, "data": res.data}
     except Exception as e:
