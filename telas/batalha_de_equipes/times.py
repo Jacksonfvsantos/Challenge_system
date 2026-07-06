@@ -28,6 +28,19 @@ def tela_batalha_times():
         
         if possui_time:
             st.success("✅ Você já está devidamente alocado em uma equipe! Aguarde as instruções do professor na sala.")
+            
+            # Adiciona o botão de sair da equipe
+            if st.button("🚪 Sair da minha equipe atual", type="secondary"):
+                # Busca a qual time o aluno pertence para poder removê-lo
+                from services.batalha_service import obter_time_do_usuario, remover_aluno
+                times_do_aluno = obter_time_do_usuario(usuario_id)
+                if times_do_aluno and times_do_aluno[0]:
+                    time_id = times_do_aluno[0]
+                    if remover_aluno(time_id, usuario_id):
+                        st.toast("Você saiu da equipe com sucesso.")
+                        import time
+                        time.sleep(1)
+                        st.rerun()
         else:
             col_criar, col_entrar = st.columns(2)
             
