@@ -1,3 +1,5 @@
+import time
+
 import streamlit as st
 from utils.estilo import aplicar_estilo, cabecalho
 from services.quiz_ao_vivo_service import listar_quizzes, criar_quiz, deletar_quiz
@@ -46,13 +48,24 @@ def tela_quiz_ao_vivo():
                 
                 with col_acao:
                     if tipo in ("professor", "admin"):
+                        # Botão de Configurar
                         if st.button("⚙️ Configurar", key=f"conf_{q_id}", use_container_width=True):
                             st.session_state.pagina = "cadastro_perguntas_quiz"
                             st.session_state.quiz_id_selecionado = q_id
                             st.rerun()
+                        
+                        # Botão de Deletar com feedback imediato
                         if st.button("🗑️ Deletar", key=f"del_{q_id}", type="primary", use_container_width=True):
-                            if deletar_quiz(q_id):
+                            # Chamada direta para o serviço
+                            from services.quiz_ao_vivo_service import deletar_quiz
+                            sucesso = deletar_quiz(q_id)
+                            
+                            if sucesso:
+                                st.toast("Quiz removido com sucesso!", icon="✅")
+                                time.sleep(0.5) # Pequena pausa para garantir a persistência
                                 st.rerun()
+                            else:
+                                st.error("Não foi possível excluir. Verifique se existem perguntas associadas.")
                     else:
                         if status in ("em_andamento", "ativo", "criado"): 
                             if st.button("🎯 Ingressar", key=f"join_{q_id}", type="primary", use_container_width=True):
