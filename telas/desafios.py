@@ -44,15 +44,15 @@ def tela_desafios():
             st.markdown("### ➕ Criar Novo Desafio Prático")
             with st.form("form_novo_desafio_modular", clear_on_submit=True):
                 titulo = st.text_input("Título do Desafio:")
-                descricao = st.text_area("Enunciado / Requisitos Técnicos:")
+                descricao = st.text_area("Enunciado / Requisitos Técnicos:", key="input_desc")
                 col_n, col_d = st.columns(2)
                 nivel = col_n.selectbox("Nível de Complexidade:", ["Fácil", "Intermediário", "Difícil"])
                 data_limite = col_d.date_input("Data Limite de Entrega:", min_value=datetime.date.today())
                 
-                btn_publicar = st.form_submit_button("🔥 Publicar Desafio para a Arena", use_container_width=True)
+                btn_publicar = st.form_submit_button("🔥 Publicar Desafio", use_container_width=True)
                 if btn_publicar:
                     if not titulo.strip() or not descricao.strip():
-                        st.error("Título e enunciado são obrigatórios.")
+                        st.error("🛑 O título e o enunciado são obrigatórios.")
                     else:
                         res = criar_desafio(titulo, descricao, usuario_id, str(data_limite), nivel)
                         if res.get("sucesso"):
