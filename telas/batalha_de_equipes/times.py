@@ -7,7 +7,9 @@ from services.batalha_service import (
     listar_times, 
     entrar_no_time, 
     listar_membros_time,
-    aluno_tem_time
+    aluno_tem_time,
+    obter_time_do_usuario, # <-- Importação adicionada
+    remover_aluno          # <-- Importação adicionada
 )
 
 def tela_batalha_times():
@@ -22,6 +24,7 @@ def tela_batalha_times():
         "Crie uma nova equipe ou junte-se a um grupo ativo para liberar o seu acesso à Arena Ao Vivo"
     )
     
+    # ⚠️ ATENÇÃO: Esta seção inteira só aparece para ALUNOS
     if tipo_usuario == "aluno":
         st.markdown("### 🛠️ Suas Opções de Alocação")
         possui_time = aluno_tem_time(usuario_id)
@@ -29,18 +32,20 @@ def tela_batalha_times():
         if possui_time:
             st.success("✅ Você já está devidamente alocado em uma equipe! Aguarde as instruções do professor na sala.")
             
-            # Adiciona o botão de sair da equipe
+            st.write("") # Espaço em branco
+            
+            # --- O BOTÃO DE SAIR DA EQUIPE ESTÁ AQUI ---
             if st.button("🚪 Sair da minha equipe atual", type="secondary"):
-                # Busca a qual time o aluno pertence para poder removê-lo
-                from services.batalha_service import obter_time_do_usuario, remover_aluno
                 times_do_aluno = obter_time_do_usuario(usuario_id)
                 if times_do_aluno and times_do_aluno[0]:
                     time_id = times_do_aluno[0]
                     if remover_aluno(time_id, usuario_id):
                         st.toast("Você saiu da equipe com sucesso.")
-                        import time
                         time.sleep(1)
                         st.rerun()
+                    else:
+                        st.error("Erro ao sair da equipe.")
+                        
         else:
             col_criar, col_entrar = st.columns(2)
             
@@ -91,6 +96,7 @@ def tela_batalha_times():
         st.markdown("<br><br>", unsafe_allow_html=True)
         st.divider()
 
+    # Esta seção debaixo (Mural) aparece para TODO MUNDO (Aluno e Professor)
     st.markdown("### 📊 Mural das Equipes Registadas")
     st.caption("Confira abaixo a composição atual de cada time do ecossistema:")
     
