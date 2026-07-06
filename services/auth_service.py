@@ -3,6 +3,11 @@ import re
 from database.conexao import supabase
 from services.notificacao_service import registrar_log_seguranca
 
+def eh_email_valido(email):
+    """Verifica se a estrutura do e-mail é válida matematicamente."""
+    padrao = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
+    return re.match(padrao, email) is not None
+
 def criptografar_senha(senha):
     """Gera o hash SHA-256 da senha."""
     return hashlib.sha256(senha.encode()).hexdigest()
@@ -67,14 +72,26 @@ def cadastrar_usuario(nome, email, senha):
     Cadastra o usuário automaticamente definindo seu tipo via e-mail.
     """
     try:
+        email_sanitizado = str(email).strip().lower()
+        
+        # 1. Validação de Formato do E-mail
+        if not eh_email_valido(email_sanitizado):
+            return "Formato de e-mail inválido. Use um e-mail real."
+            
+        # 2. Bloqueio de Provedores Temporários (Opcional, mas recomendado)
+        provedores_bloqueados = ["yopmail.com", "tempmail.com", "mailinator.com", "guerrillamail.com", "10minutemail.com"]
+        dominio = email_sanitizado.split("@")[1]
+        if dominio in provedores_bloqueados:
+            return "E-mails temporários não são permitidos no sistema."
+
+        # 3. Validação de Senha
         validar = senha_valida(senha)
         if validar != "ok":
             return validar
 
-        email_sanitizado = str(email).strip().lower()
         tipo_usuario = definir_tipo_usuario_por_email(email_sanitizado)
 
-        # Verifica duplicidade
+        # 4. Verifica duplicidade
         verificar = (
             supabase
             .table("usuarios")
@@ -86,7 +103,7 @@ def cadastrar_usuario(nome, email, senha):
         if verificar.data:
             return "E-mail já cadastrado"
 
-        # Cadastro no banco
+        # 5. Cadastro no banco
         res_cadastro = supabase.table("usuarios").insert({
             "nome": nome.strip(),
             "email": email_sanitizado,
