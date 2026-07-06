@@ -57,11 +57,13 @@ def renderizador_pergunta(b_id, tid, ta_id, tb_id, tipo_u, status):
 
     for alt in dados_p.get("alternativas", []):
         if st.button(alt["texto"], key=f"alt_{alt['id']}", disabled=not eh_vez, use_container_width=True):
-            if not tid or tid == "None":
-                st.error("Você não pertence a um time válido.")
+            
+            # --- CORREÇÃO: Bloqueio de processamento para IDs inválidos ---
+            if not tid or str(tid).strip() == "None":
+                st.error("Erro: Usuário sem time vinculado. Apenas alunos em equipes podem responder.")
                 return
-
-            adv = tb_id if tid_limpo == ta_id.strip().lower() else ta_id
+            
+            adv = tb_id if str(tid).strip().lower() == ta_id.strip().lower() else ta_id
             tentativa = 2 if status == "rebate_ativo" else 1
             
             resultado = processar_resposta_sincrona(b_id, dados_p["id"], tid, alt["id"], alt["correta"], adv, tentativa)
