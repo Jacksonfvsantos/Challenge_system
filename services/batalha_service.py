@@ -202,18 +202,12 @@ def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id,
             return "erro: time_id_invalido"
         
         batalha = obter_estado_batalha(batalha_id)
-        
         ordem_atual = int(batalha.get("pergunta_atual_ordem", 1))
 
-        supabase.table("batalha_respostas").insert({
-            "batalha_id": batalha_id, "questao_id": questao_id, 
-            "time_id": time_id, "alternativa_id": alternativa_id, 
-            "resposta_correta": bool(alternativa_correta), "tentativa_numero": int(tentativa_atual)
-        }).execute()
-
         if alternativa_correta:
+            # AQUI: O incremento é obrigatório para avançar a questão
             supabase.table("batalhas").update({
-                "pergunta_atual_ordem": ordem_atual + 1,
+                "pergunta_atual_ordem": ordem_atual + 1, 
                 "time_da_vez_id": time_adversario_id,
                 "status_sincrono": "aguardando_resposta",
                 "inicio_turno": datetime.datetime.now(datetime.timezone.utc).isoformat()
