@@ -15,7 +15,7 @@ def formatar_data_br(data_str):
         return "Sem prazo informado"
     try:
         data_limpa = data_str.split("T")[0]
-        ano, mes, dia = data_limpa.split("-")
+        dia, mes, ano = data_limpa.split("-")
         return f"{dia}/{mes}/{ano}"
     except Exception:
         return data_str
