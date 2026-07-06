@@ -180,6 +180,15 @@ def calcular_placar_atual(batalha_id, t_a, t_b):
     except Exception as e:
         print(f"Erro ao calcular placar: {e}")
         return 0, 0
+    
+def obter_batalhas_finalizadas():
+    """Busca as batalhas que já foram encerradas para a tela de resultados."""
+    try:
+        resposta = supabase.table("batalhas").select("*").eq("status", "finalizada").order("created_at", descending=True).execute()
+        return resposta.data or []
+    except Exception as e:
+        print(f"Erro [obter_batalhas_finalizadas]: {e}")
+        return []
 
 # =====================================================================
 # --- CADASTRO E BUSCA DE QUESTÕES DA BATALHA
