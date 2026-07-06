@@ -86,7 +86,6 @@ def cadastrar_usuario(nome, email, senha):
         if validar != "ok":
             return validar
 
-        # 🚨 MUDANÇA AQUI: Todo mundo nasce como aluno
         tipo_usuario = "aluno" 
 
         verificar = supabase.table("usuarios").select("id").eq("email", email_sanitizado).execute()

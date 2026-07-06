@@ -97,7 +97,7 @@ pagina = st.session_state.get("pagina", "home")
 
 rotas = {
     "home": tela_home,
-    "admin": tela_admin, # <-- ADICIONE ESTA LINHA AQUI
+    "admin": tela_admin,
     "desafios": tela_desafios,
     "votacao": tela_votacao,
     "pontuacoes": tela_pontuacoes,
