@@ -100,13 +100,32 @@ def tela_batalha_de_equipes():
                 else:
                     prompt_custom = st.text_area("Instruções adicionais para a IA:", height=100)
                     arquivo = st.file_uploader("Upload de Caderno (PDF/DOCX)", type=["pdf", "docx"])
+                    
                     if arquivo and st.button("🤖 Processar e Injetar"):
-                        with st.spinner("Processando..."):
-                            texto = extrair_texto_de_arquivo(arquivo.getvalue(), arquivo.name.split('.')[-1])
-                            questoes = gerar_questoes_ia(texto, prompt_custom, st.secrets["GEMINI_API_KEY"])
+                        with st.spinner("Lendo documento (analisando imagens e códigos)..."):
+                            
+                            # Importamos a nova função multimodal
+                            from services.ia_processador_service import gerar_questoes_ia_multimodal
+                            
+                            # Captura os dados crus e o tipo do arquivo (ex: 'application/pdf')
+                            arquivo_bytes = arquivo.getvalue()
+                            mime_type = arquivo.type
+                            
+                            # Aciona o Gemini
+                            questoes = gerar_questoes_ia_multimodal(
+                                arquivo_bytes, 
+                                mime_type, 
+                                prompt_custom, 
+                                st.secrets["GEMINI_API_KEY"]
+                            )
+                            
                             if questoes:
                                 if salvar_questoes_lote_ia(b_sel['id'], questoes)["sucesso"]:
-                                    st.balloons(); st.success("Questões importadas!"); st.rerun()
+                                    st.balloons()
+                                    st.success("Questões com código importadas com sucesso!")
+                                    st.rerun()
+                            else:
+                                st.error("A IA não conseguiu gerar as questões. Verifique o console para mais detalhes.")
 
 # --- ARENA DE BATALHAS ---
     todas = listar_batalhas_ativas()
