@@ -4,19 +4,30 @@ from database.conexao import supabase
 from services.notificacao_service import registrar_log_seguranca
 
 def criptografar_senha(senha):
+    """Gera o hash SHA-256 da senha."""
     return hashlib.sha256(senha.encode()).hexdigest()
 
 def senha_valida(senha):
+    """Valida requisitos mínimos de segurança para senhas."""
     if len(senha) < 8:
         return "A senha deve ter no mínimo 8 caracteres"
-
     if not re.search(r"[A-Z]", senha):
         return "A senha deve conter pelo menos uma letra maiúscula"
-
     if not re.search(r"\d", senha):
         return "A senha deve conter pelo menos um número"
-
     return "ok"
+
+def definir_tipo_usuario_por_email(email):
+    """
+    Atribui o perfil do usuário baseado no domínio institucional.
+    Adapte a lista de domínios conforme a necessidade da sua instituição.
+    """
+    email_sanitizado = str(email).strip().lower()
+    # Exemplo: domínios de professor
+    if email_sanitizado.endswith("@unijorge.edu.br"): 
+        return "professor"
+    # Padrão para alunos
+    return "aluno"
 
 def login_usuario(email, senha):
     email_sanitizado = str(email).strip().lower()
@@ -40,6 +51,7 @@ def login_usuario(email, senha):
         )
         return usuario
 
+    # Log de falha caso o e-mail exista mas a senha esteja incorreta
     verificar_usuario = supabase.table("usuarios").select("id").eq("email", email_sanitizado).execute()
     if verificar_usuario.data:
         registrar_log_seguranca(
@@ -50,14 +62,19 @@ def login_usuario(email, senha):
         )
     return None
 
-def cadastrar_usuario(nome, email, tipo_usuario, senha):
+def cadastrar_usuario(nome, email, senha):
+    """
+    Cadastra o usuário automaticamente definindo seu tipo via e-mail.
+    """
     try:
         validar = senha_valida(senha)
         if validar != "ok":
             return validar
 
         email_sanitizado = str(email).strip().lower()
+        tipo_usuario = definir_tipo_usuario_por_email(email_sanitizado)
 
+        # Verifica duplicidade
         verificar = (
             supabase
             .table("usuarios")
@@ -69,6 +86,7 @@ def cadastrar_usuario(nome, email, tipo_usuario, senha):
         if verificar.data:
             return "E-mail já cadastrado"
 
+        # Cadastro no banco
         res_cadastro = supabase.table("usuarios").insert({
             "nome": nome.strip(),
             "email": email_sanitizado,
