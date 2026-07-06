@@ -8,6 +8,18 @@ from services.batalha_service import (
 )
 from utils.estilo import aplicar_estilo
 
+@st.fragment(run_every=3) # Atualiza o placar sozinho a cada 3 segundos
+def placar_professor_tempo_real(b_id, ta_id, tb_id, nome_ta, nome_tb):
+    # Consulta os pontos atualizados direto do banco
+    pa, pb = calcular_placar_atual(b_id, ta_id, tb_id)
+    
+    # Desenha as métricas
+    c1, c2 = st.columns(2)
+    with c1:
+        st.metric(f"Equipe: {nome_ta or 'Time A'}", f"{pa} Acertos")
+    with c2:
+        st.metric(f"Equipe: {nome_tb or 'Time B'}", f"{pb} Acertos")
+
 def tela_batalha_rodada_assincrona():
     aplicar_estilo()
     
@@ -29,16 +41,12 @@ def tela_batalha_rodada_assincrona():
     
     st.markdown(f"## ⏳ Missão Assíncrona: {b.get('titulo')}")
 
-    # --- VISÃO DO PROFESSOR (DASHBOARD) ---
+ # --- VISÃO DO PROFESSOR (DASHBOARD) ---
     if tipo_u in ("professor", "admin"):
         st.info("Você está na visão de governança. Alunos respondem no próprio ritmo.")
-        pa, pb = calcular_placar_atual(b_id, ta_id, tb_id)
         
-        c1, c2 = st.columns(2)
-        with c1:
-            st.metric(f"Equipe: {nome_ta or 'Time A'}", f"{pa} Acertos")
-        with c2:
-            st.metric(f"Equipe: {nome_tb or 'Time B'}", f"{pb} Acertos")
+        # Chama o componente que se auto-atualiza
+        placar_professor_tempo_real(b_id, ta_id, tb_id, nome_ta, nome_tb)
             
         st.divider()
         if st.button("🛑 Encerrar Batalha para Todos", type="primary"):
