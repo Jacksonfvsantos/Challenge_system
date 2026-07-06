@@ -51,7 +51,7 @@ def tela_gerenciar_batalhas():
 
 def tela_batalha_rodada(): 
     try:
-        from telas.batalha_de_equipes.rodada import tela_batalha_rodada as real_tela
+        from telas.batalha_de_equipes.rodada_sincrona import tela_batalha_rodada as real_tela
         real_tela()
     except Exception as e: st.error(f"Erro ao carregar rodada: {e}")
 
