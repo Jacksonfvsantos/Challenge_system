@@ -89,16 +89,24 @@ def tela_desafios():
                         if not vinc_aluno:
                             if st.button("🚀 Ingressar no Desafio", key=f"ing_{desafio_id}", type="primary", use_container_width=True):
                                 if participar_desafio(desafio_id, usuario_id): st.rerun()
-                                    
                         elif vinc_aluno.get("status") == "participando":
                             with st.expander("🏁 Concluir e Submeter Entrega"):
-                                sub = st.text_area("Link do projeto ou observações:", key=f"sub_{desafio_id}")
-                                if st.button("✅ Enviar e Concluir", key=f"conc_{desafio_id}", type="primary", use_container_width=True):
-                                    if not sub.strip(): st.error("Preencha o campo de submissão.")
-                                    elif concluir_desafio(desafio_id, usuario_id, sub):
-                                        st.toast("Entrega realizada!"); time.sleep(1); st.rerun()
-                                if st.button("❌ Cancelar", key=f"canc_{desafio_id}", type="secondary", use_container_width=True):
-                                    cancelar_participacao(desafio_id, usuario_id); st.rerun()
+                                submissao_texto = st.text_area("Cole aqui o link do seu projeto ou suas observações:", key=f"sub_{desafio_id}")
+                                
+                                col_c1, col_c2 = st.columns(2)
+                                
+                                if col_c1.button("✅ Enviar e Concluir", key=f"conc_{desafio_id}", type="primary", use_container_width=True):
+                                    if not submissao_texto.strip():
+                                        st.error("Por favor, preencha a submissão antes de concluir.")
+                                    else:
+                                        if concluir_desafio(desafio_id, usuario_id, submissao_texto):
+                                            st.toast("Sucesso! Desafio entregue.")
+                                            time.sleep(1)
+                                            st.rerun()
+                                            
+                                if col_c2.button("❌ Cancelar", key=f"canc_{desafio_id}", type="secondary", use_container_width=True):
+                                    cancelar_participacao(desafio_id, usuario_id)
+                                    st.rerun()
                                     
                         elif vinc_aluno.get("status") == "concluido":
                             st.success("👑 Desafio Concluído!")
