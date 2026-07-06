@@ -22,28 +22,51 @@ def tela_batalha_de_equipes():
         
     cabecalho("⚔️ Arena de Batalha de Equipes", "Participe de desafios síncronos em tempo real")
 
-    # --- GOVERNANÇA DOCENTE ---
+            # --- GOVERNANÇA DOCENTE ---
     if tipo_usuario in ("professor", "admin"):
-        with st.expander("👨‍🏫 Governança Docente"):
+        with st.expander("👨‍🏫 Governança Docente", expanded=True): # Deixei expandido para facilitar
             st.subheader("⚙️ Nova Arena")
-            with st.form("form_batalha"):
-                titulo_b = st.text_input("Título da Arena:")
-                modalidade = st.selectbox("Modalidade:", ["sincrona", "assincrona"])
-                submit_arena = st.form_submit_button("Criar Arena")
             
-            if submit_arena:
-                if not titulo_b.strip():
-                    st.error("⚠️ O título da arena é obrigatório!")
-                else:
-                    # Captura a resposta do serviço
-                    resultado = cadastrar_nova_batalha(titulo_b, "Arena criada", None, None, modalidade)
+            # 1. Puxa as equipes cadastradas no banco
+            times_cadastrados = listar_times()
+            
+            # 2. Trava de segurança: só deixa criar arena se existirem equipes
+            if not times_cadastrados:
+                st.warning("⚠️ Você precisa criar pelo menos uma Equipe na seção abaixo antes de abrir uma Arena.")
+            else:
+                with st.form("form_batalha"):
+                    titulo_b = st.text_input("Título da Arena:")
+                    modalidade = st.selectbox("Modalidade:", ["sincrona", "assincrona"])
                     
-                    if resultado.get("sucesso"):
-                        st.success("✅ Arena criada com sucesso!")
-                        time.sleep(1) # Dá 1 segundo para você ler a mensagem de sucesso
-                        st.rerun()    # Atualiza a tela para o card aparecer na lista
+                    # 3. Adiciona as caixas de seleção de equipes
+                    col1, col2 = st.columns(2)
+                    time_a = col1.selectbox("Equipe A:", times_cadastrados, format_func=lambda x: x["nome"])
+                    time_b = col2.selectbox("Equipe B:", times_cadastrados, format_func=lambda x: x["nome"])
+                    
+                    submit_arena = st.form_submit_button("Criar Arena")
+                
+                if submit_arena:
+                    if not titulo_b.strip():
+                        st.error("O título da arena é obrigatório!")
+                    elif time_a["id"] == time_b["id"]:
+                        st.error("As equipes A e B não podem ser a mesma!")
                     else:
-                        st.error(f"❌ Erro ao criar arena: {resultado.get('mensagem')}")
+                        # 4. Envia os IDs reais das equipes para o serviço
+                        res = cadastrar_nova_batalha(
+                            titulo=titulo_b, 
+                            descricao="Arena criada pelo professor", 
+                            time_a_id=time_a["id"], 
+                            time_b_id=time_b["id"], 
+                            modalidade=modalidade
+                        )
+                        
+                        if res.get("sucesso"):
+                            st.success("✅ Arena criada com sucesso!")
+                            import time
+                            time.sleep(1)
+                            st.rerun()
+                        else:
+                            st.error(f"Erro ao criar: {res.get('mensagem')}")
 
             st.subheader("Gerenciar Equipes")
             for t in listar_times():
