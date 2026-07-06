@@ -1,3 +1,6 @@
+import streamlit as st
+import datetime
+from database.conexao import supabase
 from services.batalha_service import (
     encerrar_partida_sincrona, processar_resposta_sincrona, 
     obter_estado_batalha, obter_pergunta_atual, obter_time_do_usuario, 
