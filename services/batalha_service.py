@@ -1,14 +1,27 @@
 import datetime
 from database.conexao import supabase
 
-# --- FUNÇÕES DE VALIDAÇÃO (Proteção contra o erro 22P02) ---
+# =====================================================================
+# --- FUNÇÕES DE VALIDAÇÃO (Proteção contra o erro 22P02 do PostgreSQL)
+# =====================================================================
 def eh_uuid_valido(valor):
     """Verifica se o ID não é vazio ou a string literal 'None'"""
     if not valor or str(valor).strip().lower() == "none" or str(valor).strip() == "":
         return False
     return True
 
-# --- GERENCIAMENTO DE TIMES ---
+# =====================================================================
+# --- GERENCIAMENTO DE TIMES E ALUNOS
+# =====================================================================
+def criar_time(nome: str) -> bool:
+    if not nome or not nome.strip(): return False
+    try:
+        resposta = supabase.table("times").insert({"nome": nome.strip()}).execute()
+        return bool(resposta.data and len(resposta.data) > 0)
+    except Exception as erro:
+        print(f"Erro [criar_time]: {erro}")
+        return False
+
 def listar_times():
     try:
         resposta = supabase.table("times").select("*").order("nome").execute()
@@ -16,6 +29,64 @@ def listar_times():
     except Exception as erro:
         print(f"Erro [listar_times]: {erro}")
         return []
+
+def deletar_time(time_id: str) -> bool:
+    if not eh_uuid_valido(time_id): return False
+    try:
+        supabase.table("time_membros").delete().eq("time_id", str(time_id).strip()).execute()
+        supabase.table("times").delete().eq("id", str(time_id).strip()).execute()
+        return True
+    except Exception as e:
+        print(f"Erro [deletar_time]: {e}")
+        return False
+
+def aluno_tem_time(usuario_id: str) -> bool:
+    if not eh_uuid_valido(usuario_id): return False
+    try:
+        resposta = supabase.table("time_membros").select("id").eq("usuario_id", str(usuario_id).strip()).execute()
+        return len(resposta.data) > 0
+    except Exception: return False
+
+def entrar_no_time(time_id: str, usuario_id: str) -> bool:
+    if not eh_uuid_valido(time_id) or not eh_uuid_valido(usuario_id): return False
+    if aluno_tem_time(usuario_id): return False
+    try:
+        supabase.table("time_membros").insert({"time_id": str(time_id).strip(), "usuario_id": str(usuario_id).strip()}).execute()
+        return True
+    except Exception: return False
+
+def adicionar_aluno(time_id: str, usuario_id: str) -> bool:
+    return entrar_no_time(time_id, usuario_id)
+
+def listar_membros_time(time_id: str):
+    if not eh_uuid_valido(time_id): return []
+    try:
+        resposta = supabase.table("time_membros").select("usuario_id, usuarios(id, nome, email)").eq("time_id", str(time_id).strip()).execute()
+        membros = []
+        if resposta.data:
+            for item in resposta.data:
+                user_data = item.get("usuarios")
+                if isinstance(user_data, dict):
+                    membros.append({"id": user_data.get("id"), "nome": user_data.get("nome"), "email": user_data.get("email")})
+        return membros
+    except Exception as e:
+        print(f"Erro [listar_membros_time]: {e}")
+        return []
+
+def remover_aluno(usuario_id: str) -> bool:
+    if not eh_uuid_valido(usuario_id): return False
+    try:
+        supabase.table("time_membros").delete().eq("usuario_id", str(usuario_id).strip()).execute()
+        return True
+    except Exception as e:
+        print(f"Erro [remover_aluno]: {e}")
+        return False
+
+def listar_alunos():
+    try:
+        resposta = supabase.table("usuarios").select("id, nome, email").eq("tipo_usuario", "aluno").order("nome").execute()
+        return resposta.data or []
+    except Exception: return []
 
 def obter_time_do_usuario(usuario_id):
     if not eh_uuid_valido(usuario_id): return [None]
@@ -34,77 +105,62 @@ def obter_nomes_dos_times(t_a, t_b):
         if eh_uuid_valido(t_b):
             res_b = supabase.table("times").select("nome").eq("id", str(t_b)).execute()
             if res_b.data: nome_b = res_b.data[0]["nome"]
-    except Exception as e:
-        print(f"Erro ao buscar nomes: {e}")
+    except Exception as e: print(f"Erro ao buscar nomes: {e}")
     return nome_a, nome_b
 
-def criar_time(nome: str) -> bool:
-    """Cria um novo time no banco de dados."""
-    if not nome or not nome.strip():
-        return False
+# =====================================================================
+# --- GERENCIAMENTO GERAL DE BATALHAS E PLACAR
+# =====================================================================
+def cadastrar_nova_batalha(titulo, descricao, time_a_id=None, time_b_id=None, modalidade="sincrona"):
     try:
-        payload = {"nome": nome.strip()}
-        resposta = supabase.table("times").insert(payload).execute()
-        return bool(resposta.data and len(resposta.data) > 0)
-    except Exception as erro:
-        print(f"Erro [criar_time]: {erro}")
-        return False
+        payload = {
+            "titulo": titulo.strip(),
+            "descricao": descricao.strip() if descricao else None,
+            "modalidade": modalidade,
+            "status": "agendada",
+            "time_a_id": time_a_id if eh_uuid_valido(time_a_id) else None,
+            "time_b_id": time_b_id if eh_uuid_valido(time_b_id) else None,
+            "finalizada": False,
+            "pergunta_atual_ordem": 1
+        }
+        res = supabase.table("batalhas").insert(payload).execute()
+        return {"sucesso": True, "data": res.data}
+    except Exception as e:
+        return {"sucesso": False, "mensagem": str(e)}
 
-def aluno_tem_time(usuario_id: str) -> bool:
-    """Verifica se o aluno já pertence a algum time."""
-    if not eh_uuid_valido(usuario_id): return False
+def listar_batalhas_ativas():
     try:
-        resposta = supabase.table("time_membros").select("id").eq("usuario_id", str(usuario_id).strip()).execute()
-        return len(resposta.data) > 0
-    except Exception:
-        return False
-
-def entrar_no_time(time_id: str, usuario_id: str) -> bool:
-    """Insere um aluno em um time específico."""
-    if not eh_uuid_valido(time_id) or not eh_uuid_valido(usuario_id): return False
-    if aluno_tem_time(usuario_id):
-        return False
-    try:
-        supabase.table("time_membros").insert({"time_id": str(time_id).strip(), "usuario_id": str(usuario_id).strip()}).execute()
-        return True
-    except Exception:
-        return False
-
-def listar_membros_time(time_id: str):
-    """Lista os alunos que pertencem a um determinado time."""
-    if not eh_uuid_valido(time_id): return []
-    try:
-        resposta = supabase.table("time_membros").select("*, usuarios(nome)").eq("time_id", str(time_id).strip()).execute()
+        resposta = supabase.table("batalhas").select("*, times:time_a_id(nome)").in_("status", ["agendada", "em_andamento"]).order("created_at", descending=True).execute()
         return resposta.data or []
     except Exception as e:
-        print(f"Erro [listar_membros_time]: {e}")
+        print(f"Erro [listar_batalhas_ativas]: {e}")
         return []
-    
-def remover_aluno(usuario_id: str) -> bool:
-    """Remove o aluno do time atual."""
-    if not eh_uuid_valido(usuario_id): return False
-    try:
-        supabase.table("time_membros").delete().eq("usuario_id", str(usuario_id).strip()).execute()
-        return True
-    except Exception as e:
-        print(f"Erro [remover_aluno]: {e}")
-        return False
 
-def deletar_time(time_id: str) -> bool:
-    """Deleta um time e remove todos os seus membros para evitar erro de Foreign Key."""
-    if not eh_uuid_valido(time_id): return False
+def listar_historico_batalhas():
     try:
-        # 1. Primeiro remove os membros vinculados ao time
-        supabase.table("time_membros").delete().eq("time_id", str(time_id).strip()).execute()
+        resposta = supabase.table("historico_batalhas").select("*").order("encerrado_em", desc=True).execute()
+        return resposta.data or []
+    except Exception as e:
+        print(f"Erro [listar_historico_batalhas]: {e}")
+        return []
+
+def deletar_batalha(batalha_id):
+    if not eh_uuid_valido(batalha_id): return False
+    try:
+        b_id = str(batalha_id)
+        supabase.table("batalha_respostas").delete().eq("batalha_id", b_id).execute()
         
-        # 2. Depois deleta o time principal
-        supabase.table("times").delete().eq("id", str(time_id).strip()).execute()
+        perguntas = supabase.table("batalha_perguntas").select("questao_id").eq("batalha_id", b_id).execute()
+        for p in perguntas.data:
+            supabase.table("alternativas").delete().eq("questao_id", p['questao_id']).execute()
+            
+        supabase.table("batalha_perguntas").delete().eq("batalha_id", b_id).execute()
+        supabase.table("batalhas").delete().eq("id", b_id).execute()
         return True
     except Exception as e:
-        print(f"Erro [deletar_time]: {e}")
+        print(f"Erro ao deletar batalha: {e}")
         return False
 
-# --- ESTADO E PLACAR DA BATALHA ---
 def obter_estado_batalha(batalha_id):
     if not eh_uuid_valido(batalha_id): return None
     try:
@@ -125,6 +181,9 @@ def calcular_placar_atual(batalha_id, t_a, t_b):
         print(f"Erro ao calcular placar: {e}")
         return 0, 0
 
+# =====================================================================
+# --- CADASTRO E BUSCA DE QUESTÕES DA BATALHA
+# =====================================================================
 def obter_pergunta_atual(batalha_id, ordem):
     if not eh_uuid_valido(batalha_id): return None
     try:
@@ -141,10 +200,49 @@ def obter_pergunta_atual(batalha_id, ordem):
         pergunta["alternativas"] = res_alt.data
         return pergunta
     except Exception as e:
-        print(f"Erro ao buscar pergunta (Batalha {batalha_id}, Ordem {ordem}): {e}")
+        print(f"Erro ao buscar pergunta: {e}")
         return None
 
-# --- CONTROLE DE FLUXO (INÍCIO, RESPOSTA E FIM) ---
+def cadastrar_questao_rapida(batalha_id: str, enunciado: str, alternativas_lista: list, correta_idx: int) -> bool:
+    if not eh_uuid_valido(batalha_id): return False
+    try:
+        b_id = str(batalha_id).strip()
+        res_q = supabase.table("questoes").insert({"enunciado": str(enunciado).strip()}).execute()
+        
+        if not res_q.data: return False
+        questao_id = res_q.data[0]["id"]
+        
+        payload_alternativas = []
+        for i, texto_alt in enumerate(alternativas_lista):
+            payload_alternativas.append({
+                "questao_id": questao_id, "texto": str(texto_alt).strip(), "ordem": i + 1, "correta": (i == correta_idx)
+            })
+        supabase.table("alternativas").insert(payload_alternativas).execute()
+        
+        res_ordem = supabase.table("batalha_perguntas").select("ordem").eq("batalha_id", b_id).execute()
+        proxima_ordem = len(res_ordem.data) + 1 if res_ordem.data else 1
+        
+        supabase.table("batalha_perguntas").insert({"batalha_id": b_id, "questao_id": questao_id, "ordem": proxima_ordem}).execute()
+        return True
+    except Exception as e:
+        print(f"Erro [cadastrar_questao_rapida]: {e}")
+        return False
+
+def cadastrar_questoes_batalha(batalha_id, lista_questoes):
+    if not eh_uuid_valido(batalha_id): return {"sucesso": False, "mensagem": "Batalha inválida."}
+    try:
+        for q in lista_questoes:
+            cadastrar_questao_rapida(batalha_id, q["enunciado"], q["alternativas"], q["correta_idx"])
+        return {"sucesso": True}
+    except Exception as e: return {"sucesso": False, "mensagem": str(e)}
+
+def salvar_questoes_lote_ia(batalha_id, lista_questoes):
+    if not lista_questoes or not isinstance(lista_questoes, list): return {"sucesso": False, "mensagem": "Formato inválido."}
+    return cadastrar_questoes_batalha(batalha_id, lista_questoes)
+
+# =====================================================================
+# --- MOTOR DO JOGO E CONTROLE DE FLUXO (RODADA SÍNCRONA)
+# =====================================================================
 def iniciar_partida_sincrona(batalha_id, time_inicial_id):
     if not eh_uuid_valido(batalha_id) or not eh_uuid_valido(time_inicial_id): return False
     try:
@@ -161,45 +259,27 @@ def iniciar_partida_sincrona(batalha_id, time_inicial_id):
         print(f"Erro ao iniciar: {e}")
         return False
 
-def encerrar_partida_sincrona(batalha_id):
-    if not eh_uuid_valido(batalha_id): return False
-    try:
-        supabase.table("batalhas").update({"status": "finalizada"}).eq("id", str(batalha_id)).execute()
-        return True
-    except: return False
-
 def processar_passagem_de_vez(batalha_id, time_atual_id, time_adversario_id):
-    """Executado quando o tempo de 45s esgota sem resposta."""
     if not eh_uuid_valido(batalha_id) or not eh_uuid_valido(time_adversario_id): return
     try:
         agora = datetime.datetime.now(datetime.timezone.utc).isoformat()
         b = obter_estado_batalha(batalha_id)
         if not b: return
-        
         ordem_atual = int(b.get("pergunta_atual_ordem", 1))
         
         if b.get("status_sincrono") == "rebate_ativo":
-            # Se estourou o tempo no rebate, avança a questão
             supabase.table("batalhas").update({
-                "pergunta_atual_ordem": ordem_atual + 1,
-                "status_sincrono": "aguardando_resposta",
-                "time_da_vez_id": str(time_adversario_id),
-                "inicio_turno": agora
+                "pergunta_atual_ordem": ordem_atual + 1, "status_sincrono": "aguardando_resposta",
+                "time_da_vez_id": str(time_adversario_id), "inicio_turno": agora
             }).eq("id", str(batalha_id)).execute()
         else:
-            # Se estourou na primeira tentativa, passa para o rebate
             supabase.table("batalhas").update({
-                "status_sincrono": "rebate_ativo",
-                "time_da_vez_id": str(time_adversario_id),
-                "inicio_turno": agora
+                "status_sincrono": "rebate_ativo", "time_da_vez_id": str(time_adversario_id), "inicio_turno": agora
             }).eq("id", str(batalha_id)).execute()
-    except Exception as e:
-        print(f"Erro ao passar a vez: {e}")
+    except Exception as e: print(f"Erro ao passar a vez: {e}")
 
 def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id, alternativa_correta, time_adversario_id, tentativa_atual):
-    """O coração da batalha. Registra a resposta e avança o estado da arena."""
     try:
-        # 1. Validação estrita de Foreign Keys
         if not eh_uuid_valido(time_id): return {"erro": "O aluno precisa estar em um time válido."}
         if not eh_uuid_valido(time_adversario_id): return {"erro": "A Equipe Adversária não está definida na arena."}
         
@@ -207,90 +287,48 @@ def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id,
         if not b: return {"erro": "Batalha não encontrada."}
         ordem_atual = int(b.get("pergunta_atual_ordem", 1))
 
-        # 2. Inserção na tabela batalha_respostas
         supabase.table("batalha_respostas").insert({
-            "batalha_id": str(batalha_id),
-            "questao_id": str(questao_id),
-            "time_id": str(time_id),
-            "alternativa_id": str(alternativa_id),
-            "resposta_correta": bool(alternativa_correta),
-            "tentativa_numero": int(tentativa_atual)
+            "batalha_id": str(batalha_id), "questao_id": str(questao_id), "time_id": str(time_id),
+            "alternativa_id": str(alternativa_id), "resposta_correta": bool(alternativa_correta), "tentativa_numero": int(tentativa_atual)
         }).execute()
 
-        # 3. Lógica de Máquina de Estados (Avanço da Rodada)
         agora = datetime.datetime.now(datetime.timezone.utc).isoformat()
         
         if alternativa_correta:
-            # Acertou: Avança a questão imediatamente
             supabase.table("batalhas").update({
-                "pergunta_atual_ordem": ordem_atual + 1,
-                "time_da_vez_id": str(time_adversario_id),
-                "status_sincrono": "aguardando_resposta",
-                "inicio_turno": agora
+                "pergunta_atual_ordem": ordem_atual + 1, "time_da_vez_id": str(time_adversario_id),
+                "status_sincrono": "aguardando_resposta", "inicio_turno": agora
             }).eq("id", str(batalha_id)).execute()
             return "acertou"
         else:
             if int(tentativa_atual) == 1:
-                # Errou na 1ª tentativa: Vai para o rebate
                 supabase.table("batalhas").update({
-                    "status_sincrono": "rebate_ativo",
-                    "time_da_vez_id": str(time_adversario_id),
-                    "inicio_turno": agora
+                    "status_sincrono": "rebate_ativo", "time_da_vez_id": str(time_adversario_id), "inicio_turno": agora
                 }).eq("id", str(batalha_id)).execute()
                 return "rebate"
             else:
-                # Errou no rebate: Avança a questão
                 supabase.table("batalhas").update({
-                    "pergunta_atual_ordem": ordem_atual + 1,
-                    "status_sincrono": "aguardando_resposta",
-                    "time_da_vez_id": str(time_adversario_id),
-                    "inicio_turno": agora
+                    "pergunta_atual_ordem": ordem_atual + 1, "status_sincrono": "aguardando_resposta",
+                    "time_da_vez_id": str(time_adversario_id), "inicio_turno": agora
                 }).eq("id", str(batalha_id)).execute()
                 return "ambos_erraram"
+    except Exception as e: return {"erro": f"Erro crítico no processamento: {str(e)}"}
 
-    except Exception as e:
-        return {"erro": f"Erro crítico no processamento: {str(e)}"}
-    
-# --- GERENCIAMENTO GERAL DE BATALHAS (Adicionado para a tela principal) ---
-
-def listar_batalhas_ativas():
-    """Busca todas as batalhas que estão agendadas ou em andamento."""
-    try:
-        # Busca ordenando pelas mais recentes
-        resposta = supabase.table("batalhas").select("*").in_("status", ["agendada", "em_andamento"]).order("created_at", descending=True).execute()
-        return resposta.data or []
-    except Exception as e:
-        print(f"Erro [listar_batalhas_ativas]: {e}")
-        return []
-
-def listar_historico_batalhas():
-    """Busca batalhas já finalizadas para a aba de histórico."""
-    try:
-        resposta = supabase.table("batalhas").select("*").eq("status", "finalizada").order("created_at", descending=True).execute()
-        return resposta.data or []
-    except Exception as e:
-        print(f"Erro [listar_historico_batalhas]: {e}")
-        return []
-
-def deletar_batalha(batalha_id):
-    """Deleta a batalha e seus vínculos em cascata para evitar erro de Foreign Key."""
+def encerrar_partida_sincrona(batalha_id):
     if not eh_uuid_valido(batalha_id): return False
     try:
-        b_id = str(batalha_id)
-        # 1. Deleta respostas
-        supabase.table("batalha_respostas").delete().eq("batalha_id", b_id).execute()
+        b = obter_estado_batalha(batalha_id)
+        t_a, t_b = str(b.get("time_a_id")), str(b.get("time_b_id"))
+        p_a, p_b = calcular_placar_atual(batalha_id, t_a, t_b)
         
-        # 2. Deleta alternativas vinculadas às questões da batalha
-        perguntas = supabase.table("batalha_perguntas").select("questao_id").eq("batalha_id", b_id).execute()
-        for p in perguntas.data:
-            supabase.table("alternativas").delete().eq("questao_id", p['questao_id']).execute()
-            
-        # 3. Deleta o vínculo das questões
-        supabase.table("batalha_perguntas").delete().eq("batalha_id", b_id).execute()
-        
-        # 4. Deleta a batalha principal
-        supabase.table("batalhas").delete().eq("id", b_id).execute()
+        desfecho = f"Resultado final: Time A {p_a} vs Time B {p_b}"
+        supabase.table("historico_batalhas").insert({
+            "batalha_id": str(batalha_id), "titulo": b.get("titulo"),
+            "time_a_nome": t_a, "time_b_nome": t_b,
+            "pontos_time_a": p_a, "pontos_time_b": p_b,
+            "resultado_extenso": desfecho
+        }).execute()
+
+        supabase.table("batalhas").update({"status": "finalizada", "finalizada": True}).eq("id", str(batalha_id)).execute()
         return True
-    except Exception as e:
-        print(f"Erro ao deletar batalha: {e}")
-        return False
+    except: return False
