@@ -72,6 +72,16 @@ def listar_membros_time(time_id: str):
     except Exception as e:
         print(f"Erro [listar_membros_time]: {e}")
         return []
+    
+def mover_aluno(usuario_id: str, novo_time_id: str) -> bool:
+    if not eh_uuid_valido(usuario_id) or not eh_uuid_valido(novo_time_id): return False
+    try:
+        supabase.table("time_membros").delete().eq("usuario_id", str(usuario_id).strip()).execute()
+        supabase.table("time_membros").insert({"time_id": str(novo_time_id).strip(), "usuario_id": str(usuario_id).strip()}).execute()
+        return True
+    except Exception as e:
+        print(f"Erro [mover_aluno]: {e}")
+        return False
 
 def remover_aluno(usuario_id: str) -> bool:
     if not eh_uuid_valido(usuario_id): return False

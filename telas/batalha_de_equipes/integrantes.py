@@ -3,7 +3,7 @@ import pandas as pd
 from database.conexao import supabase
 from services.batalha_service import (
     listar_times, listar_membros_time, listar_alunos,
-    adicionar_aluno, remover_aluno, blackjack_mover_aluno
+    adicionar_aluno, remover_aluno, mover_aluno
 )
 from utils.estilo import aplicar_estilo, cabecalho
 
@@ -94,6 +94,6 @@ def tela_batalha_integrantes():
                 destino_nome = st.selectbox("Selecione a equipe de destino:", [name for name in mapa_times.keys() if name != time_selecionado_nome], key="sb_destino_membro")
                 
                 if st.button("Executar Transferência", use_container_width=True, key="btn_mv_member_gov"):
-                    blackjack_mover_aluno(mapa_membros_ativos[sel_mv], mapa_times[destino_nome])
+                    mover_aluno(mapa_membros_ativos[sel_mv], mapa_times[destino_nome])
                     st.success(f"✅ Sucesso! Integrante transferido para o time '{destino_nome}'.")
                     st.rerun()
