@@ -39,28 +39,38 @@ def tela_desafios():
         aba_lista = st.container()
         aba_cadastro = None
 
+    # --- ABA DE CADASTRO (EXCLUSIVA DO DOCENTE) ---
     if aba_cadastro:
         with aba_cadastro:
             st.markdown("### ➕ Criar Novo Desafio Prático")
+            
+            # O formulário garante que todos os campos sejam enviados juntos
             with st.form("form_novo_desafio_modular", clear_on_submit=True):
-                titulo = st.text_input("Título do Desafio:")
-                descricao = st.text_area("Enunciado / Requisitos Técnicos:", placeholder="Descreva aqui o desafio...")
+                titulo = st.text_input("Título do Desafio:", placeholder="Ex: Otimização de Consultas SQL")
+                # O uso de 'key' ajuda a manter a integridade do dado no Streamlit
+                descricao = st.text_area("Enunciado / Requisitos Técnicos:", placeholder="Descreva os requisitos...")
+                
                 col_n, col_d = st.columns(2)
                 nivel = col_n.selectbox("Nível de Complexidade:", ["Fácil", "Intermediário", "Difícil"])
                 data_limite = col_d.date_input("Data Limite de Entrega:", min_value=datetime.date.today())
                 
                 btn_publicar = st.form_submit_button("🔥 Publicar Desafio", use_container_width=True)
+                
                 if btn_publicar:
+                    # Validação crítica antes de chamar o serviço
                     if not titulo.strip() or not descricao.strip():
-                        st.error("🛑 O título e o enunciado são obrigatórios.")
+                        st.error("🛑 Título e Enunciado são obrigatórios!")
                     else:
-                        res = criar_desafio(titulo, descricao, usuario_id, str(data_limite), nivel)
-                        if res.get("sucesso"):
-                            st.success("Desafio cadastrado!")
-                            time.sleep(1)
-                            st.rerun()
-                        else:
-                            st.error(f"Erro: {res.get('mensagem')}")
+                        with st.spinner("Publicando desafio..."):
+                            # Chamada ao service (agora com a coluna 'criado_por' corrigida)
+                            res = criar_desafio(titulo, descricao, usuario_id, str(data_limite), nivel)
+                            
+                            if res.get("sucesso"):
+                                st.success("🎉 Desafio cadastrado com sucesso!")
+                                time.sleep(1.5)
+                                st.rerun() # Atualiza a página para mostrar o novo desafio na listagem
+                            else:
+                                st.error(f"❌ Erro ao salvar: {res.get('mensagem')}")
 
     with aba_lista:
         desafios_ativos = listar_desafios() or []
