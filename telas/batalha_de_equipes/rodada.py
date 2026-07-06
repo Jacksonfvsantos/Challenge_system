@@ -4,8 +4,8 @@ from database.conexao import supabase
 from services.batalha_service import (
     encerrar_partida_sincrona, processar_resposta_sincrona, 
     obter_estado_batalha, obter_pergunta_atual, obter_time_do_usuario, 
-    calcular_placar_atual, obter_nomes_dos_times, processar_passagem_de_vez, 
-    iniciar_partida_sincrona, listar_times
+    calcular_placar_atual, obter_nomes_dos_times, iniciar_partida_sincrona, 
+    listar_times, obter_total_questoes
 )
 from utils.estilo import aplicar_estilo
 
@@ -107,10 +107,25 @@ def tela_batalha_rodada():
                 else:
                     st.warning("Cadastre pelo menos 2 equipes na aba anterior para iniciar.")
                     
-            col1, col2 = st.columns(2)
-            if col1.button("⏹️ Encerrar Partida"): encerrar_partida_sincrona(b_id); st.session_state.pagina = "batalha_resultado"; st.rerun()
-            if col2.button("⏩ Pular Questão"): supabase.table("batalhas").update({"pergunta_atual_ordem": int(b.get("pergunta_atual_ordem", 1)) + 1}).eq("id", b_id).execute(); st.rerun()
 
+            col1, col2 = st.columns(2)
+            if col1.button("⏹️ Encerrar Partida"): 
+                encerrar_partida_sincrona(b_id)
+                st.session_state.pagina = "batalha_resultado"
+                st.rerun()
+                
+            if col2.button("⏩ Pular Questão"): 
+                ordem_atual = int(b.get("pergunta_atual_ordem", 1))
+                total_q = obter_total_questoes(b_id)
+                
+                # Se pular a última, o jogo acaba automaticamente
+                if ordem_atual >= total_q:
+                    encerrar_partida_sincrona(b_id)
+                else:
+                    supabase.table("batalhas").update({"pergunta_atual_ordem": ordem_atual + 1}).eq("id", b_id).execute()
+                
+                st.rerun()
+                
     if b.get("status") == "em_andamento":
         u = st.session_state.get("usuario_logado", {})
         times_usuario = obter_time_do_usuario(u.get("id"))

@@ -219,6 +219,15 @@ def obter_pergunta_atual(batalha_id, ordem):
     except Exception as e:
         print(f"Erro ao buscar pergunta: {e}")
         return None
+    
+def obter_total_questoes(batalha_id):
+    """Conta quantas questões existem vinculadas a esta batalha."""
+    if not eh_uuid_valido(batalha_id): return 0
+    try:
+        res = supabase.table("batalha_perguntas").select("id", count='exact').eq("batalha_id", str(batalha_id)).execute()
+        return res.count or 0
+    except Exception: 
+        return 0
 
 def cadastrar_questao_rapida(batalha_id: str, enunciado: str, alternativas_lista: list, correta_idx: int) -> bool:
     if not eh_uuid_valido(batalha_id): return False
@@ -302,8 +311,11 @@ def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id,
         
         b = obter_estado_batalha(batalha_id)
         if not b: return {"erro": "Batalha não encontrada."}
+        
         ordem_atual = int(b.get("pergunta_atual_ordem", 1))
+        total_questoes = obter_total_questoes(batalha_id) # Conta o limite da arena
 
+        # Salva a resposta no banco
         supabase.table("batalha_respostas").insert({
             "batalha_id": str(batalha_id), "questao_id": str(questao_id), "time_id": str(time_id),
             "alternativa_id": str(alternativa_id), "resposta_correta": bool(alternativa_correta), "tentativa_numero": int(tentativa_atual)
@@ -312,23 +324,34 @@ def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id,
         agora = datetime.datetime.now(datetime.timezone.utc).isoformat()
         
         if alternativa_correta:
-            supabase.table("batalhas").update({
-                "pergunta_atual_ordem": ordem_atual + 1, "time_da_vez_id": str(time_adversario_id),
-                "status_sincrono": "aguardando_resposta", "inicio_turno": agora
-            }).eq("id", str(batalha_id)).execute()
-            return "acertou"
+            # Se acertou a última, encerra a partida
+            if ordem_atual >= total_questoes:
+                encerrar_partida_sincrona(batalha_id)
+                return "fim_de_jogo"
+            else:
+                supabase.table("batalhas").update({
+                    "pergunta_atual_ordem": ordem_atual + 1, "time_da_vez_id": str(time_adversario_id),
+                    "status_sincrono": "aguardando_resposta", "inicio_turno": agora
+                }).eq("id", str(batalha_id)).execute()
+                return "acertou"
         else:
             if int(tentativa_atual) == 1:
+                # Primeira tentativa errada: vai para o rebate (não avança)
                 supabase.table("batalhas").update({
                     "status_sincrono": "rebate_ativo", "time_da_vez_id": str(time_adversario_id), "inicio_turno": agora
                 }).eq("id", str(batalha_id)).execute()
                 return "rebate"
             else:
-                supabase.table("batalhas").update({
-                    "pergunta_atual_ordem": ordem_atual + 1, "status_sincrono": "aguardando_resposta",
-                    "time_da_vez_id": str(time_adversario_id), "inicio_turno": agora
-                }).eq("id", str(batalha_id)).execute()
-                return "ambos_erraram"
+                # Errou no rebate na última questão: encerra a partida
+                if ordem_atual >= total_questoes:
+                    encerrar_partida_sincrona(batalha_id)
+                    return "fim_de_jogo"
+                else:
+                    supabase.table("batalhas").update({
+                        "pergunta_atual_ordem": ordem_atual + 1, "status_sincrono": "aguardando_resposta",
+                        "time_da_vez_id": str(time_adversario_id), "inicio_turno": agora
+                    }).eq("id", str(batalha_id)).execute()
+                    return "ambos_erraram"
     except Exception as e: return {"erro": f"Erro crítico no processamento: {str(e)}"}
 
 def encerrar_partida_sincrona(batalha_id):
