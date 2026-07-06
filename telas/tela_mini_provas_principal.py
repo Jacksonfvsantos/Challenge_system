@@ -5,7 +5,8 @@ from utils.estilo import aplicar_estilo, cabecalho, formatar_titulo_aba
 
 def tela_mini_provas():
     aplicar_estilo()
-    cabecalho("Mini-provas", "Realize as avaliações modulares")
+    cabecalho("Avaliações Modulares", "Realize as provas disponíveis e acompanhe seu desempenho")
+
 
     usuario = st.session_state.get("usuario_logado", {})
     tipo_usuario = str(usuario.get("tipo_usuario", "aluno")).lower()
