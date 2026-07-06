@@ -17,8 +17,8 @@ def tela_recompensas():
     tipo_usuario = str(usuario.get("tipo_usuario", "aluno")).lower()
     
     cabecalho(
-        "🏆 Vitrine de Recompensas Acadêmicas",
-        "Solicite resgates de insígnias ou gerencie aprovações de bônus e vantagens"
+        "🏆 Vitrine de Recompensas",
+        "Acompanhe suas insígnias, troque seus pontos e gerencie seus benefícios."
     )
 
     if tipo_usuario in ("professor", "admin"):

@@ -4,20 +4,20 @@ from utils.estilo import aplicar_estilo, cabecalho
 def tela_central_regras():
     aplicar_estilo()
     cabecalho(
-        "📖 Manual da Plataforma e Regras de Conduta",
-        "Consulte os objetivos de cada módulo, critérios de pontuação e diretrizes de Fair Play."
+        "📖 Regras e Conduta",
+        "Consulte as diretrizes de Fair Play, objetivos dos módulos e pontuação."
     )
 
     aba_geral, aba_desafios, aba_provas, aba_quiz, aba_batalhas = st.tabs([
         "🛡️ Diretrizes Gerais",
         "🎯 1. Desafios",
-        "📝 2. Mini-Provas",
-        "🎮 3. Quiz ao Vivo",
-        "⚔️ 4. Batalha em Equipe"
+        "📝 2. Provas Modulares",
+        "🎮 3. Quiz em Tempo Real",
+        "⚔️ 4. Arena em Equipe"
     ])
 
     with aba_geral:
-        st.subheader("Código de Ética e Fair Play")
+        st.subheader("Regras e Conduta")
         st.write("A nossa plataforma foi idealizada para fomentar o aprendizado colaborativo e a evolução prática ativa. Para garantir um ambiente saudável, todos os participantes devem seguir as regras abaixo:")
         with st.container(border=True):
             st.markdown("""
@@ -46,7 +46,7 @@ def tela_central_regras():
             """)
 
     with aba_provas:
-        st.subheader("Módulo de Mini-Provas (Quiz Assíncrono)")
+        st.subheader("Módulo de Provas Modulares")
         col1, col2 = st.columns(2)
         with col1:
             with st.container(border=True):
@@ -64,7 +64,7 @@ def tela_central_regras():
             """)
 
     with aba_quiz:
-        st.subheader("Módulo de Quiz ao Vivo (Síncrono)")
+        st.subheader("Módulo de Quiz em Tempo Real (Síncrono)")
         col1, col2 = st.columns(2)
         with col1:
             with st.container(border=True):
@@ -83,7 +83,7 @@ def tela_central_regras():
             """)
 
     with aba_batalhas:
-        st.subheader("Módulo de Batalhas de Engenharia")
+        st.subheader("Módulo de Arena de Equipes (Síncrono e Assíncrono)")
         col1, col2 = st.columns(2)
         with col1:
             with st.container(border=True):

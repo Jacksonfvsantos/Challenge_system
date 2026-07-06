@@ -10,7 +10,7 @@ def tela_home():
     
     cabecalho(
         f"Olá, {nome_usuario}!",
-        "Bem-vindo ao painel do Challenge System. Veja as novidades abaixo."
+        "Bem-vindo à sua Visão Geral. Veja as novidades e seus próximos passos aqui."
     )
     
     st.subheader("Desafios em Destaque")

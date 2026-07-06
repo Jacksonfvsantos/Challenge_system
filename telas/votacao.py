@@ -15,7 +15,7 @@ def tela_votacao():
     tipo = usuario.get("tipo_usuario", "aluno")
     usuario_id_logado = str(usuario.get("id", ""))
 
-    cabecalho("Sistema de Votação", "Avalie os projetos desenvolvidos pelos seus colegas por meio de notas.")
+    cabecalho("Avaliação e Votos", "Avalie os projetos dos seus colegas e contribua com feedbacks construtivos.")
 
     if tipo == "professor":
         st.subheader("📊 Painel de Monitoramento de Auditoria de Notas")

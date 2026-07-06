@@ -9,7 +9,7 @@ def tela_mini_provas():
         st.session_state.alto_contraste = False
 
     usuario = st.session_state.usuario_logado
-    cabecalho("Mini-provas", "Realize as provas disponíveis")
+    cabecalho("Avaliações Modulares", "Realize as provas disponíveis e acompanhe seu desempenho")
 
     col1, col2, col3 = st.columns(3)
     with col1:

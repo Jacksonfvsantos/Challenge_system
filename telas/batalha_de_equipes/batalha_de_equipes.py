@@ -18,7 +18,7 @@ def tela_batalha_de_equipes():
     usuario_id = str(usuario.get("id", "")).strip()
     tipo_usuario = str(usuario.get("tipo_usuario", "aluno")).lower()
     
-    cabecalho("⚔️ Arena de Batalha de Equipes", "Participe de desafios síncronos e assíncronos em tempo real")
+    cabecalho("⚔️ Arena de Equipes", "Participe de desafios síncronos e assíncronos")
 
     # --- MENU DE NAVEGAÇÃO RÁPIDA ---
     st.write("")

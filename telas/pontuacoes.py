@@ -10,8 +10,8 @@ def tela_pontuacoes():
     usuario_id = str(usuario.get("id", ""))
 
     cabecalho(
-        "🏆 Central de Pontuações e Recompensas",
-        "Acompanhe o seu engajamento acadêmico e evolução nas trilhas práticas"
+        "🏆 Ranking Geral",
+        "Confira sua posição frente à turma e acompanhe sua evolução acadêmica."
     )
 
     if tipo == "professor":

@@ -28,8 +28,8 @@ def tela_desafios():
     tipo_usuario = str(usuario.get("tipo_usuario", "aluno")).lower()
     
     cabecalho(
-        "🎯 Central de Desafios Operacionais", 
-        "Participe de projetos práticos da engenharia, submeta soluções robustas e eleve seu XP"
+        "🎯 Central de Desafios Práticos", 
+        "Resolva Problemas reais, submeta suas soluções e ganhe pontos para subir no Ranking Geral"
     )
 
     if tipo_usuario in ("professor", "admin"):

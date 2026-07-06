@@ -8,7 +8,7 @@ def tela_quiz_ao_vivo():
     tipo = str(usuario.get("tipo_usuario", "aluno")).lower()
     usuario_id = usuario.get("id")
     
-    cabecalho("🎮 Quiz ao Vivo", "Salas síncronas disponíveis para interação")
+    cabecalho("🎮 Quiz em Tempo Real", "Teste o seu conhecimento")
 
     if tipo in ("professor", "admin"):
         with st.expander("➕ Criar Nova Sala de Quiz"):
