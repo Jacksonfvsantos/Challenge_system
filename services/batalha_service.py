@@ -385,23 +385,39 @@ def processar_resposta_sincrona(batalha_id, questao_id, time_id, alternativa_id,
     except Exception as e: return {"erro": f"Erro crítico no processamento: {str(e)}"}
 
 def encerrar_partida_sincrona(batalha_id):
-    if not eh_uuid_valido(batalha_id): return False
     try:
-        b = obter_estado_batalha(batalha_id)
-        t_a, t_b = str(b.get("time_a_id")), str(b.get("time_b_id"))
-        p_a, p_b = calcular_placar_atual(batalha_id, t_a, t_b)
+        res_b = supabase.table("batalhas").select("*").eq("id", batalha_id).execute()
+        if not res_b.data: return False
+        b = res_b.data[0]
         
-        desfecho = f"Resultado final: Time A {p_a} vs Time B {p_b}"
+        t_a, t_b = b.get("time_a_id"), b.get("time_b_id")
+        
+        # 1. Busca os nomes reais e exatos das equipes no banco de dados
+        nome_ta, nome_tb = obter_nomes_dos_times(t_a, t_b)
+        
+        resp = supabase.table("batalha_respostas").select("time_id, resposta_correta").eq("batalha_id", batalha_id).execute()
+        p_a = sum(1 for r in resp.data if str(r.get("time_id")).strip() == str(t_a).strip() and r.get("resposta_correta"))
+        p_b = sum(1 for r in resp.data if str(r.get("time_id")).strip() == str(t_b).strip() and r.get("resposta_correta"))
+
+        # 2. Formata a mensagem de desfecho utilizando os nomes reais
+        desfecho = f"Resultado final: {nome_ta} ({p_a}) vs {nome_tb} ({p_b})"
+        
+        # 3. Salva no histórico o nome de fato, e não mais a ID
         supabase.table("historico_batalhas").insert({
-            "batalha_id": str(batalha_id), "titulo": b.get("titulo"),
-            "time_a_nome": t_a, "time_b_nome": t_b,
-            "pontos_time_a": p_a, "pontos_time_b": p_b,
+            "batalha_id": batalha_id, 
+            "titulo": b.get("titulo"),
+            "time_a_nome": nome_ta, 
+            "time_b_nome": nome_tb,
+            "pontos_time_a": p_a, 
+            "pontos_time_b": p_b,
             "resultado_extenso": desfecho
         }).execute()
 
-        supabase.table("batalhas").update({"status": "finalizada", "finalizada": True}).eq("id", str(batalha_id)).execute()
+        supabase.table("batalhas").update({"status": "finalizada", "finalizada": True}).eq("id", batalha_id).execute()
         return True
-    except: return False
+    except Exception as e:
+        print(f"❌ Erro ao encerrar: {e}")
+        return False
 
 def processar_resposta_assincrona(batalha_id, questao_id, time_id, alternativa_id, alternativa_correta):
     try:
