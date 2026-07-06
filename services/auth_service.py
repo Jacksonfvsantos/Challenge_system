@@ -69,41 +69,30 @@ def login_usuario(email, senha):
 
 def cadastrar_usuario(nome, email, senha):
     """
-    Cadastra o usuário automaticamente definindo seu tipo via e-mail.
+    Cadastra o usuário automaticamente com o perfil padrão de 'aluno'.
     """
     try:
         email_sanitizado = str(email).strip().lower()
         
-        # 1. Validação de Formato do E-mail
         if not eh_email_valido(email_sanitizado):
-            return "Formato de e-mail inválido. Use um e-mail real."
+            return "Formato de e-mail inválido."
             
-        # 2. Bloqueio de Provedores Temporários (Opcional, mas recomendado)
-        provedores_bloqueados = ["yopmail.com", "tempmail.com", "mailinator.com", "guerrillamail.com", "10minutemail.com"]
+        provedores_bloqueados = ["yopmail.com", "tempmail.com", "mailinator.com"]
         dominio = email_sanitizado.split("@")[1]
         if dominio in provedores_bloqueados:
-            return "E-mails temporários não são permitidos no sistema."
+            return "E-mails temporários não são permitidos."
 
-        # 3. Validação de Senha
         validar = senha_valida(senha)
         if validar != "ok":
             return validar
 
-        tipo_usuario = definir_tipo_usuario_por_email(email_sanitizado)
+        # 🚨 MUDANÇA AQUI: Todo mundo nasce como aluno
+        tipo_usuario = "aluno" 
 
-        # 4. Verifica duplicidade
-        verificar = (
-            supabase
-            .table("usuarios")
-            .select("id")
-            .eq("email", email_sanitizado)
-            .execute()
-        )
-
+        verificar = supabase.table("usuarios").select("id").eq("email", email_sanitizado).execute()
         if verificar.data:
             return "E-mail já cadastrado"
 
-        # 5. Cadastro no banco
         res_cadastro = supabase.table("usuarios").insert({
             "nome": nome.strip(),
             "email": email_sanitizado,
@@ -137,4 +126,19 @@ def excluir_conta_usuario(usuario_id: str) -> bool:
         return len(resposta.data) > 0
     except Exception as erro:
         print(f"Erro ao excluir conta: {erro}")
+        return False
+    
+def alterar_privilegio_usuario(usuario_alvo_id: str, novo_tipo: str) -> bool:
+    """Função exclusiva para o ADM promover ou rebaixar usuários."""
+    try:
+        if novo_tipo not in ["aluno", "professor", "admin"]:
+            return False
+            
+        resposta = supabase.table("usuarios").update({
+            "tipo_usuario": novo_tipo
+        }).eq("id", str(usuario_alvo_id).strip()).execute()
+        
+        return len(resposta.data) > 0
+    except Exception as e:
+        print(f"Erro ao alterar privilégio: {e}")
         return False
