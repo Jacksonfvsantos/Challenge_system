@@ -83,7 +83,7 @@ def tela_batalha_integrantes():
                 st.markdown("❌ **Remover Integrante**")
                 sel_rm = st.selectbox("Escolha quem deseja remover:", list(mapa_membros_ativos.keys()), key="sb_remover_membro")
                 if st.button("Confirmar Desvinculação", type="primary", use_container_width=True, key="btn_rm_member_gov"):
-                    remover_aluno(time_id_ativo, mapa_membros_ativos[sel_rm])
+                    remover_aluno(mapa_membros_ativos[sel_rm]) 
                     st.success("Membro removido da equipe com sucesso.")
                     st.rerun()
                     
