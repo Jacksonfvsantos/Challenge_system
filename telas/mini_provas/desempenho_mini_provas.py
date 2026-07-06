@@ -2,6 +2,17 @@ import streamlit as st
 from database.conexao import supabase
 from utils.estilo import aplicar_estilo, cabecalho
 
+def formatar_data_br(data_iso):
+    """Converte datas padrão ISO (YYYY-MM-DD) para o formato brasileiro (DD/MM/YYYY)."""
+    if not data_iso:
+        return "-"
+    try:
+        data_limpa = str(data_iso).split("T")[0]
+        ano, mes, dia = data_limpa.split("-")
+        return f"{dia}/{mes}/{ano}"
+    except Exception:
+        return data_iso
+
 def tela_desempenho_mini_provas():
     aplicar_estilo()
     
@@ -95,7 +106,7 @@ def tela_desempenho_mini_provas():
                     "E-mail institucional": email,
                     "Nota Final": media_calculada,
                     "XP Adquirido": info["xp"],
-                    "Data de Conclusão": info["ultima_data"].split("T")[0] if "T" in str(info["ultima_data"]) else str(info["ultima_data"])
+                    "Data de Conclusão": formatar_data_br(info["ultima_data"])
                 })
                 
             total_avaliados = len(dados_tabela)
@@ -107,8 +118,8 @@ def tela_desempenho_mini_provas():
             for item in logs_brutos:
                 dados_aluno = item.get("usuarios", {}) or {}
                 data_iso = item.get("data_realizacao", "")
-                data_formatada = data_iso.split("T")[0] if "T" in str(data_iso) else str(data_iso)
-                
+                data_formatada = formatar_data_br(data_iso)
+
                 dados_tabela.append({
                     "Nome do Aluno": dados_aluno.get("nome", "Desconhecido"),
                     "E-mail institucional": dados_aluno.get("email", "-"),
@@ -154,18 +165,20 @@ def tela_desempenho_mini_provas():
         st.table(dados_formatados_exibicao)
 
     else:
-        cabecalho("📊 Meu Desempenho Acadêmico", "Acompanhe sua evolução e estatísticas gerais de mini-provas")
-
+        # VISÃO DO ALUNO
+        cabecalho(f"📈 Meu Desempenho: {nome_usuario}", "Acompanhe sua jornada de aprendizado")
+        
         try:
-            res = (
+            res_logs = (
                 supabase.table("historico_provas")
-                .select("nota, pontuacao, data_realizacao")
+                .select("nota, pontuacao, data_realizacao, mini_provas(titulo)")
                 .eq("usuario_id", usuario_id)
+                .order("data_realizacao", desc=True)
                 .execute()
             )
-            logs = res.data or []
+            logs = res_logs.data or []
         except Exception as e:
-            st.error(f"Erro ao conectar com a base de dados de performance: {e}")
+            st.error(f"Erro ao carregar histórico: {e}")
             logs = []
 
         if not logs:
