@@ -1,5 +1,4 @@
 import streamlit as st
-from services.notificacao_service import listar_notificacoes_usuario
 
 def mostrar_menu(cookie_manager):
     usuario = st.session_state.get("usuario_logado", {})
@@ -13,15 +12,6 @@ def mostrar_menu(cookie_manager):
     cor_badge_fundo = "#1e3a8a" if perfil_usuario == "PROFESSOR" else "#065f46"
     cor_badge_texto = "#93c5fd" if perfil_usuario == "PROFESSOR" else "#a7f3d0"
     badge_emoji = "👨‍🏫" if perfil_usuario == "PROFESSOR" else "👨‍🎓"
-
-    # Lógica do Badge (apenas se houver usuário logado)
-    qtd_alertas = 0
-    if uid:
-        try:
-            nao_lidas = listar_notificacoes_usuario(uid, apenas_nao_lidas=True)
-            qtd_alertas = len(nao_lidas) if nao_lidas else 0
-        except:
-            qtd_alertas = 0
 
     with st.sidebar.container(border=True):
         st.markdown(f"""
@@ -46,12 +36,6 @@ def mostrar_menu(cookie_manager):
         <h5 style="color: #1b3a5c; margin-bottom: 0;">🗺️ Menu Principal</h5>
     </div>
     """, unsafe_allow_html=True)
-    
-    # Botão de Notificações com Badge
-    label_notif = f"🔔 Notificações ({qtd_alertas})" if qtd_alertas > 0 else "🔔 Notificações"
-    if st.sidebar.button(label_notif, use_container_width=True):
-        st.session_state.pagina = "notificacoes_mini_provas"
-        st.rerun()
 
     if st.sidebar.button("🏠 Início / Dashboard", use_container_width=True):
         st.session_state.pagina = "home"
