@@ -123,5 +123,14 @@ def tela_desafios():
                         participantes = listar_participantes(desafio_id) or []
                         with st.expander(f"📊 Ver inscritos ({len(participantes)})"):
                             for p in participantes:
-                                st.markdown(f"• **{p.get('usuarios', {}).get('nome', 'Alu')}** - `{p.get('status')}`")
-                                if p.get("submissao"): st.caption(f"🔗 Entrega: {p.get('submissao')}")
+                                nome = p.get('usuarios', {}).get('nome', 'Aluno sem nome')
+                                status = p.get('status')
+                                submissao = p.get('submissao')
+                                
+                                st.markdown(f"• **{nome}** - `{status}`")
+                                
+                                # Verifica se há uma submissão para exibir
+                                if submissao:
+                                    st.info(f"🔗 **Entrega do Aluno:** {submissao}")
+                                else:
+                                    st.caption("Ainda sem entrega.")

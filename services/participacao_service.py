@@ -22,9 +22,8 @@ def participar_desafio(desafio_id, usuario_id):
         return False
 
 def listar_participantes(desafio_id):
-    """Lista todos os participantes e suas submissões de um desafio específico."""
     try:
-        # Incluímos o campo 'submissao' na consulta para o professor visualizar
+        # Adicione 'submissao' ao select para trazer o texto/link enviado pelo aluno
         resposta = supabase.table("participantes_desafio") \
             .select("*, usuarios(nome), submissao") \
             .eq("desafio_id", desafio_id).execute()
