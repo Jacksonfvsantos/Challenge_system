@@ -23,6 +23,16 @@ def formatar_data_br(data_str):
 
 def tela_desafios():
     aplicar_estilo()
+    
+    # --- NOVO: Lógica de Redirecionamento via QR Code ---
+    params = st.query_params
+    desafio_id_url = params.get("desafio_id")
+    
+    # Se o parâmetro existir, você pode rolar a tela até ele ou abrir o expander dele
+    if desafio_id_url:
+        st.info(f"Redirecionado para o desafio: {desafio_id_url}")
+        # Aqui você pode salvar o desafio_id_url no session_state para destacar na lista
+        st.session_state["desafio_destaque"] = desafio_id_url
     usuario = st.session_state.get("usuario_logado", {})
     usuario_id = str(usuario.get("id", "")).strip()
     tipo_usuario = str(usuario.get("tipo_usuario", "aluno")).lower()

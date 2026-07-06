@@ -3,18 +3,14 @@ import qrcode
 from io import BytesIO
 
 def obter_url_base():
-    """
-    Detecta dinamicamente o domínio do app em produção ou fallback para localhost.
-    """
+    """Detecta dinamicamente o domínio do app em produção ou fallback para localhost."""
     url_cloud = st.secrets.get("URL_PRODUCAO")
     if url_cloud:
         return url_cloud.strip("/")
     return "http://localhost:8501"
 
 def gerar_qr_code(url_destino):
-    """
-    Monta a matriz de dados do QR Code diretamente em memória buffer.
-    """
+    """Monta a matriz de dados do QR Code diretamente em memória buffer."""
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_L,
@@ -29,21 +25,23 @@ def gerar_qr_code(url_destino):
     img.save(buf, format="PNG")
     return buf.getvalue()
 
-def exibir_painel_compartilhamento(tipo_sala, sala_id):
+def exibir_painel_compartilhamento(desafio_id):
     """
-    Renderiza um componente visual elegante contendo link, botão e o QR Code de escaneamento.
+    Renderiza o componente visual para o professor compartilhar o desafio específico.
+    Adequado para uso na tela de listagem de desafios.
     """
     url_base = obter_url_base()
-    url_completa = f"{url_base}/?sala={tipo_sala}&id={sala_id}"
+    # Adequado para passar o parâmetro desafio_id
+    url_completa = f"{url_base}/?desafio_id={desafio_id}"
     
-    st.markdown("#### 📢 Link de Acesso e Entrada Direta")
+    st.markdown("#### 📢 Partilhar Desafio Operacional")
     col_link, col_qr = st.columns([2, 1])
     
     with col_link:
-        st.markdown("**URL da Sala:**")
+        st.markdown("**URL Direta do Desafio:**")
         st.code(url_completa, language="text")
-        st.markdown(f"[🔗 Abrir Sala em Nova Aba]({url_completa})")
-        st.caption("Partilhe este link com a turma no chat da aula ou grupo de estudos.")
+        st.markdown(f"[🔗 Abrir Desafio em Nova Aba]({url_completa})")
+        st.caption("Distribua este link ou utilize o QR Code ao lado na projeção em sala.")
         
     with col_qr:
         st.markdown("**Acesso via Telemóvel:**")
