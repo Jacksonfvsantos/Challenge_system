@@ -1,9 +1,6 @@
 import datetime
 from database.conexao import supabase
 
-# =====================================================================
-# --- FUNÇÕES DE VALIDAÇÃO (Proteção contra o erro 22P02 do PostgreSQL)
-# =====================================================================
 def eh_uuid_valido(valor):
     """Verifica se o ID não é vazio ou a string literal 'None'"""
     if not valor or str(valor).strip().lower() == "none" or str(valor).strip() == "":
@@ -13,13 +10,37 @@ def eh_uuid_valido(valor):
 # =====================================================================
 # --- GERENCIAMENTO DE TIMES E ALUNOS
 # =====================================================================
-def criar_time(nome: str) -> bool:
-    if not nome or not nome.strip(): return False
+def criar_time(nome: str, usuario_id: str) -> bool:
+    if not nome or not nome.strip() or not eh_uuid_valido(usuario_id): return False
     try:
+        if aluno_tem_time(usuario_id): 
+            return False
+        
         resposta = supabase.table("times").insert({"nome": nome.strip()}).execute()
-        return bool(resposta.data and len(resposta.data) > 0)
+        if not resposta.data: return False
+        
+        time_id = resposta.data[0]["id"]
+        
+        supabase.table("time_membros").insert({
+            "time_id": time_id,
+            "usuario_id": str(usuario_id).strip(),
+            "papel": "capitao",
+            "status": "aceito"
+        }).execute()
+        
+        return True
     except Exception as erro:
         print(f"Erro [criar_time]: {erro}")
+        return False
+    
+def aceitar_membro(usuario_id: str) -> bool:
+    """Muda o status do membro de pendente para aceito."""
+    if not eh_uuid_valido(usuario_id): return False
+    try:
+        supabase.table("time_membros").update({"status": "aceito"}).eq("usuario_id", str(usuario_id).strip()).execute()
+        return True
+    except Exception as e:
+        print(f"Erro [aceitar_membro]: {e}")
         return False
 
 def listar_times():
@@ -117,6 +138,29 @@ def obter_nomes_dos_times(t_a, t_b):
             if res_b.data: nome_b = res_b.data[0]["nome"]
     except Exception as e: print(f"Erro ao buscar nomes: {e}")
     return nome_a, nome_b
+
+def verificar_capitao(usuario_id: str) -> bool:
+    """Verifica se o usuário logado possui o papel de capitão na sua equipe."""
+    try:
+        res = supabase.table("time_membros").select("papel").eq("usuario_id", str(usuario_id).strip()).execute()
+        if res.data and res.data[0].get("papel") == "capitao":
+            return True
+        return False
+    except Exception: return False
+
+def listar_membros_pendentes(time_id: str):
+    """Retorna apenas os alunos que solicitaram entrada e estão com status pendente."""
+    try:
+        res = supabase.table("time_membros").select("usuario_id, usuarios(id, nome, email)")\
+            .eq("time_id", str(time_id).strip()).eq("status", "pendente").execute()
+        membros = []
+        if res.data:
+            for item in res.data:
+                user_data = item.get("usuarios")
+                if isinstance(user_data, dict):
+                    membros.append({"id": user_data.get("id"), "nome": user_data.get("nome"), "email": user_data.get("email")})
+        return membros
+    except Exception: return []
 
 # =====================================================================
 # --- GERENCIAMENTO GERAL DE BATALHAS E PLACAR
@@ -450,11 +494,9 @@ def processar_resposta_assincrona(batalha_id, questao_id, time_id, alternativa_i
     try:
         if not eh_uuid_valido(time_id): return "erro"
         
-        # Trava de segurança: Verifica se a equipe já respondeu esta questão
         res = supabase.table("batalha_respostas").select("id").eq("batalha_id", str(batalha_id)).eq("questao_id", str(questao_id)).eq("time_id", str(time_id)).execute()
         if res.data: return "ja_respondida"
         
-        # Salva a resposta com tentativa 1 (sem mecânica de rebate)
         supabase.table("batalha_respostas").insert({
             "batalha_id": str(batalha_id), "questao_id": str(questao_id), 
             "time_id": str(time_id), "alternativa_id": str(alternativa_id), 

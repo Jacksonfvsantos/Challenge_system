@@ -8,8 +8,11 @@ from services.batalha_service import (
     entrar_no_time, 
     listar_membros_time,
     aluno_tem_time,
-    obter_time_do_usuario, # <-- Importação adicionada
-    remover_aluno          # <-- Importação adicionada
+    obter_time_do_usuario,
+    remover_aluno,
+    aceitar_membro,           # <-- Importação adicionada
+    verificar_capitao,        # <-- Importação adicionada
+    listar_membros_pendentes  # <-- Importação adicionada
 )
 
 def tela_batalha_times():
@@ -32,13 +35,36 @@ def tela_batalha_times():
         if possui_time:
             st.success("✅ Você já está devidamente alocado em uma equipe! Aguarde as instruções do professor na sala.")
             
+            times_do_aluno = obter_time_do_usuario(usuario_id)
+            if times_do_aluno and times_do_aluno[0]:
+                time_id = times_do_aluno[0]
+                
+                # --- PAINEL EXCLUSIVO DO CAPITÃO ---
+                if verificar_capitao(usuario_id):
+                    with st.expander("👑 Painel do Capitão - Gerenciar Solicitações", expanded=True):
+                        st.caption("Aprove ou ignore os pedidos de entrada de outros alunos no seu time.")
+                        pendentes = listar_membros_pendentes(time_id)
+                        
+                        if not pendentes:
+                            st.info("Nenhuma solicitação de entrada pendente no momento.")
+                        else:
+                            st.warning(f"Você tem {len(pendentes)} solicitação(ões) pendente(s)!")
+                            for p in pendentes:
+                                col_info, col_btn = st.columns([3, 1])
+                                col_info.markdown(f"👤 **{p['nome']}** ({p['email']})")
+                                if col_btn.button("Aceitar", key=f"acc_{p['id']}", type="primary", use_container_width=True):
+                                    if aceitar_membro(p['id']):
+                                        st.toast(f"✅ {p['nome']} foi aceito na equipe!")
+                                        time.sleep(1)
+                                        st.rerun()
+                                    else:
+                                        st.error("Erro ao aceitar membro.")
+                
             st.write("") # Espaço em branco
             
             # --- O BOTÃO DE SAIR DA EQUIPE ESTÁ AQUI ---
             if st.button("🚪 Sair da minha equipe atual", type="secondary"):
-                times_do_aluno = obter_time_do_usuario(usuario_id)
                 if times_do_aluno and times_do_aluno[0]:
-                    time_id = times_do_aluno[0]
                     if remover_aluno(time_id, usuario_id):
                         st.toast("Você saiu da equipe com sucesso.")
                         time.sleep(1)
@@ -60,7 +86,8 @@ def tela_batalha_times():
                         if not nome_novo_time.strip():
                             st.error("🛑 Digite um nome válido para o time.")
                         else:
-                            sucesso = criar_time(nome_novo_time)
+                            # Correção: Agora passando o usuario_id para registrar o capitão
+                            sucesso = criar_time(nome_novo_time, usuario_id) 
                             if sucesso:
                                 st.toast(f"🎉 Equipe '{nome_novo_time}' criada com sucesso!", icon="🚀")
                                 time.sleep(0.5)
@@ -87,11 +114,11 @@ def tela_batalha_times():
                         
                         if st.button("📥 Solicitar Entrada", use_container_width=True):
                             if entrar_no_time(time_selecionado["id"], usuario_id):
-                                st.toast(f"✅ Você agora faz parte do time {time_selecionado['nome']}!", icon="🤝")
-                                time.sleep(0.5)
+                                st.toast(f"⏳ Solicitação enviada! Aguarde o capitão do time {time_selecionado['nome']} aprovar.", icon="🤝")
+                                time.sleep(1.5)
                                 st.rerun()
                             else:
-                                st.error("❌ Falha ao entrar no time. Verifique se a equipa já está cheia.")
+                                st.error("❌ Falha ao solicitar entrada. Verifique se você já solicitou antes.")
 
         st.markdown("<br><br>", unsafe_allow_html=True)
         st.divider()
