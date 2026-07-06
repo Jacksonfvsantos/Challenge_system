@@ -38,6 +38,48 @@ def obter_nomes_dos_times(t_a, t_b):
         print(f"Erro ao buscar nomes: {e}")
     return nome_a, nome_b
 
+def criar_time(nome: str) -> bool:
+    """Cria um novo time no banco de dados."""
+    if not nome or not nome.strip():
+        return False
+    try:
+        payload = {"nome": nome.strip()}
+        resposta = supabase.table("times").insert(payload).execute()
+        return bool(resposta.data and len(resposta.data) > 0)
+    except Exception as erro:
+        print(f"Erro [criar_time]: {erro}")
+        return False
+
+def aluno_tem_time(usuario_id: str) -> bool:
+    """Verifica se o aluno já pertence a algum time."""
+    if not eh_uuid_valido(usuario_id): return False
+    try:
+        resposta = supabase.table("time_membros").select("id").eq("usuario_id", str(usuario_id).strip()).execute()
+        return len(resposta.data) > 0
+    except Exception:
+        return False
+
+def entrar_no_time(time_id: str, usuario_id: str) -> bool:
+    """Insere um aluno em um time específico."""
+    if not eh_uuid_valido(time_id) or not eh_uuid_valido(usuario_id): return False
+    if aluno_tem_time(usuario_id):
+        return False
+    try:
+        supabase.table("time_membros").insert({"time_id": str(time_id).strip(), "usuario_id": str(usuario_id).strip()}).execute()
+        return True
+    except Exception:
+        return False
+
+def listar_membros_time(time_id: str):
+    """Lista os alunos que pertencem a um determinado time."""
+    if not eh_uuid_valido(time_id): return []
+    try:
+        resposta = supabase.table("time_membros").select("*, usuarios(nome)").eq("time_id", str(time_id).strip()).execute()
+        return resposta.data or []
+    except Exception as e:
+        print(f"Erro [listar_membros_time]: {e}")
+        return []
+
 # --- ESTADO E PLACAR DA BATALHA ---
 def obter_estado_batalha(batalha_id):
     if not eh_uuid_valido(batalha_id): return None
