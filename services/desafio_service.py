@@ -31,3 +31,14 @@ def criar_desafio(titulo, descricao, criador_id, data_limite, nivel):
         return {"sucesso": True, "dados": res.data}
     except Exception as e:
         return {"sucesso": False, "mensagem": f"Erro: {str(e)}"}
+
+def deletar_desafio(desafio_id):
+    """Remove um desafio e suas dependências (votos e participações)."""
+    try:
+        supabase.table("votos").delete().eq("desafio_id", desafio_id).execute()
+        supabase.table("participantes_desafio").delete().eq("desafio_id", desafio_id).execute()
+        res = supabase.table("desafios").delete().eq("id", desafio_id).execute()
+        return len(res.data) > 0
+    except Exception as e:
+        print(f"Erro ao deletar desafio: {e}")
+        return False
