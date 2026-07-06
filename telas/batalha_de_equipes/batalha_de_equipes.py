@@ -22,9 +22,29 @@ def tela_batalha_de_equipes():
         
     cabecalho("⚔️ Arena de Batalha de Equipes", "Participe de desafios síncronos em tempo real")
 
-            # --- GOVERNANÇA DOCENTE ---
+    # --- MENU DE NAVEGAÇÃO RÁPIDA ---
+    st.write("") # Dá um pequeno respiro na tela
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Botão visível para todos (Alunos e Professores)
+        if st.button("👥 Minha Equipe / Central de Times", use_container_width=True):
+            st.session_state.pagina = "batalha_times"
+            st.rerun()
+            
+    with col2:
+        # Botão extra visível apenas para Professores
+        if tipo_usuario in ("professor", "admin"):
+            if st.button("🛠️ Gestão Avançada de Integrantes", use_container_width=True):
+                st.session_state.pagina = "batalha_integrantes"
+                st.rerun()
+
+    st.divider()
+
+    # --- GOVERNANÇA DOCENTE ---
     if tipo_usuario in ("professor", "admin"):
-        with st.expander("👨‍🏫 Governança Docente", expanded=True): # Deixei expandido para facilitar
+        with st.expander("👨‍🏫 Governança Docente", expanded=True):
+        # ... o resto do seu código continua normal daqui para baixo
             st.subheader("⚙️ Nova Arena")
             
             # 1. Puxa as equipes cadastradas no banco
