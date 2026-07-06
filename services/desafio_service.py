@@ -23,7 +23,7 @@ def criar_desafio(titulo, descricao, criador_id, data_limite, nivel):
         dados = {
             "titulo": str(titulo),
             "descricao": str(descricao),
-            "criador_id": str(criador_id),
+            "criado_por": str(criador_id),
             "nivel_dificuldade": str(nivel),
             "data_limite": str(data_limite)
         }
