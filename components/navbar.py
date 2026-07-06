@@ -52,20 +52,20 @@ def mostrar_menu(cookie_manager):
 
     st.sidebar.divider()
     
-    if st.sidebar.button("🎮 Quiz ao Vivo (Sala)", use_container_width=True):
-        st.session_state.pagina = "quiz_ao_vivo"
-        st.rerun()
-        
     if st.sidebar.button("⚔️ Batalha de Equipes", use_container_width=True):
         st.session_state.pagina = "batalha_de_equipes"
-        st.rerun()
-        
-    if st.sidebar.button("📝 Mini Provas Práticas", use_container_width=True):
-        st.session_state.pagina = "mini_provas"
         st.rerun()
 
     if st.sidebar.button("🎯 Desafios Operacionais", use_container_width=True):
         st.session_state.pagina = "desafios"
+        st.rerun()
+
+    if st.sidebar.button("📝 Mini Provas Práticas", use_container_width=True):
+        st.session_state.pagina = "mini_provas"
+        st.rerun()
+
+    if st.sidebar.button("🎮 Quiz ao Vivo (Sala)", use_container_width=True):
+        st.session_state.pagina = "quiz_ao_vivo"
         st.rerun()
 
     st.sidebar.divider()
