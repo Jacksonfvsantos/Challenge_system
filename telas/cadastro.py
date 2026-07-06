@@ -18,8 +18,6 @@ def tela_cadastro():
             nome = st.text_input("Nome completo", placeholder="Seu nome")
             email = st.text_input("E-mail", placeholder="seu@email.com")
             
-            # 🚨 O campo de 'Tipo de usuário' foi removido daqui
-            
             senha = st.text_input("Senha", type="password", placeholder="••••••••")
             confirmar_senha = st.text_input("Confirmar senha", type="password", placeholder="••••••••")
             
@@ -31,11 +29,10 @@ def tela_cadastro():
                 elif senha != confirmar_senha:
                     st.error("As senhas não conferem.")
                 else:
-                    # 🚨 Chamada atualizada apenas com os 3 parâmetros
                     resultado = cadastrar_usuario(nome, email, senha)
                     
                     if resultado == "ok":
-                        st.success("✅ Conta criada com sucesso! Você foi registrado como Aluno.")
+                        st.success("✅ Conta criada com sucesso!")
                         time.sleep(1.5)
                         st.session_state.pagina = "login"
                         st.rerun()

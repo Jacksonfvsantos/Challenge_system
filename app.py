@@ -43,12 +43,6 @@ def tela_batalha_integrantes():
         real_tela()
     except Exception as e: st.error(f"Erro ao carregar integrantes: {e}")
 
-def tela_gerenciar_batalhas(): 
-    try:
-        from telas.batalha_de_equipes.gerenciar_batalhas import tela_gerenciar_batalhas as real_tela
-        real_tela()
-    except Exception as e: st.error(f"Erro ao carregar gestão: {e}")
-
 def tela_batalha_rodada(): 
     try:
         from telas.batalha_de_equipes.rodada_sincrona import tela_batalha_rodada as real_tela
@@ -119,7 +113,6 @@ rotas = {
     "batalha_de_equipes": tela_batalha_de_equipes,
     "batalha_times": tela_batalha_times,
     "batalha_integrantes": tela_batalha_integrantes,
-    "batalha_gerenciar": tela_gerenciar_batalhas,
     "batalha_rodada": tela_batalha_rodada,
     "batalha_resultado": tela_batalha_resultado,
     "batalha_historico": tela_batalha_historico,
