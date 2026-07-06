@@ -62,7 +62,6 @@ def tela_batalha_de_equipes():
                         
                         if res.get("sucesso"):
                             st.success("✅ Arena criada com sucesso!")
-                            import time
                             time.sleep(1)
                             st.rerun()
                         else:
@@ -140,7 +139,6 @@ def tela_batalha_de_equipes():
                             
                             if questoes:
                                 if salvar_questoes_lote_ia(b_sel['id'], questoes)["sucesso"]:
-                                    st.balloons()
                                     st.success("Questões com imagens importadas com sucesso!")
                                     time.sleep(1.5)
                                     st.rerun()
