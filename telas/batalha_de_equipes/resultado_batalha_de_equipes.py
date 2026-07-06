@@ -16,15 +16,13 @@ def tela_batalha_resultado():
     
     if res.data:
         info = res.data[0]
-        t_a_id, t_b_id = info['time_a_nome'], info['time_b_nome']
         
-        res_times = supabase.table("times").select("id, nome").in_("id", [t_a_id, t_b_id]).execute()
-        mapa_nomes = {str(t['id']): t['nome'] for t in res_times.data}
+        # Como a nossa última melhoria já salva os nomes reais, 
+        # basta extraí-los diretamente do histórico!
+        nome_a = info.get('time_a_nome', 'Time A')
+        nome_b = info.get('time_b_nome', 'Time B')
         
-        nome_a = mapa_nomes.get(str(t_a_id), "Time A")
-        nome_b = mapa_nomes.get(str(t_b_id), "Time B")
-        
-        p_a, p_b = info['pontos_time_a'], info['pontos_time_b']
+        p_a, p_b = info.get('pontos_time_a', 0), info.get('pontos_time_b', 0)
         
         st.balloons()
         
@@ -37,6 +35,7 @@ def tela_batalha_resultado():
         with st.container(border=True):
             st.markdown(f"### Placar Final: {nome_a} {p_a} x {p_b} {nome_b}")
     
+    st.write("")
     if st.button("🏠 Voltar para a Arena"):
         st.session_state.pagina = "batalha_de_equipes"
         st.rerun()
