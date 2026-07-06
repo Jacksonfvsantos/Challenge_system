@@ -44,7 +44,7 @@ def tela_desafios():
             st.markdown("### ➕ Criar Novo Desafio Prático")
             with st.form("form_novo_desafio_modular", clear_on_submit=True):
                 titulo = st.text_input("Título do Desafio:")
-                descricao = st.text_area("Enunciado / Requisitos Técnicos:", key="input_desc")
+                descricao = st.text_area("Enunciado / Requisitos Técnicos:", placeholder="Descreva aqui o desafio...")
                 col_n, col_d = st.columns(2)
                 nivel = col_n.selectbox("Nível de Complexidade:", ["Fácil", "Intermediário", "Difícil"])
                 data_limite = col_d.date_input("Data Limite de Entrega:", min_value=datetime.date.today())
