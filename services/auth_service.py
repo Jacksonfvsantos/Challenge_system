@@ -142,3 +142,12 @@ def alterar_privilegio_usuario(usuario_alvo_id: str, novo_tipo: str) -> bool:
     except Exception as e:
         print(f"Erro ao alterar privilégio: {e}")
         return False
+    
+def listar_usuarios():
+    """Retorna todos os usuários cadastrados no sistema."""
+    try:
+        res = supabase.table("usuarios").select("id, nome, email, tipo_usuario").order("nome").execute()
+        return res.data or []
+    except Exception as e:
+        print(f"Erro ao listar usuários: {e}")
+        return []
