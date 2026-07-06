@@ -1,6 +1,7 @@
 import streamlit as st
 import datetime
 import time
+from utils.compartilhamento import exibir_painel_compartilhamento
 from utils.estilo import aplicar_estilo, cabecalho
 from services.desafio_service import listar_desafios, criar_desafio, deletar_desafio
 from services.participacao_service import (
@@ -144,3 +145,5 @@ def tela_desafios():
                                     st.info(f"🔗 **Entrega do Aluno:** {submissao}")
                                 else:
                                     st.caption("Ainda sem entrega.")
+                        st.divider()
+                        exibir_painel_compartilhamento(desafio_id)
