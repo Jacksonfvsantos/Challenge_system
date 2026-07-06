@@ -21,15 +21,18 @@ def participar_desafio(desafio_id, usuario_id):
     }).execute()
     return True
 
+def eh_uuid_valido(valor):
+    return valor and str(valor).strip() != "None" and str(valor).strip() != ""
+
 def listar_participantes(desafio_id):
-    resposta = (
-        supabase
-        .table("participantes_desafio")
-        .select("*, usuarios(nome)")
-        .eq("desafio_id", desafio_id)
-        .execute()
-    )
-    return resposta.data
+    if not eh_uuid_valido(desafio_id):
+        return []
+    try:
+        res = supabase.table("participantes_desafio").select("*, usuarios(nome)").eq("desafio_id", str(desafio_id)).execute()
+        return res.data
+    except Exception as e:
+        print(f"Erro no Supabase: {e}")
+        return []
 
 def concluir_desafio(desafio_id, usuario_id):
     supabase.table("participantes_desafio").update({
