@@ -79,6 +79,30 @@ def listar_membros_time(time_id: str):
     except Exception as e:
         print(f"Erro [listar_membros_time]: {e}")
         return []
+    
+def remover_aluno(usuario_id: str) -> bool:
+    """Remove o aluno do time atual."""
+    if not eh_uuid_valido(usuario_id): return False
+    try:
+        supabase.table("time_membros").delete().eq("usuario_id", str(usuario_id).strip()).execute()
+        return True
+    except Exception as e:
+        print(f"Erro [remover_aluno]: {e}")
+        return False
+
+def deletar_time(time_id: str) -> bool:
+    """Deleta um time e remove todos os seus membros para evitar erro de Foreign Key."""
+    if not eh_uuid_valido(time_id): return False
+    try:
+        # 1. Primeiro remove os membros vinculados ao time
+        supabase.table("time_membros").delete().eq("time_id", str(time_id).strip()).execute()
+        
+        # 2. Depois deleta o time principal
+        supabase.table("times").delete().eq("id", str(time_id).strip()).execute()
+        return True
+    except Exception as e:
+        print(f"Erro [deletar_time]: {e}")
+        return False
 
 # --- ESTADO E PLACAR DA BATALHA ---
 def obter_estado_batalha(batalha_id):
