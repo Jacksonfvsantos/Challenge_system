@@ -34,21 +34,16 @@ def criar_desafio(titulo, descricao, criador_id, data_limite, nivel):
 
 def deletar_desafio(desafio_id):
     try:
-        # A ordem deve ser rigorosamente esta:
-        # 1. Deletar tudo que depende do desafio
-        supabase.table("votos").delete().eq("desafio_id", desafio_id).execute()
-        supabase.table("participantes_desafio").delete().eq("desafio_id", desafio_id).execute()
+        # Tenta deletar as dependências
+        votos = supabase.table("votos").delete().eq("desafio_id", desafio_id).execute()
+        part = supabase.table("participantes_desafio").delete().eq("desafio_id", desafio_id).execute()
         
-        # 2. Finalmente, deletar o desafio
+        # Tenta deletar o desafio
         res = supabase.table("desafios").delete().eq("id", desafio_id).execute()
         
-        if res.data:
-            return True
-        else:
-            print("Nenhum dado retornado na deleção.")
-            return False
-            
+        return True
     except Exception as e:
-        # ISSO VAI MOSTRAR O ERRO REAL NO SEU TERMINAL/LOG
-        print(f"DEBUG ERRO DELEÇÃO: {e}") 
+        # Isso vai imprimir o erro detalhado no seu terminal (PGRST...)
+        print(f"--- ERRO DETALHADO DO SUPABASE ---")
+        print(e) 
         return False
