@@ -38,24 +38,25 @@ def gerar_questoes_ia(texto_base, prompt_adicional, api_key):
     )
     return json.loads(resposta.text).get("questoes", [])
 
-import json
-from google import genai
-from google.genai import types
 
 def gerar_questoes_ia_multimodal(arquivo_bytes, mime_type, prompt_custom, api_key):
-    """Envia o arquivo cru para o Gemini ler visualmente (incluindo imagens e prints de código)."""
+    """Envia o arquivo cru para o Gemini ler visualmente, forçando a separação estrita de alternativas."""
     try:
         client = genai.Client(api_key=api_key)
         
-        # Instrução rigorosa para a IA focar nas imagens
-        prompt_sistema = """Você é um especialista em criar questões de múltipla escolha para competições acadêmicas.
-Sua tarefa é ler o documento fornecido VISUALMENTE. 
-MUITO IMPORTANTE: O documento contém imagens (prints) com trechos de código. VOCÊ DEVE ler o código dentro dessas imagens e gerar questões técnicas baseadas neles."""
+        # Prompt reescrito com regras inegociáveis de formatação
+        prompt_sistema = """Você é um especialista em criar questões de múltipla escolha para competições de tecnologia.
+Sua tarefa é ler o documento fornecido VISUALMENTE. O documento contém imagens (prints) com trechos de código.
+
+REGRAS CRÍTICAS DE FORMATAÇÃO:
+1. O campo 'enunciado' DEVE conter APENAS o contexto da pergunta e o trecho de código (se houver). NUNCA coloque as opções de resposta dentro do texto do enunciado.
+2. O campo 'alternativas' DEVE ser uma lista contendo EXATAMENTE o texto de cada opção de resposta. Não retorne uma lista vazia e não use apenas letras soltas (ex: NUNCA faça ["A", "B", "C", "D"]). Extraia o conteúdo real de cada opção.
+3. Se a imagem contiver as opções, recorte-as do texto principal e mova-as exclusivamente para o array 'alternativas'.
+"""
         
         if prompt_custom:
             prompt_sistema += f"\n\nInstruções extras do professor: {prompt_custom}"
             
-        # Garante a estrutura exata para o banco de dados
         esquema_saida = types.Schema(
             type=types.Type.OBJECT,
             properties={
@@ -66,7 +67,11 @@ MUITO IMPORTANTE: O documento contém imagens (prints) com trechos de código. V
                         properties={
                             "enunciado": types.Schema(type=types.Type.STRING),
                             "correta_idx": types.Schema(type=types.Type.INTEGER),
-                            "alternativas": types.Schema(type=types.Type.ARRAY, items=types.Schema(type=types.Type.STRING))
+                            "alternativas": types.Schema(
+                                type=types.Type.ARRAY, 
+                                items=types.Schema(type=types.Type.STRING),
+                                description="Lista com as 4 opções de resposta formatadas em texto completo."
+                            )
                         },
                         required=["enunciado", "correta_idx", "alternativas"]
                     )
@@ -79,18 +84,16 @@ MUITO IMPORTANTE: O documento contém imagens (prints) com trechos de código. V
             system_instruction=prompt_sistema,
             response_mime_type="application/json",
             response_schema=esquema_saida,
-            temperature=0.5
+            temperature=0.3 # Reduzimos a temperatura de 0.5 para 0.3 para deixar a IA mais obediente e menos criativa
         )
         
-        # Prepara o arquivo diretamente da memória para o modelo
         documento_part = types.Part.from_bytes(
             data=arquivo_bytes,
             mime_type=mime_type
         )
         
-        conteudo_prompt = "Leia este documento e gere as questões (lembre-se de interpretar os códigos dentro das imagens)."
+        conteudo_prompt = "Leia este documento visualmente e gere as questões seguindo as regras críticas de separação de alternativas."
         
-        # Faz a chamada multimodal
         resposta = client.models.generate_content(
             model="gemini-2.5-flash",
             contents=[documento_part, conteudo_prompt],
