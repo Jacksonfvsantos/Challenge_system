@@ -82,7 +82,10 @@ def adicionar_aluno(time_id: str, usuario_id: str) -> bool:
 def listar_membros_time(time_id: str):
     if not eh_uuid_valido(time_id): return []
     try:
-        resposta = supabase.table("time_membros").select("usuario_id, usuarios(id, nome, email)").eq("time_id", str(time_id).strip()).execute()
+        resposta = supabase.table("time_membros").select("usuario_id, usuarios(id, nome, email)")\
+            .eq("time_id", str(time_id).strip())\
+            .eq("status", "aceito").execute()
+        
         membros = []
         if resposta.data:
             for item in resposta.data:
@@ -161,6 +164,31 @@ def listar_membros_pendentes(time_id: str):
                     membros.append({"id": user_data.get("id"), "nome": user_data.get("nome"), "email": user_data.get("email")})
         return membros
     except Exception: return []
+
+def obter_status_membro(usuario_id: str) -> str:
+    """
+    Retorna o status atual do aluno na equipe ('aceito', 'pendente').
+    Retorna None se ele não estiver vinculado a nenhuma equipe.
+    """
+    if not eh_uuid_valido(usuario_id): return None
+    try:
+        res = supabase.table("time_membros").select("status").eq("usuario_id", str(usuario_id).strip()).execute()
+        if res.data:
+            return res.data[0].get("status")
+        return None
+    except Exception as e:
+        print(f"Erro [obter_status_membro]: {e}")
+        return None
+    
+def recusar_membro(usuario_id: str) -> bool:
+    """Deleta o vínculo do aluno com a equipe (recusa a entrada ou remove do time)."""
+    if not eh_uuid_valido(usuario_id): return False
+    try:
+        supabase.table("time_membros").delete().eq("usuario_id", str(usuario_id).strip()).execute()
+        return True
+    except Exception as e:
+        print(f"Erro [recusar_membro]: {e}")
+        return False
 
 # =====================================================================
 # --- GERENCIAMENTO GERAL DE BATALHAS E PLACAR

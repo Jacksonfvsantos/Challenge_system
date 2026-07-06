@@ -10,9 +10,11 @@ from services.batalha_service import (
     aluno_tem_time,
     obter_time_do_usuario,
     remover_aluno,
-    aceitar_membro,           # <-- Importação adicionada
-    verificar_capitao,        # <-- Importação adicionada
-    listar_membros_pendentes  # <-- Importação adicionada
+    aceitar_membro,           
+    verificar_capitao,        
+    listar_membros_pendentes,
+    obter_status_membro,      # <-- Nova Importação
+    recusar_membro            # <-- Nova Importação
 )
 
 def tela_batalha_times():
@@ -33,16 +35,30 @@ def tela_batalha_times():
         possui_time = aluno_tem_time(usuario_id)
         
         if possui_time:
-            st.success("✅ Você já está devidamente alocado em uma equipe! Aguarde as instruções do professor na sala.")
-            
+            # 1. Busca o status real do aluno (Pendente ou Aceito)
+            status_membro = obter_status_membro(usuario_id)
             times_do_aluno = obter_time_do_usuario(usuario_id)
-            if times_do_aluno and times_do_aluno[0]:
-                time_id = times_do_aluno[0]
+            time_id = times_do_aluno[0] if times_do_aluno else None
+            
+            # --- FLUXO 1: ALUNO EM ESPERA ---
+            if status_membro == "pendente":
+                st.warning("⏳ **Solicitação em análise!** Você solicitou entrada nesta equipe e está aguardando a aprovação do Capitão.")
+                st.caption("Enquanto o Capitão não aprovar, você não terá acesso à Arena Síncrona pela equipe.")
+                
+                if st.button("❌ Cancelar Solicitação", type="secondary"):
+                    if recusar_membro(usuario_id):
+                        st.toast("Solicitação cancelada com sucesso.")
+                        time.sleep(1)
+                        st.rerun()
+                        
+            # --- FLUXO 2: ALUNO ACEITO OFICIALMENTE ---
+            elif status_membro == "aceito":
+                st.success("✅ Você já está devidamente alocado em uma equipe oficial! Aguarde as instruções do professor na sala.")
                 
                 # --- PAINEL EXCLUSIVO DO CAPITÃO ---
-                if verificar_capitao(usuario_id):
+                if verificar_capitao(usuario_id) and time_id:
                     with st.expander("👑 Painel do Capitão - Gerenciar Solicitações", expanded=True):
-                        st.caption("Aprove ou ignore os pedidos de entrada de outros alunos no seu time.")
+                        st.caption("Aprove ou recuse os pedidos de entrada de outros alunos no seu time.")
                         pendentes = listar_membros_pendentes(time_id)
                         
                         if not pendentes:
@@ -50,22 +66,29 @@ def tela_batalha_times():
                         else:
                             st.warning(f"Você tem {len(pendentes)} solicitação(ões) pendente(s)!")
                             for p in pendentes:
-                                col_info, col_btn = st.columns([3, 1])
-                                col_info.markdown(f"👤 **{p['nome']}** ({p['email']})")
-                                if col_btn.button("Aceitar", key=f"acc_{p['id']}", type="primary", use_container_width=True):
+                                col_info, col_acc, col_rec = st.columns([2, 1, 1])
+                                col_info.markdown(f"👤 **{p['nome']}**")
+                                
+                                # Botão de Aceitar
+                                if col_acc.button("✅ Aceitar", key=f"acc_{p['id']}", type="primary", use_container_width=True):
                                     if aceitar_membro(p['id']):
-                                        st.toast(f"✅ {p['nome']} foi aceito na equipe!")
+                                        st.toast(f"✅ {p['nome']} agora é da equipe!")
                                         time.sleep(1)
                                         st.rerun()
-                                    else:
-                                        st.error("Erro ao aceitar membro.")
+                                        
+                                # Botão de Recusar (Novo!)
+                                if col_rec.button("❌ Recusar", key=f"rec_{p['id']}", type="secondary", use_container_width=True):
+                                    if recusar_membro(p['id']):
+                                        st.toast(f"❌ Solicitação de {p['nome']} foi recusada.")
+                                        time.sleep(1)
+                                        st.rerun()
                 
-            st.write("") # Espaço em branco
-            
-            # --- O BOTÃO DE SAIR DA EQUIPE ESTÁ AQUI ---
-            if st.button("🚪 Sair da minha equipe atual", type="secondary"):
-                if times_do_aluno and times_do_aluno[0]:
-                    if remover_aluno(time_id, usuario_id):
+                st.write("") 
+                
+                # O botão de Sair da Equipe
+                if st.button("🚪 Sair da minha equipe atual", type="secondary"):
+                    # Utilizando a função recusar_membro para remover o próprio vínculo
+                    if recusar_membro(usuario_id):
                         st.toast("Você saiu da equipe com sucesso.")
                         time.sleep(1)
                         st.rerun()
@@ -86,7 +109,6 @@ def tela_batalha_times():
                         if not nome_novo_time.strip():
                             st.error("🛑 Digite um nome válido para o time.")
                         else:
-                            # Correção: Agora passando o usuario_id para registrar o capitão
                             sucesso = criar_time(nome_novo_time, usuario_id) 
                             if sucesso:
                                 st.toast(f"🎉 Equipe '{nome_novo_time}' criada com sucesso!", icon="🚀")
@@ -123,9 +145,9 @@ def tela_batalha_times():
         st.markdown("<br><br>", unsafe_allow_html=True)
         st.divider()
 
-    # Esta seção debaixo (Mural) aparece para TODO MUNDO (Aluno e Professor)
-    st.markdown("### 📊 Mural das Equipes Registadas")
-    st.caption("Confira abaixo a composição atual de cada time do ecossistema:")
+    # --- MURAL DAS EQUIPES ---
+    st.markdown("### 📊 Mural das Equipes Oficiais")
+    st.caption("Confira abaixo a composição atual (membros aceitos) de cada time do ecossistema:")
     
     todos_times = listar_times()
     
@@ -139,13 +161,14 @@ def tela_batalha_times():
                 t1 = todos_times[i]
                 with st.container(border=True):
                     st.markdown(f"#### 🏢 {t1['nome']}")
-                    membros_t1 = listar_membros_time(t1["id"])
+                    # A função listar_membros_time agora traz APENAS os membros aceitos
+                    membros_t1 = listar_membros_time(t1["id"]) 
                     
                     if not membros_t1:
-                        st.caption("Empty 👥 — Equipa sem integrantes alocados.")
+                        st.caption("Empty 👥 — Sem membros confirmados.")
                     else:
                         for m in membros_t1:
-                            st.markdown(f"• **{m['nome']}** ({m['email']})")
+                            st.markdown(f"• **{m['nome']}**")
             
             if i + 1 < len(todos_times):
                 with cols_grid[1]:
@@ -155,10 +178,10 @@ def tela_batalha_times():
                         membros_t2 = listar_membros_time(t2["id"])
                         
                         if not membros_t2:
-                            st.caption("Empty 👥 — Equipa sem integrantes alocados.")
+                            st.caption("Empty 👥 — Sem membros confirmados.")
                         else:
                             for m in membros_t2:
-                                st.markdown(f"• **{m['nome']}** ({m['email']})")
+                                st.markdown(f"• **{m['nome']}**")
 
     st.markdown("<br><br>", unsafe_allow_html=True)
     if st.button("⬅️ Voltar para a Arena de Batalhas", use_container_width=True, key="btn_back_times_to_arena"):
